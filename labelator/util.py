@@ -51,6 +51,12 @@ def read_csv_to_coo_matrix(file_path:str|Path, filter_features:list|None = None)
                 # read the entire line
                 id,*cnts = line.strip().split(',')
                 ids.append(id)
+
+                # HACK: for some reason there is a trailing comma.
+                if cnts[-1] == '':
+                    cnts = cnts[:-1]
+                    print(f"WARNING: line {frow_idx} had a trailing comma")
+
                 # Split the line into values and convert them to 8-bit integers
                 values = np.array(cnts, dtype=np.uint8)
                 
