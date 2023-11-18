@@ -5,8 +5,10 @@ import pandas as pd
 from scipy.sparse import csr_matrix, coo_matrix
 import numpy as np
 from pathlib import Path
+import scanpy as sc
 
-
+import tarfile
+import tempfile
 
 
 def read_csv_to_coo_matrix(file_path:str|Path, filter_features:list|None = None) -> tuple[coo_matrix, list, list]:
@@ -116,3 +118,65 @@ def make_anndata_from_bigcsv(big_csv_file_path:str|Path,
 
     adat_out = ad.AnnData(X=sparse_matrix_coo.transpose().tocsr(), obs=meta_obs, var=meta_var)
     return adat_out
+
+
+
+
+def load_10x_tar_gz(tar_gz_path):
+    """
+    Process a tar.gz file to convert its count matrix to an AnnData object using anndata.read_10x_mtx.
+
+    :param tar_gz_path: Path to the tar.gz file.
+    :param output_dir: Directory to store the output AnnData object.
+    """
+    tar_gz_path = Path(tar_gz_path)
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        with tarfile.open(tar_gz_path, "r:gz") as tar:
+            # Extract the contents of the tar.gz file
+            tar.extractall(path=temp_dir)
+
+            matrix_dir = Path(temp_dir) / tar_gz_path.stem.rstrip(".tar")
+
+            # Read the 10x matrix using anndata
+            adata = sc.read_10x_mtx(matrix_dir) #, var_names='gene_symbols', cache=False)
+
+    return adata
+
+
+# # can save some memory by packing X to a csr_matrix
+# def _read_v3_10x_mtx(
+#     path,
+#     var_names="gene_symbols",
+#     make_unique=True,
+#     cache=False,
+#     cache_compression=_empty,
+#     *,
+#     prefix="",
+# ):
+#     """
+#     Read mtx from output from Cell Ranger v3 or later versions
+#     """
+#     path = Path(path)
+#     adata = read(
+#         path / f"{prefix}matrix.mtx.gz",
+#         cache=cache,
+#         cache_compression=cache_compression,
+#     ).T  # transpose the data
+#     genes = pd.read_csv(path / f"{prefix}features.tsv.gz", header=None, sep="\t")
+#     if var_names == "gene_symbols":
+#         var_names = genes[1].values
+#         if make_unique:
+#             var_names = anndata.utils.make_index_unique(pd.Index(var_names))
+#         adata.var_names = var_names
+#         adata.var["gene_ids"] = genes[0].values
+#     elif var_names == "gene_ids":
+#         adata.var_names = genes[0].values
+#         adata.var["gene_symbols"] = genes[1].values
+#     else:
+#         raise ValueError("`var_names` needs to be 'gene_symbols' or 'gene_ids'")
+#     adata.var["feature_types"] = genes[2].values
+#     adata.obs_names = pd.read_csv(path / f"{prefix}barcodes.tsv.gz", header=None)[
+#         0
+#     ].values
+#     return adata
