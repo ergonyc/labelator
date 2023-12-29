@@ -401,8 +401,6 @@ class ClassifierTrainer:
 # trainer = Trainer(model, train_loader, val_loader, device='cuda')
 # trainer.train(epochs=10)
 
-import torch
-from torch import nn, optim
 
 class MseTrainer:
     def __init__(self, model, train_loader, val_loader, device='cpu'):
