@@ -103,13 +103,15 @@ class Trainer:
         self.seed = kwargs.pop("seed", 2020)
         self.monitor = kwargs.pop("monitor", True)
         self.monitor_only_val = kwargs.pop("monitor_only_val", True)
-
-        ## JAH: add device
-        device = kwargs.pop("device", "cpu")
-
+        ## JAH: TODO: add beta parameter to "overregularize" the latents... 
 
         self.early_stopping = EarlyStopping(**early_stopping_kwargs)
 
+        torch.manual_seed(self.seed)
+
+        ## JAH: device hack.  this should be improved, but really isn't nescessary until its a true inference tool (and training is moot)
+        ## JAH: add device
+        device = kwargs.pop("device", "cpu")
         torch.manual_seed(self.seed)
 
         if device == "cuda":
