@@ -400,3 +400,73 @@ class ClassifierTrainer:
 
 # trainer = Trainer(model, train_loader, val_loader, device='cuda')
 # trainer.train(epochs=10)
+
+import torch
+from torch import nn, optim
+
+class MseTrainer:
+    def __init__(self, model, train_loader, val_loader, device='cpu'):
+        """
+        Initialize the MSE Trainer.
+        :param model: The PyTorch model to train
+        :param train_loader: DataLoader for the training data
+        :param val_loader: DataLoader for the validation data
+        :param device: 'cuda' or 'cpu'
+        """
+        self.model = model.to(device)
+        self.train_loader = train_loader
+        self.val_loader = val_loader
+        self.criterion = nn.MSELoss()  # Use Mean Squared Error Loss
+        self.optimizer = optim.Adam(model.parameters())  # Use vanilla Adam optimizer
+        self.device = device
+
+    def train(self, epochs):
+        """
+        Train the model for a number of epochs.
+        :param epochs: Number of epochs to train for
+        """
+        self.model.train()  # Set the model to training mode
+        for epoch in range(epochs):
+            running_loss = 0.0
+            for inputs, targets in self.train_loader:
+                inputs, targets = inputs.to(self.device), targets.to(self.device)
+
+                # Zero the parameter gradients
+                self.optimizer.zero_grad()
+
+                # Forward pass
+                outputs = self.model(inputs)
+                loss = self.criterion(outputs, targets)
+
+                # Backward and optimize
+                loss.backward()
+                self.optimizer.step()
+
+                running_loss += loss.item()
+
+            print(f'Epoch {epoch + 1}/{epochs} - Loss: {running_loss/len(self.train_loader)}')
+            self.validate()  # Run validation at the end of each epoch
+
+    def validate(self):
+        """
+        Validate the model on the validation dataset.
+        """
+        self.model.eval()  # Set the model to evaluation mode
+        total_loss = 0
+        with torch.no_grad():
+            for inputs, targets in self.val_loader:
+                inputs, targets = inputs.to(self.device), targets.to(self.device)
+                outputs = self.model(inputs)
+                loss = self.criterion(outputs, targets)
+                total_loss += loss.item()
+
+        avg_loss = total_loss / len(self.val_loader)
+        print(f'Validation Loss: {avg_loss}')
+
+# Usage example:
+# model = YourRegressionModel()
+# train_loader = DataLoader(...)
+# val_loader = DataLoader(...)
+
+# mse_trainer = MseTrainer(model, train_loader, val_loader, device='cuda')
+# mse_trainer.train(epochs=10)
