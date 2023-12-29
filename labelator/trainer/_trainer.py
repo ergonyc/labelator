@@ -9,6 +9,8 @@ from torch.utils.data import WeightedRandomSampler
 from ..utils._monitor import EarlyStopping
 from ._utils import make_dataset, custom_collate, print_progress
 
+from torch import optim
+
 # copy from scarches.  adding device to model
 class Trainer:
     """ScArches base Trainer class. This class contains the implementation of the base CVAE/TRVAE Trainer.
@@ -330,3 +332,71 @@ class Trainer:
                 param_group["lr"] *= self.early_stopping.lr_factor
 
         return continue_training
+
+
+class ClassifierTrainer:
+    def __init__(self, model, train_loader, val_loader, device='cpu'):
+        """
+        Initialize the Trainer.
+        :param model: The PyTorch model to train
+        :param train_loader: DataLoader for the training data
+        :param val_loader: DataLoader for the validation data
+        :param device: 'cuda' or 'cpu'
+        """
+        self.model = model.to(device)
+        self.train_loader = train_loader
+        self.val_loader = val_loader
+        self.criterion = nn.CrossEntropyLoss()  # Use Cross-Entropy Loss
+        self.optimizer = optim.Adam(model.parameters())  # Use vanilla Adam optimizer
+        self.device = device
+
+    def train(self, epochs):
+        """
+        Train the model for a number of epochs.
+        :param epochs: Number of epochs to train for
+        """
+        self.model.train()  # Set the model to training mode
+        for epoch in range(epochs):
+            running_loss = 0.0
+            for inputs, labels in self.train_loader:
+                inputs, labels = inputs.to(self.device), labels.to(self.device)
+
+                # Zero the parameter gradients
+                self.optimizer.zero_grad()
+
+                # Forward + backward + optimize
+                outputs = self.model(inputs)
+                loss = self.criterion(outputs, labels)
+                loss.backward()
+                self.optimizer.step()
+
+                running_loss += loss.item()
+
+            print(f'Epoch {epoch + 1}/{epochs} - Loss: {running_loss/len(self.train_loader)}')
+            self.validate()  # Run validation at the end of each epoch
+
+    def validate(self):
+        """
+        Validate the model on the validation dataset.
+        """
+        self.model.eval()  # Set the model to evaluation mode
+        total = 0
+        correct = 0
+        with torch.no_grad():
+            for inputs, labels in self.val_loader:
+                inputs, labels = inputs.to(self.device), labels.to(self.device)
+                outputs = self.model(inputs)
+                _, predicted = torch.max(outputs.data, 1)
+                total += labels.size(0)
+                correct += (predicted == labels).sum().item()
+
+        accuracy = 100 * correct / total
+        print(f'Validation Accuracy: {accuracy}%')
+
+# Usage example:
+# model = YourModel()
+# train_loader = DataLoader(...)
+# val_loader = DataLoader(...)
+
+# trainer = Trainer(model, train_loader, val_loader, device='cuda')
+# trainer.train(epochs=10)
