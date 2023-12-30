@@ -6,7 +6,7 @@ import collections.abc as container_abcs
 from torch.utils.data import DataLoader
 
 # from ...dataset import trVAEDataset
-from ..dataset._anndata import AnnotatedDataset as trVAEDataset
+from ..dataset._anndata import AnnotatedDataset as VAEDataset
 
 
 def print_progress(epoch, logs, n_epochs=10000, only_val_losses=True):
@@ -184,7 +184,7 @@ def make_dataset(adata,
         train_idx, val_idx = train_test_split(adata, train_frac)
         
     print("Instantiating dataset")
-    data_set_train = trVAEDataset(
+    data_set_train = VAEDataset(
         adata if train_frac == 1 else adata[train_idx],
         condition_key=condition_key,
         cell_type_keys=cell_type_keys,
@@ -195,7 +195,7 @@ def make_dataset(adata,
     if train_frac == 1:
         return data_set_train, None
     else:
-        data_set_valid = trVAEDataset(
+        data_set_valid = VAEDataset(
             adata[val_idx],
             condition_key=condition_key,
             cell_type_keys=cell_type_keys,
@@ -239,3 +239,49 @@ def custom_collate(batch):
     elif isinstance(elem, container_abcs.Mapping):
         output = {key: custom_collate([d[key] for d in batch]) for key in elem}
         return output
+
+# probably don't need this... let the model / trainer handle moving things around.
+
+def make_latent_dataset(adata,
+                 train_frac=0.9,
+                 labeled_indices=None,
+                 ):
+    """Splits 'adata' into train and validation data and converts them into 'CustomDatasetFromAdata' objects.
+
+       Parameters
+       ----------
+
+       Returns
+       -------
+       Training 'CustomDatasetFromAdata' object, Validation 'CustomDatasetFromAdata' object
+    """
+    # Preprare data for semisupervised learning
+    print(f"Preparing {adata.shape}")
+    labeled_array = np.zeros((len(adata), 1))
+    if labeled_indices is not None:
+        labeled_array[labeled_indices] = 1
+
+    train_idx, val_idx = train_test_split(adata, train_frac)
+        
+    print("Instantiating dataset")
+    data_set_train = VAEDataset(
+        adata if train_frac == 1 else adata[train_idx],
+        condition_key=condition_key,
+        cell_type_keys=cell_type_keys,
+        condition_encoder=condition_encoder,
+        cell_type_encoder=cell_type_encoder,
+        labeled_array=labeled_array[train_idx]
+    )
+    if train_frac == 1:
+        return data_set_train, None
+    else:
+        data_set_valid = VAEDataset(
+            adata[val_idx],
+            condition_key=condition_key,
+            cell_type_keys=cell_type_keys,
+            condition_encoder=condition_encoder,
+            cell_type_encoder=cell_type_encoder,
+            labeled_array=labeled_array[val_idx]
+        )
+        return data_set_train, data_set_valid
+

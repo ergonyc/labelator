@@ -277,7 +277,8 @@ class CVAELatentsMixin:
         x: Optional[np.ndarray] = None,
         c: Optional[np.ndarray] = None,
         mean: bool = False,
-        mean_var: bool = False
+        mean_var: bool = False,
+        mean_log_var: bool = False
     ):
         """Map `x` in to the latent space. This function will feed data in encoder and return z for each sample in
            data.
@@ -291,6 +292,9 @@ class CVAELatentsMixin:
            mean
                 return mean instead of random sample from the latent space
            mean_var
+                return mean and variance instead of random sample from the latent space
+                if `mean=False`.
+           mean_log_var
                 return mean and variance instead of random sample from the latent space
                 if `mean=False`.
            Returns
@@ -320,7 +324,7 @@ class CVAELatentsMixin:
             if issparse(x_batch):
                 x_batch = x_batch.toarray()
             x_batch = torch.tensor(x_batch, device=device)
-            latent = self.model.get_latent(x_batch, c[batch], mean, mean_var)
+            latent = self.model.get_latent(x_batch, c[batch], mean, mean_var,mean_log_var)
             latent = (latent,) if not isinstance(latent, tuple) else latent
             latents += [tuple(l.cpu().detach() for l in latent)]
 
@@ -396,7 +400,7 @@ class CVAELatentsModelMixin:
         var = torch.exp(log_var) + 1e-4
         return Normal(mu, var.sqrt()).rsample()
 
-    def get_latent(self, x, c=None, mean=False, mean_var=False):
+    def get_latent(self, x, c=None, mean=False, mean_var=False, mean_log_var=False):
         """Map `x` in to the latent space. This function will feed data in encoder  and return  z for each sample in
            data.
            Parameters
@@ -406,6 +410,12 @@ class CVAELatentsModelMixin:
            c: torch.Tensor
                 Torch Tensor of condition labels for each sample.
            mean: boolean
+                return just the z_mean latent.
+           mean_var: boolean
+                return the z_mean and z_var.
+           mean_log_var: boolean
+                return just the z_mean latent.
+
            Returns
            -------
            Returns Torch Tensor containing latent space encoding of 'x'.
@@ -414,12 +424,15 @@ class CVAELatentsModelMixin:
         if self.recon_loss == 'mse':
             x_ = x
         z_mean, z_log_var = self.encoder(x_, c)
-        latent = self.sampling(z_mean, z_log_var)
         if mean:
             return z_mean
         elif mean_var:
             return (z_mean, torch.exp(z_log_var) + 1e-4)
-        return latent
+        elif mean_log_var:
+            return (z_mean, z_log_var)
+        else:
+            return self.sampling(z_mean, z_log_var)
+
 
     def get_y(self, x, c=None):
         """Map `x` in to the y dimension (First Layer of Decoder). This function will feed data in encoder  and return

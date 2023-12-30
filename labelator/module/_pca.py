@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from scvi.nn import FCLayers
 
 def svd_flip(u, v):
     # columns of u, rows of v
@@ -44,6 +45,68 @@ class PCA(nn.Module):
     def inverse_transform(self, Y):
         assert hasattr(self, "components_"), "PCA must be fit before use."
         return torch.matmul(Y, self.components_) + self.mean_
+
+
+
+class PCALoading(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, X, pcs):
+        return X @ self.pcs
+
+
+
+class PCAClassifier(nn.Module):
+    def __init__(
+        self,
+        n_input: int,
+        n_labels: int = 5,
+        n_hidden: int = 128,
+        n_layers: int = 1,
+        dropout_rate: float = 0.1,
+        logits: bool = False,
+        use_batch_norm: bool = True,
+        use_layer_norm: bool = False,
+        activation_fn: nn.Module = nn.ReLU,
+        **kwargs,
+    ):
+        super().__init__()
+        self.logits = logits
+        layers = []
+
+        if n_hidden > 0 and n_layers > 0:
+            layers.append(
+                FCLayers(
+                    n_in=n_input,
+                    n_out=n_hidden,
+                    n_layers=n_layers,
+                    n_hidden=n_hidden,
+                    dropout_rate=dropout_rate,
+                    use_batch_norm=use_batch_norm,
+                    use_layer_norm=use_layer_norm,
+                    activation_fn=activation_fn,
+                    **kwargs,
+                )
+            )
+        else:
+            n_hidden = n_input
+
+        layers.append(nn.Linear(n_hidden, n_labels))
+
+        if not logits:
+            layers.append(nn.Softmax(dim=-1))
+
+        self.classifier = nn.Sequential(*layers)
+        self.encoder = PCALoading()
+
+    def forward(self, x, pcs):
+        """Forward computation."""
+        return self.classifier(self.encoder(x, pcs))
+
+
+
+
 
 if __name__ == "__main__":
     import numpy as np
