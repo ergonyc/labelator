@@ -124,7 +124,7 @@ class Trainer:
             self.device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
         else:
             self.device = "cpu" 
-    
+
         self.model.to(self.device)
         
         self.epoch = -1
@@ -281,6 +281,7 @@ class Trainer:
 
         # Calculate Loss depending on Trainer/Model
         self.current_loss = loss = self.loss(batch_data)
+
         self.optimizer.zero_grad()
         loss.backward()
 

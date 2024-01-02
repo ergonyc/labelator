@@ -28,16 +28,12 @@ from typing import Optional, Union
 @click.option("--batch_key", default="batch")
 @click.option("--cell_type_key", default="cell_type")
 @click.option("--predict_key", default="prediction")
-@click.option("--resolution", default=0.5)
-@click.option("--use_rep", default="X_pca")
+@click.option("--use_rep", default="X_mde")
 @click.option("--n_epochs", default=400)
 @click.option("--n_latent", default=30)
 @click.option("--n_hidden", default=128)
 @click.option("--n_layers", default=2)
-@click.option("--n_neighbors", default=10)
-@click.option("--n_pcs", default=50)
-@click.option("--n_top_genes", default=2000)
-@click.option("--n_top_genes_by_counts", default=2000)
+
 
 
 def main():
@@ -48,6 +44,9 @@ def main():
 
     # load data
     adata = sc.read(input_file)
+
+
+
 
     # initialize model
     model = scvi.model.SCVI(adata)
