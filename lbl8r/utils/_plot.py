@@ -94,7 +94,7 @@ def plot_predictions(
     plt.xlabel(f"Predicted ({pred_key})")
     plt.ylabel(f"Observed ({cell_type_key})")
     plt.title(
-        f"{model_name} {title_str} accuracy: {np.mean(adata.obs[pred_key] == adata.obs[cell_type_key]):.3f}"
+        f"{title_str} accuracy: {np.mean(adata.obs[pred_key] == adata.obs[cell_type_key]):.3f}\n{model_name}"
     )
     plt.colorbar()
 

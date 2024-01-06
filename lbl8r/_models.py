@@ -209,9 +209,15 @@ class scviLBL8R(BaseModelClass):
             latent_adata = AnnData(scvi_model.get_latent_representation())
             var_names = [f"z_{i}" for i in range(latent_adata.shape[1])]
 
-        latent_adata.obs_names = scvi_model.adata.obs_names.copy()
-        latent_adata.obs = scvi_model.adata.obs.copy()
+        # latent_adata.obs_names = scvi_model.adata.obs_names.copy()
+        # latent_adata.obs = scvi_model.adata.obs.copy()
+        # latent_adata.var_names = var_names
+        latent_adata.obs_names = adata.obs_names.copy()
+        latent_adata.obs = adata.obs.copy()
         latent_adata.var_names = var_names
+        latent_adata.obsm = adata.obsm.copy()
+        latent_adata.uns = {}
+
         # latent_adata = cls.get_latent_adata(scvi_model,adata,return_dist=return_dist)
         cls.setup_anndata(latent_adata, labels_key=LABELS_KEY)
         cls._from_scvi_model = True
