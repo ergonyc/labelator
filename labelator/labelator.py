@@ -1,69 +1,72 @@
+# script to execute a full labelator pipeline, 
+# load data, initialize model, train model, validate model
+#   save model and artifacts (minified adata, etc.)
+
+# command line interface using click to execute labelator pipeline's main function
 
 
-import anndata as ad
-import matplotlib.pyplot as plt
-import numpy as np
+
+import labelator as lbltr
+
+
+
+import click
+import logging
+import os
 import pandas as pd
 import scanpy as sc
 import scvi
+import sys
 from pathlib import Path
+from typing import Optional, Union
 
 
 
+@click.command()
+@click.argument("input_file", type=click.Path(exists=True))
+@click.argument("output_file", type=click.Path())
+@click.option("--batch_key", default="batch")
+@click.option("--cell_type_key", default="cell_type")
+@click.option("--predict_key", default="prediction")
+@click.option("--use_rep", default="X_mde")
+@click.option("--n_epochs", default=400)
+@click.option("--n_latent", default=30)
+@click.option("--n_hidden", default=128)
+@click.option("--n_layers", default=2)
 
 
-def add_nn_umap(adata: ad.AnnData,
-                use_rep:str,
-                resolution:float = 0.5) -> None:
+
+def main():
     """
-    Compute umaps of the QC data
+    Execute labelator pipeline
     """
+    logging.basicConfig(level=logging.INFO)
 
-    sc.pp.neighbors(adata, use_rep=use_rep)
-    sc.tl.leiden(adata, resolution=resolution)
-
-    sc.tl.umap(adata)
-
+    # load data
+    adata = sc.read(input_file)
 
 
 
 
+    # initialize model
+    model = scvi.model.SCVI(adata)
 
-def plot_umaps(adata: ad.AnnData, 
-                  predict_key:str,
-                  annot:str = None, 
-                  ) -> None:
-    """
-    Plot umaps of the QC data
-    """
-    sc.pl.umap(
-        adata,
-        color=["batch", "leiden"],
-        frameon=False,
-        ncols=1,
-        save=f"{annot}-batch-leiden.png"
-    )    
+    # train model
+    model.train()
 
-    sc.pl.umap(
-        adata,
-        color=["sample"],
-        frameon=False,
-        ncols=1,
-        save=f"{annot}-sample.png"
-    )
+    # validate model
+    model.validate()
 
-    sc.pl.umap(
-        adata,
-        color= ["cell_type",predict_key],
-        frameon=False,
-        ncols=1,
-        save=f"{annot}-cell_type-prediction.png"
-        )
+    # save model and artifacts
+    model.save(output_file)
+    
 
-    sc.pl.umap(
-        adata,
-        color= ["doublet_score", "percent.mt", "percent.rb"],
-        frameon=False,
-        ncols=1,
-        save=f"{annot}-noise.png"
-    )
+
+
+
+if __name__ == "__main__":
+    main()
+
+
+
+
