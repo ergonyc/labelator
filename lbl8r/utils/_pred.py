@@ -4,21 +4,50 @@ import torch
 import pandas as pd
 import numpy as np
 from anndata import AnnData
-from scvi.model import SCVI
-from scanpy.pp import pca
+from scvi.model import SCANVI
 
-def calculate_margin_of_probability(probabilities):
+# from scanpy.pp import pca
 
+
+def calculate_margin_of_probability(probabilities: torch.Tensor) -> np.ndarray:
+    """
+    Calculate the margin of probability.
+
+    Parameters
+    ----------
+    probabilities : torch.Tensor
+        Probabilities from a model.
+
+    Returns
+    -------
+    np.ndarray
+        Array of margin of probability.
+    """
     # Get the top two probabilities
     top_probs, _ = torch.topk(probabilities, 2)
 
     # Calculate the margin
-    margin = top_probs[:,0] - top_probs[:,1]
+    margin = top_probs[:, 0] - top_probs[:, 1]
     return margin.numpy()
 
 
-def get_stats_from_logits(logits:torch.Tensor, categories:np.ndarray) -> dict:
+def get_stats_from_logits(logits: torch.Tensor, categories: np.ndarray) -> dict:
+    """
+    Get probabilities, entropy, log entropy, labels, and margin of probability from logits.
 
+    Parameters
+    ----------
+    logits : torch.Tensor
+        Logits from a model.
+    categories : np.ndarray
+        Array of categories.
+
+    Returns
+    -------
+    dict
+        Dictionary of probabilities, entropy, log entropy, labels, and margin of probability.
+
+    """
     # Applying softmax to convert logits to probabilities
     probabilities = F.softmax(logits, dim=1)
 
@@ -42,39 +71,59 @@ def get_stats_from_logits(logits:torch.Tensor, categories:np.ndarray) -> dict:
 
     labels = categories[probs.argmax(axis=1)]
 
- 
     margin = calculate_margin_of_probability(probabilities)
 
+    return {
+        "logit": logs,
+        "prob": probs,
+        "entropy": ents,
+        "logE": logents,
+        "max_p": maxprobs,
+        "mop": margin,
+        "label": labels,
+    }
 
-    return {"logit":logs,
-     "prob":probs,
-     "entropy":ents,
-     "logE":logents,
-     "max_p":maxprobs,
-     "mop":margin,
-     "label":labels}
+
+def get_stats_table(
+    probabilities: dict, categories: np.ndarray, index: np.ndarray, soft: bool = True
+) -> pd.DataFrame:
+    """
+    Create a pandas DataFrame with the probabilities and other stats.
+
+    Parameters
+    ----------
+    probabilities : dict
+        Dictionary of probabilities from `get_stats_from_logits`.
+    categories : np.ndarray
+        Array of categories.
+    index : np.ndarray
+        Array of index values corresponding to cell names
+    soft : bool
+        Whether to return the soft probabilities. Default is `True`.
+
+    Returns
+    -------
+    pd.DataFrame
+        Pandas DataFrame with the probabilities and other stats.
 
 
-
-def get_stats_table(probabilities:dict, categories:np.ndarray, index:np.ndarray, soft:bool=True) -> pd.DataFrame:
-        
+    """
 
     if not soft:
-        preds_df = pd.DataFrame(probabilities['logit'], columns=categories, index=index)
+        preds_df = pd.DataFrame(probabilities["logit"], columns=categories, index=index)
         preds_df = preds_df.idxmax(axis=1)
     else:
-        preds_df = pd.DataFrame(probabilities['logit'], 
-                                columns=[f"lg_{c}" for c in categories], 
-                                index=index)
-        for i,c in enumerate(categories):
-            preds_df[f"p_{c}"] = probabilities['prob'][:,i]
+        preds_df = pd.DataFrame(
+            probabilities["logit"], columns=[f"lg_{c}" for c in categories], index=index
+        )
+        for i, c in enumerate(categories):
+            preds_df[f"p_{c}"] = probabilities["prob"][:, i]
 
-        preds_df['label'] = probabilities['label']
-        preds_df['max_p'] = probabilities['max_p']
-        preds_df['entropy'] = probabilities['entropy']
-        preds_df['logE'] = probabilities['logE']
-        preds_df['mop'] = probabilities['mop']
-
+        preds_df["label"] = probabilities["label"]
+        preds_df["max_p"] = probabilities["max_p"]
+        preds_df["entropy"] = probabilities["entropy"]
+        preds_df["logE"] = probabilities["logE"]
+        preds_df["mop"] = probabilities["mop"]
 
     return preds_df
 
@@ -101,70 +150,33 @@ def get_stats_table(probabilities:dict, categories:np.ndarray, index:np.ndarray,
 #     return latent_adata
 
 
+def add_scanvi_predictions(ad: AnnData, model: SCANVI, insert_key: str = "label"):
+    """
+    Get the "soft" and label predictions from a SCANVI model,
+    and then add into the ad.obs
 
-def make_latent_adata(scvi_model : SCVI, 
-                        adata : AnnData,
-                        return_dist: bool = True):
-    
+    Parameters
+    ----------
+    ad : ad.AnnData
+        AnnData object to add the predictions to
+    model : SCANVI
+        SCANVI model to use to get the predictions
+    Returns
+    -------
+    ad.AnnData
+        AnnData object with the predictions added
 
-    if return_dist:
-        qzm, qzv = scvi_model.get_latent_representation(adata,give_mean=False,return_dist=return_dist)
-        latent_adata = AnnData(np.concatenate([qzm,qzv], axis=1))
-        var_names = [f"zm_{i}" for i in range(qzm.shape[1])]+[f"zv_{i}" for i in range(qzv.shape[1])]
-    else:
-        latent_adata = AnnData(scvi_model.get_latent_representation(adata,give_mean=True))
-        var_names = [f"z_{i}" for i in range(latent_adata.shape[1])]
+    """
 
-    latent_adata.obs_names = adata.obs_names.copy()
-    latent_adata.obs = adata.obs.copy()
-    latent_adata.var_names = var_names
-    print(latent_adata.shape)
-    return latent_adata
+    predictions = model.predict(ad, soft=True)
+    predictions[insert_key] = model.predict(ad, soft=False)
 
+    obs = ad.obs
+    if set(predictions.columns) & set(obs.columns):
+        ValueError("Predictions and obs have overlapping columns")
+        return ad
 
-def make_scvi_normalized_adata(scvi_model : SCVI, 
-                        adata : AnnData):
- 
-    labels_key = 'cell_type'
-    scvi_model.setup_anndata(adata,labels_key=labels_key, batch_key=None)
-    denoised = scvi_model.get_normalized_expression(adata, library_size=1e4, return_numpy=True,)
+    obs = pd.merge(obs, predictions, left_index=True, right_index=True, how="left")
 
-    norm_adata = AnnData(denoised)
-
-    norm_adata.obs_names = adata.obs_names.copy()
-    norm_adata.obs = adata.obs.copy()
-    norm_adata.var_names = adata.var_names.copy()
-    print(norm_adata.shape)
-    return norm_adata
-
-
-
-
-
-def make_pc_loading_adata( adata : AnnData):
-
-    if "X_pca" in adata.obsm.keys():
-        # already have the loadings...
-        loading_adata = AnnData(adata.obsm['X_pca'])
-    else:
-        pcs = pca(adata.X)
-        loading_adata = AnnData(pcs)
-
-    var_names = [f"pc_{i}" for i in range(loading_adata.shape[1])]
-
-    loading_adata.obs_names = adata.obs_names.copy()
-    loading_adata.obs = adata.obs.copy()
-    loading_adata.var_names = var_names
-    print(loading_adata.shape)
-    return loading_adata
-
-
-def add_predictions_to_adata(adata, predictions, insert_key="pred", pred_key="label"):
-    obs = adata.obs
-    if insert_key in obs.columns:
-        # replace if its already there
-        obs.drop(columns=[insert_key], inplace=True)
-
-    adata.obs = pd.merge(obs, predictions[pred_key], left_index=True, right_index=True, how='left').rename(columns={pred_key:insert_key})
-
-    return adata
+    ad.obs = obs
+    return ad

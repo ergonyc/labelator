@@ -9,7 +9,7 @@ import pymde
 
 def mde(
     data: Union[np.ndarray, pd.DataFrame, spmatrix, torch.Tensor],
-    device: Optional[Literal["cpu", "cuda","mps"]] = None,
+    device: Optional[Literal["cpu", "cuda", "mps"]] = None,
     **kwargs,
 ) -> np.ndarray:
     """Util to run :func:`pymde.preserve_neighbors` for visualization of scvi-tools embeddings.
@@ -30,7 +30,7 @@ def mde(
 
     Notes
     -----
-    This function is included in scvi-tools to provide an alternative to UMAP/TSNE that is GPU-
+    This function is from that included in scvi-tools to provide an alternative to UMAP/TSNE that is GPU-
     accelerated. The appropriateness of use of visualization of high-dimensional spaces in single-
     cell omics remains an open research questions. See:
 
@@ -64,9 +64,15 @@ def mde(
     elif device == "mps":
         device = "mps" if torch.backends.mps.is_available() else "cpu"
     elif device is None:
-        device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
+        device = (
+            "cuda"
+            if torch.cuda.is_available()
+            else "mps"
+            if torch.backends.mps.is_available()
+            else "cpu"
+        )
     else:
-        device = "cpu" 
+        device = "cpu"
 
     print(f"perfoming mde on {device}")
     _kwargs = {
