@@ -3,7 +3,7 @@ import numpy as np
 from scvi.model import SCVI, SCANVI
 from pathlib import Path
 
-from .lbl8r import LBL8R, scviLBL8R
+from ._models import LBL8R, scviLBL8R
 from .utils import (
     mde,
     make_latent_adata,

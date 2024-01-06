@@ -11,6 +11,8 @@ from ._helper import (
     get_pca_lbl8r,
 )
 
+from ._models import scviLBL8R, LBL8R
+
 
 __all__ = [
     "get_lbl8r_scvi",
@@ -23,4 +25,6 @@ __all__ = [
     "query_lbl8r",
     "prep_lbl8r_adata",
     "get_pca_lbl8r",
+    "scviLBL8R",
+    "LBL8R",
 ]

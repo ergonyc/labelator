@@ -1,4 +1,5 @@
 from ._mde import mde
+
 from ._pred import (
     get_stats_from_logits,
     get_stats_table,
@@ -38,4 +39,5 @@ __all__ = [
     "export_ouput_adata",
     "plot_scvi_training",
     "plot_scanvi_training",
+    "plot_lbl8r_training",
 ]
