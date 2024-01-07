@@ -85,9 +85,11 @@ Extending the `scarches` models and training classes seems to be the most straig
 - scANVI
     - 
 
-
+FUTURE:
 - _naive_ batch correction
-- fit a model with a latent "batch" from the 
+
+
+ Z Classifier -> y_hat
 
 
 >scVI: encoder, latent_i, latent_batch_i, latent_library_i, (x_hat = vae(x))
@@ -103,7 +105,8 @@ Two types of "inference" modes will be considered.
 
 ------------
 ### metrics
-- pct accuracy  
+How ought we capture the fidelity of the __labelator__?  F1, precision, recall, accuracy?
+- pct accuracy
 - ?
 
 
@@ -112,8 +115,8 @@ Two types of "inference" modes will be considered.
 ## Caveats
 There are several gotchas to anticipate:
 - features.  Currently we are locked into the 3k genes we are testing with.  Handling subsets and supersets is TBC.
-- batch.  In principle each "embedding" or decode part of the model should be able to measure a "batch-correction" parameter explicitly.  in scVI this is explicitly _learned_.  However in _naive_ inference mode it should just be an inferred fudge factor.
-- noise.  including or not including `doublet`, `mito`, or `ribo` metrics
+- batch.  In principle each "embedding" or decode part of the model should be able to measure a "batch-correction" parameter explicitly.  In `scVI` this is explicitly _learned_.  However in _naive_ inference mode it should just be an inferred fudge factor.
+- noise.  including or _not_ including `doublet`, `mito`, or `ribo` metrics
 
 
 
@@ -121,19 +124,20 @@ There are several gotchas to anticipate:
 ### List of models
 target:  8 cell types including "unknown"  also have 
 
-1. scVI 
-    - train end-to-end for transfer learining
-    - encode + classify
-        - test classification directly from the scVI latent.  
-        - extract the latent representation to test its fidelity at predicting.  I.e. encode cellcounts directly to scVI_latent Train class (naive to batch, noise)
+1. `scVI` / `scANVI`
+    - train end-to-end with `scarches` surgery for transfer learining
+    - as encoder for `LBL8R` embeddings
+    - as normalizer of raw counts to normalized gene _expression_ values
 
-2. trVAE / VAE
-    - train end-to-end for transfer learning
+2. `LBL8R`
+    - end-to-end
+        - raw counts
+        - `scVI` expression
     - encode + classify
-        - test classification directly from the scVI latent.  
-        - extract the latent representation to test its fidelity at predicting.  I.e. encode cellcounts directly to scVI_latent Train class (naive to batch, noise)
+        - `scVI` latent embedding
+        - TBD _other_ VAE embeddings
 
-3. PCA Classification
+3. PCA Classification, `pcaLBL8R`
     a. raw count PCA
         - directly classify from PC loadings
     b. scVI "normalized" gene expression PCA
@@ -141,3 +145,12 @@ target:  8 cell types including "unknown"  also have
 
 4. XGBoost
     a. end-to-end classificaiton
+        - raw counts
+        - `scVI` expression
+    b. classificatin of PCA _"embedding"_
+        - of raw counts
+        - of `scVI` expression
+    c. classification 
+        - `scVI` embedding
+        - TBD _other_ VAE embeddings
+
