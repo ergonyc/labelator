@@ -30,12 +30,12 @@ def get_trained_scvi(
     batch_key: str | None = None,
     model_path: Path = Path.cwd(),
     retrain: bool = False,
-    model_name: str = "SCVI",
+    model_name: str = "scvi",
     plot_training: bool = False,
     **training_kwargs,
 ) -> (SCVI, AnnData):
     """
-    Get scVI model and latent representation.
+    Get scVI model and add latent representation to adata
 
     Parameters
     ----------
@@ -86,8 +86,6 @@ def get_trained_scvi(
         size_factor_key=size_factor_key,
     )  # X contains raw counts
 
-    n_labels = len(adata.obs[labels_key].cat.categories)
-
     scvi_path = model_path / model_name
     if scvi_path.exists() and not retrain:
         vae = SCVI.load(scvi_path.as_posix(), adata.copy())
@@ -127,12 +125,12 @@ def get_trained_scanvi(
     labels_key: str = "cell_type",
     model_path: Path = Path.cwd(),
     retrain: bool = False,
-    model_name: str = "SCANVI",
+    model_name: str = "scanvi",
     plot_training: bool = False,
     **training_kwargs,
 ) -> (SCANVI, AnnData):
     """
-    Get scANVI model and latent representation.
+    Get scANVI model and add latent representation to adata.
 
     Parameters
     ----------
@@ -219,12 +217,12 @@ def query_scvi(
     batch_key: str | None = None,
     model_path: Path = Path.cwd(),
     retrain: bool = False,
-    model_name: str = "SCVI_query",
+    model_name: str = "query_scvi",
     plot_training: bool = False,
     **training_kwargs,
 ) -> (SCVI, AnnData):
     """
-    Get scVI model and latent representation.
+    Get scVI model via `scarches` surgery and add latent representation to adata.
 
     Parameters
     ----------
@@ -302,12 +300,12 @@ def query_scanvi(
     labels_key: str = "cell_type",
     model_path: Path = Path.cwd(),
     retrain: bool = False,
-    model_name: str = "SCANVI_query",
+    model_name: str = "query_scanvi",
     plot_training: bool = False,
     **training_kwargs,
 ) -> (SCANVI, AnnData):
     """
-    Get scANVI model and latent representation.
+    Get scANVI model via `scarches` surgery and add latent representation to adata.
 
     Parameters
     ----------
@@ -375,12 +373,13 @@ def get_lbl8r_scvi(
     labels_key: str = "cell_type",
     model_path: Path = ".",
     retrain: bool = False,
-    model_name: str = "SCVI_nobatch",
+    model_name: str = "scvi_nobatch",
     plot_training: bool = False,
     **training_kwargs,
 ):
     """
-    Get scVI model and latent representation for `LBL8R` model. Note that no `batch_key` is chosen
+    Get scVI model and latent representation for `LBL8R` model. Note that `batch_key=None`
+    Just a wrapper for `get_trained_scvi` with `batch_key=None`.
 
     Parameters
     ----------
@@ -407,43 +406,61 @@ def get_lbl8r_scvi(
         Annotated data matrix with latent variables.
 
     """
-    scvi_epochs = 200
-    batch_size = 512
-
-    SCVI.setup_anndata(adata, batch_key=None)
-
-    scvi_path = model_path / model_name
-    if scvi_path.exists() and not retrain:
-        vae = SCVI.load(scvi_path.as_posix(), adata.copy())
-
-    else:
-        training_kwargs = {}
-        vae = SCVI(
-            adata,
-            n_layers=2,
-            encode_covariates=False,  # True
-            deeply_inject_covariates=False,
-            use_layer_norm="both",
-            use_batch_norm="none",
-        )
-        vae.train(
-            max_epochs=scvi_epochs,
-            train_size=0.85,
-            batch_size=batch_size,
-            early_stopping=True,
-            **training_kwargs,
-        )
-
-    adata.obsm[SCVI_LATENT_KEY] = vae.get_latent_representation()
-
-    if retrain or not scvi_path.exists():
-        # save the reference model
-        vae.save(scvi_path, overwrite=True)
-
-    if plot_training:
-        plot_scvi_training(vae.history)
+    # just call get_trained_scvi with batch_key=None
+    vae, adata = get_trained_scvi(
+        adata,
+        labels_key=labels_key,
+        batch_key=None,
+        model_path=model_path,
+        retrain=retrain,
+        model_name=model_name,
+        plot_training=plot_training,
+    )
 
     return vae, adata
+
+def prep_lbl8r_adata(
+    adata: AnnData,
+    vae: SCVI|None = None,
+    pca_key: str|None = None,
+    labels_key: str = "cell_type",
+) -> AnnData:
+    """
+    make an adata with embeddings in adata.X.  It if `vae is not None`
+    it will use the `vae` model to make the latent representation.  Otherwise,
+    if pca_key is not None, it will use the `adata.obsm{pca_key)' slot in the adata. 
+    If both are None, it will raise an error.
+    
+    Parameters
+    ----------
+    adata : AnnData
+        Annotated data matrix.
+    vae : SCVI
+        An scVI model. Default is `None`.
+    pca_key : str
+        Key for pca loadings. Default is `None`.
+
+    Returns
+    -------
+    AnnData
+        Annotated data matrix with latent variables as X
+
+    """
+
+    if vae is None and pca_key is None:
+        raise ValueError("vae and pca_key cannot both be None")
+    
+    if vae is not None:
+        # do i need an adata.copy() here?
+        SCVI.setup_anndata(adata, labels_key=labels_key, batch_key=None)  # "dummy")
+
+        latent_ad = make_latent_adata(vae, adata, return_dist=False)
+        latent_ad.obsm[SCVI_LATENT_KEY] = latent_ad.X  # copy to obsm for convenience
+        return latent_ad
+
+    if pca_key is not None:
+        loadings_ad = make_pc_loading_adata(adata, pca_key)
+        return loadings_ad
 
 
 def add_lbl8r_classifier(
@@ -492,14 +509,13 @@ def add_lbl8r_classifier(
     scvi_epochs = 200
     batch_size = 512
 
-    lbl8rscvi_path = model_path / model_name  # z to indicate the latent mean
+    lbl8rscvi_path = model_path / model_name  
 
     n_labels = len(adata.obs[labels_key].cat.categories)
 
-    # 0. make the latent adata & load/train model
+    # 0. load/train model
     if lbl8rscvi_path.exists() and not retrain:
-        latent_ad = make_latent_adata(vae, adata, return_dist=False)
-        vae_lbl8r_z = scviLBL8R.load(lbl8rscvi_path.as_posix(), latent_ad.copy())
+        vae_lbl8r_z = scviLBL8R.load(lbl8rscvi_path.as_posix(), adata.copy())
 
     else:
         vae_lbl8r_z = scviLBL8R.from_scvi_model(
@@ -529,43 +545,64 @@ def add_lbl8r_classifier(
     return vae_lbl8r_z, latent_ad
 
 
-def prep_lbl8r_adata(
-    adata: AnnData,
-    vae: SCVI,
-    labels_key: str = "cell_type",
-) -> AnnData:
+
+def get_lbl8r(
+        adata: AnnData,
+        labels_key: str = "cell_type",
+        model_path: Path = ".",
+        retrain: bool = False,
+        model_name: str = "lbl8r",
+        plot_training: bool = False,
+        **training_kwargs,
+        ):
     """
-    Attach a classifier and prep adata for scVI LBL8R model
-
-    Parameters
-    ----------
-    adata : AnnData
-        Annotated data matrix.
-    vae : SCVI
-        An scVI model.
-    labels_key : str
-        Key for cell type labels. Default is `cell_type`.
-
-    Returns
-    -------
-    AnnData
-        Annotated data matrix with latent variables as X
-
-
+    
     """
-    # do i need an adata.copy() here?
-    SCVI.setup_anndata(adata, labels_key=labels_key, batch_key=None)  # "dummy")
+    PRED_KEY = "pred"
 
-    latent_ad = make_latent_adata(vae, adata, return_dist=False)
-    latent_ad.obsm[SCVI_LATENT_KEY] = latent_ad.X  # copy to obsm for convenience
+    lbl8r_path = model_path / model_name
+    labels_key = labels_key
+    n_labels = len(loadings_ad.obs[labels_key].cat.categories)
 
-    return latent_ad
+    lbl8r_epochs = 200
+    batch_size = 512
+
+    # not sure I need this step
+    LBL8R.setup_anndata(adata, labels_key=labels_key)
+
+    # 1. load/train model
+    if lbl8r_path.exists() and not retrain:
+        lat_lbl8r = LBL8R.load(lbl8r_path, adata.copy())
+    else:
+        lat_lbl8r = LBL8R(adata, n_labels=n_labels)
+        lat_lbl8r.train(
+            max_epochs=lbl8r_epochs,
+            train_size=0.85,
+            batch_size=batch_size,
+            early_stopping=True,
+            **training_kwargs
+        )
+
+    # 1. add the predictions to the adata
+    predictions_z = lat_lbl8r.predict(probs=False, soft=True)
+    loadings_ad = add_predictions_to_adata(
+        adata, predictions_z, insert_key="pred", pred_key="label"
+    )
+
+    if retrain or not lbl8r_path.exists():
+        # save the reference model
+        lat_lbl8r.save(lbl8r_path, overwrite=True)
+
+    if plot_training:
+        plot_lbl8r_training(lat_lbl8r.history)
+
+    return lat_lbl8r, adata
 
 
 # TODO:  add a flag to return predictions only rather than updating the adata?
 def query_lbl8r(
     adata: AnnData,
-    labelator: scviLBL8R,
+    labelator: LBL8R,
     labels_key: str = "cell_type",
 ) -> AnnData:
     """
@@ -599,7 +636,7 @@ def query_lbl8r(
 
 # TODO: modularize things better so the pca/scvi versions call same code
 def get_pca_lbl8r(
-    loadings_ad: AnnData,
+    adata: AnnData,
     labels_key: str = "cell_type",
     model_path: Path = ".",
     retrain: bool = False,
@@ -607,43 +644,88 @@ def get_pca_lbl8r(
     plot_training: bool = False,
     **training_kwargs,
 ):
-    """ """
+    """ 
+    """
+    pca_lbl8r, adata = get_lbl8r(adata, 
+                                 labels_key=labels_key, 
+                                 model_path=model_path, 
+                                 retrain=retrain, 
+                                 model_name=model_name, 
+                                 plot_training=plot_training, 
+                                 **training_kwargs)
+    
+    return pca_lbl8r, adata
 
-    PRED_KEY = "pred"
+    # PRED_KEY = "pred"
 
-    lbl8rpca_path = model_path / model_name
-    labels_key = labels_key
-    n_labels = len(loadings_ad.obs[labels_key].cat.categories)
+    # lbl8rpca_path = model_path / model_name
+    # labels_key = labels_key
+    # n_labels = len(loadings_ad.obs[labels_key].cat.categories)
 
-    lbl8r_epochs = 200
-    batch_size = 512
+    # lbl8r_epochs = 200
+    # batch_size = 512
 
-    # not sure I need this step
-    LBL8R.setup_anndata(loadings_ad, labels_key=labels_key)
+    # # not sure I need this step
+    # LBL8R.setup_anndata(loadings_ad, labels_key=labels_key)
 
-    # 1. load/train model
-    if lbl8rpca_path.exists() and not retrain:
-        pca_lbl8r = LBL8R.load(lbl8rpca_path, loadings_ad.copy())
-    else:
-        pca_lbl8r = LBL8R(loadings_ad, n_labels=n_labels)
-        pca_lbl8r.train(
-            max_epochs=lbl8r_epochs,
-            train_size=0.85,
-            batch_size=batch_size,
-            early_stopping=True,
-        )
+    # # 1. load/train model
+    # if lbl8rpca_path.exists() and not retrain:
+    #     pca_lbl8r = LBL8R.load(lbl8rpca_path, loadings_ad.copy())
+    # else:
+    #     pca_lbl8r = LBL8R(loadings_ad, n_labels=n_labels)
+    #     pca_lbl8r.train(
+    #         max_epochs=lbl8r_epochs,
+    #         train_size=0.85,
+    #         batch_size=batch_size,
+    #         early_stopping=True,
+    #     )
 
-    # 1. add the predictions to the adata
-    predictions_z = pca_lbl8r.predict(probs=False, soft=True)
-    loadings_ad = add_predictions_to_adata(
-        loadings_ad, predictions_z, insert_key="pred", pred_key="label"
-    )
+    # # 1. add the predictions to the adata
+    # predictions_z = pca_lbl8r.predict(probs=False, soft=True)
+    # loadings_ad = add_predictions_to_adata(
+    #     loadings_ad, predictions_z, insert_key="pred", pred_key="label"
+    # )
 
-    if retrain or not lbl8rpca_path.exists():
-        # save the reference model
-        pca_lbl8r.save(lbl8rpca_path, overwrite=True)
+    # if retrain or not lbl8rpca_path.exists():
+    #     # save the reference model
+    #     pca_lbl8r.save(lbl8rpca_path, overwrite=True)
 
-    if plot_training:
-        plot_lbl8r_training(pca_lbl8r.history)
+    # if plot_training:
+    #     plot_lbl8r_training(pca_lbl8r.history)
 
-    return pca_lbl8r, loadings_ad
+    # return pca_lbl8r, loadings_ad
+
+
+
+
+# def prep_lbl8r_adata(
+#     adata: AnnData,
+#     vae: SCVI,
+#     labels_key: str = "cell_type",
+# ) -> AnnData:
+#     """
+#     Attach a classifier and prep adata for scVI LBL8R model
+
+#     Parameters
+#     ----------
+#     adata : AnnData
+#         Annotated data matrix.
+#     vae : SCVI
+#         An scVI model.
+#     labels_key : str
+#         Key for cell type labels. Default is `cell_type`.
+
+#     Returns
+#     -------
+#     AnnData
+#         Annotated data matrix with latent variables as X
+
+
+#     """
+#     # do i need an adata.copy() here?
+#     SCVI.setup_anndata(adata, labels_key=labels_key, batch_key=None)  # "dummy")
+
+#     latent_ad = make_latent_adata(vae, adata, return_dist=False)
+#     latent_ad.obsm[SCVI_LATENT_KEY] = latent_ad.X  # copy to obsm for convenience
+
+#     return latent_ad

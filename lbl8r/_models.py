@@ -175,6 +175,7 @@ class scviLBL8R(BaseModelClass):
             adata_manager = orig_adata_manager
         adata = adata_manager.adata
 
+        # I should be able to remove this, since I'm not using the batch key
         if restrict_to_batch is not None:
             batch_mask = adata.obs[orig_batch_key] == restrict_to_batch
             if np.sum(batch_mask) == 0:
@@ -478,19 +479,19 @@ class LBL8R(BaseModelClass):
         )
         self.init_params_ = self._get_init_params(locals())
 
-    def get_loadings(self) -> pd.DataFrame:
-        """Extract per-gene weights in the linear decoder.
+    # def get_loadings(self) -> pd.DataFrame:
+    #     """Extract per-gene weights in the linear decoder.
 
-        Shape is genes by `n_latent`. UNTESTED
+    #     Shape is genes by `n_latent`. UNTESTED
 
-        """
-        cols = [f"Z_{i}" for i in range(self.n_latent)]
-        var_names = self.adata.var_names
-        loadings = pd.DataFrame(
-            self.module.get_loadings(), index=var_names, columns=cols
-        )
+    #     """
+    #     cols = [f"Z_{i}" for i in range(self.n_latent)]
+    #     var_names = self.adata.var_names
+    #     loadings = pd.DataFrame(
+    #         self.module.get_loadings(), index=var_names, columns=cols
+    #     )
 
-        return loadings
+    #     return loadings
 
     @classmethod
     @setup_anndata_dsp.dedent

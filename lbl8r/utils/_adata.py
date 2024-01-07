@@ -2,7 +2,7 @@ from anndata import AnnData
 from scvi.model import SCVI
 import pandas as pd
 from pathlib import Path
-
+import numpy as np
 # from scanpy.pp import pca
 
 
@@ -107,7 +107,7 @@ def make_scvi_normalized_adata(
     return exp_adata
 
 
-def make_pc_loading_adata(adata: AnnData):
+def make_pc_loading_adata(adata: AnnData, pca_key: str = "X_pca"):
     """
     Makes adata with PCA loadings
 
@@ -115,6 +115,9 @@ def make_pc_loading_adata(adata: AnnData):
     ----------
     adata : AnnData
         Annotated data matrix.
+    pca_key : str
+        Key in `adata.obsm` where PCA loadings are stored. Default is `X_pca`.
+        If `X_pca` is not in `adata.obsm`, then it will raise an error.
 
     Returns
     -------
@@ -122,9 +125,9 @@ def make_pc_loading_adata(adata: AnnData):
         Annotated data matrix with PCA loadings.
 
     """
-    if "X_pca" in adata.obsm.keys():
+    if pca_key in adata.obsm.keys():
         # already have the loadings...
-        loading_adata = AnnData(adata.obsm["X_pca"])
+        loading_adata = AnnData(adata.obsm[pca_key])
     else:  #
         ValueError("Need to get PCA loadings first")
         print("doing nothing")
