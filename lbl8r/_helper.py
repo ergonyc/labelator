@@ -172,12 +172,15 @@ def get_trained_scanvi(
     if (
         vae is None
     ):  # get the scVI model.  Note the desired batch_key needs to be passed
+        # BUG: this will overwrite the SCVI model... need to fix
+        scvi_model_name = "SCVI" + model_name
         vae, adata = get_trained_scvi(
             adata,
             labels_key=labels_key,
             batch_key=batch_key,
             model_path=model_path,
             retrain=False,
+            model_name=scvi_model_name,
             plot_training=True,
             **training_kwargs,
         )
@@ -596,7 +599,7 @@ def query_lbl8r(
 
 # TODO: modularize things better so the pca/scvi versions call same code
 def get_pca_lbl8r(
-    adata: AnnData,
+    loadings_ad: AnnData,
     labels_key: str = "cell_type",
     model_path: Path = ".",
     retrain: bool = False,
@@ -610,13 +613,10 @@ def get_pca_lbl8r(
 
     lbl8rpca_path = model_path / model_name
     labels_key = labels_key
-    n_labels = len(adata.obs[labels_key].cat.categories)
+    n_labels = len(loadings_ad.obs[labels_key].cat.categories)
 
     lbl8r_epochs = 200
     batch_size = 512
-
-    # 0. make the latent adata
-    loadings_ad = make_pc_loading_adata(adata)
 
     # not sure I need this step
     LBL8R.setup_anndata(loadings_ad, labels_key=labels_key)
