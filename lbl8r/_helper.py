@@ -419,18 +419,19 @@ def get_lbl8r_scvi(
 
     return vae, adata
 
+
 def prep_lbl8r_adata(
     adata: AnnData,
-    vae: SCVI|None = None,
-    pca_key: str|None = None,
+    vae: SCVI | None = None,
+    pca_key: str | None = None,
     labels_key: str = "cell_type",
 ) -> AnnData:
     """
     make an adata with embeddings in adata.X.  It if `vae is not None`
     it will use the `vae` model to make the latent representation.  Otherwise,
-    if pca_key is not None, it will use the `adata.obsm{pca_key)' slot in the adata. 
+    if pca_key is not None, it will use the `adata.obsm{pca_key)' slot in the adata.
     If both are None, it will raise an error.
-    
+
     Parameters
     ----------
     adata : AnnData
@@ -449,7 +450,7 @@ def prep_lbl8r_adata(
 
     if vae is None and pca_key is None:
         raise ValueError("vae and pca_key cannot both be None")
-    
+
     if vae is not None:
         # do i need an adata.copy() here?
         SCVI.setup_anndata(adata, labels_key=labels_key, batch_key=None)  # "dummy")
@@ -509,7 +510,7 @@ def add_lbl8r_classifier(
     scvi_epochs = 200
     batch_size = 512
 
-    lbl8rscvi_path = model_path / model_name  
+    lbl8rscvi_path = model_path / model_name
 
     n_labels = len(adata.obs[labels_key].cat.categories)
 
@@ -545,24 +546,21 @@ def add_lbl8r_classifier(
     return vae_lbl8r_z, latent_ad
 
 
-
 def get_lbl8r(
-        adata: AnnData,
-        labels_key: str = "cell_type",
-        model_path: Path = ".",
-        retrain: bool = False,
-        model_name: str = "lbl8r",
-        plot_training: bool = False,
-        **training_kwargs,
-        ):
-    """
-    
-    """
+    adata: AnnData,
+    labels_key: str = "cell_type",
+    model_path: Path = ".",
+    retrain: bool = False,
+    model_name: str = "lbl8r",
+    plot_training: bool = False,
+    **training_kwargs,
+):
+    """ """
     PRED_KEY = "pred"
 
     lbl8r_path = model_path / model_name
     labels_key = labels_key
-    n_labels = len(loadings_ad.obs[labels_key].cat.categories)
+    n_labels = len(adata.obs[labels_key].cat.categories)
 
     lbl8r_epochs = 200
     batch_size = 512
@@ -580,7 +578,7 @@ def get_lbl8r(
             train_size=0.85,
             batch_size=batch_size,
             early_stopping=True,
-            **training_kwargs
+            **training_kwargs,
         )
 
     # 1. add the predictions to the adata
@@ -644,16 +642,17 @@ def get_pca_lbl8r(
     plot_training: bool = False,
     **training_kwargs,
 ):
-    """ 
-    """
-    pca_lbl8r, adata = get_lbl8r(adata, 
-                                 labels_key=labels_key, 
-                                 model_path=model_path, 
-                                 retrain=retrain, 
-                                 model_name=model_name, 
-                                 plot_training=plot_training, 
-                                 **training_kwargs)
-    
+    """ """
+    pca_lbl8r, adata = get_lbl8r(
+        adata,
+        labels_key=labels_key,
+        model_path=model_path,
+        retrain=retrain,
+        model_name=model_name,
+        plot_training=plot_training,
+        **training_kwargs,
+    )
+
     return pca_lbl8r, adata
 
     # PRED_KEY = "pred"
@@ -694,8 +693,6 @@ def get_pca_lbl8r(
     #     plot_lbl8r_training(pca_lbl8r.history)
 
     # return pca_lbl8r, loadings_ad
-
-
 
 
 # def prep_lbl8r_adata(
