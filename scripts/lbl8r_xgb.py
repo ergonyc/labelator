@@ -7,34 +7,41 @@
 # - scVI latent
 # - etc.
 # 
-# In[ ]:
+ # In[ ]:
 # imports
 import sys
 import os
 
 from pathlib import Path
 import scanpy as sc
-import matplotlib.pyplot as plt
-import numpy as np
+import torch
 import anndata as ad
-
+import scvi
 
 ### import local python functions in ../lbl8r
 sys.path.append(os.path.abspath((os.path.join(os.getcwd(), '..'))))
 
-from lbl8r.modules._xgb import get_xgb_data, train_xgboost, test_xgboost, load_xgboost
 from lbl8r.utils import (
             plot_predictions,
-            plot_embedding,
             export_ouput_adata,
-    )
-
+            )
 from lbl8r import (
                 get_xgb,
                 query_xgb,
                 )
+from lbl8r.constants import *
+from lbl8r.constants import XYLENA_PATH
 
+torch.set_float32_matmul_precision("medium")  
 sc.set_figure_params(figsize=(4, 4))
+scvi.settings.seed = 94705
+
+device = "mps" if sys.platform == "darwin" else "cuda"
+
+# In[ ]:
+root_path = Path("../")
+
+data_path = root_path / XYLENA_PATH
 
 if __name__ == "__main__":
     save = True
@@ -46,31 +53,32 @@ else:
     show = True
 
 
+# control figure saving and showing here
+fig_kwargs = dict(
+    save = save,
+    show = show, 
+    fig_dir = fig_dir,
+)
+
+
 # In[ ]:
-# ### Data Paths
-# ### Load Train, Validate Data 
-root_path = Path("../")
-
-data_path = root_path / "data/scdata/xylena"
-raw_data_path = root_path / "data/scdata/xylena_raw"
-
-XYLENA_ANNDATA = "brain_atlas_anndata.h5ad"
-XYLENA_TRAIN = XYLENA_ANNDATA.replace(".h5ad", "_train_cnt.h5ad")
-XYLENA_TEST = XYLENA_ANNDATA.replace(".h5ad", "_test_cnt.h5ad")
-# XYLENA_TRAIN_SPARSE = XYLENA_TRAIN.replace(".h5ad", "_sparse.h5ad")
-# XYLENA_TEST_SPARSE = XYLENA_TEST.replace(".h5ad", "_sparse.h5ad")
-
+out_data_path = data_path / "XGB"
 # ## xgb_LBL8R on raw counts
-# In[ ]:
-# ## xgb_LBL8R on raw count PCAs 
 # This is a zeroth order "baseline" for performance.
-# 
+# ### load data
 # ## 0. Load training data
 in_path = data_path / "LBL8R"
 
 train_filen = in_path / XYLENA_TRAIN.replace("_cnt.h5ad", "_pca_out.h5ad")
 test_filen = in_path / XYLENA_TEST.replace("_cnt.h5ad", "_pca_out.h5ad")
 
+
+
+# ## xgb_LBL8R on raw counts
+# In[ ]:
+# ## xgb_LBL8R on raw count PCAs 
+# This is a zeroth order "baseline" for performance.
+# 
 
 # In[ ]:
 model_dir = "XGB"
