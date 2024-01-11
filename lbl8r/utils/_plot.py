@@ -1,11 +1,99 @@
 import scanpy as sc
-from ._mde import mde
 from anndata import AnnData
-import matplotlib.pyplot as plt
 import numpy as np
 
+import matplotlib.pyplot as plt
+from matplotlib import pyplot as pl
+from pathlib import Path
 
-def plot_embedding(adata: AnnData, basis: str = "X_mde", color: list = None, **kwargs):
+from ._mde import mde
+
+# -------------------------------------------------------------------------------
+# Helper functions
+# -------------------------------------------------------------------------------
+
+
+def savefig_or_show(
+    show: bool|None = None,
+    save: bool|str = False,
+    fig_dir: str|None = None,
+    ext: str = None,
+):
+    """Save current figure to file and/or show it.
+
+    Parameters
+    ----------
+    show : bool
+        Whether to show the figure. Default is `True`.
+    save : bool | Path | str
+        If `True` or a `Path` or a `str`, save the figure. Default is `False`.
+    fig_dir : Path | str
+        Directory to save figure to. Default is `None`.
+    ext : str
+        Figure extension. Default is `None`.
+    """
+
+    if fig_dir is None:
+        fig_dir = "."
+
+    if isinstance(save, Path):
+        fig_dir += save.root
+        filen = save.name
+
+    elif isinstance(save, str):
+        # check whether `save` contains a figure extension
+        filen = save
+        if ext is None:
+            ext = "png" # default to png
+            for try_ext in ['.svg', '.pdf', '.png']:
+                if save.endswith(try_ext):
+                    ext = try_ext[1:]
+                    filen = filen.replace(try_ext, '')
+                    break
+        save = True
+    else:
+        ValueError(f"WTF.. how did we get here save must be a Path or a str, not {type(save)}")
+
+    if save:
+        if not Path(fig_dir).exists():
+            Path(fig_dir).mkdir(parents=True)
+
+        filename = f"{fig_dir}/{filen}.{ext}"
+        print(f"saving figure to file {filename}")
+        pl.savefig(filename, bbox_inches='tight')
+    if show:
+        pl.show()
+    if save:
+        pl.close()  # clear figure
+
+def _prep_save_dir(save,fig_dir,f_prefix):
+    """
+    force save to be a string and handle fig_dir
+    """
+    if isinstance(save, str):        
+        print(f"found {save}")
+    elif isinstance(save, Path):
+        if fig_dir is None:
+            fig_dir = save.parent
+        save = save.name
+    elif save:
+        save = f"{f_prefix}_"
+        print(f"converted save to {save}")
+
+        if isinstance(fig_dir,Path):
+            fig_dir = str(fig_dir)
+            print(f"{fig_dir=}")
+    else:
+        fig_dir = None
+    return save, fig_dir
+
+
+
+def plot_embedding(adata: AnnData, 
+        basis: str = "X_mde", 
+        color: list = None,
+        **kwargs):
+
     """Plot embedding with `sc.pl.embedding`.
 
     Parameters
@@ -25,8 +113,6 @@ def plot_embedding(adata: AnnData, basis: str = "X_mde", color: list = None, **k
 
     """
     # default kwargs
-    frameon = kwargs.pop("frameon", False)
-    wspace = kwargs.pop("wspace", 0.35)
     device = kwargs.pop("device", "cpu")
     scvi_model = kwargs.pop("scvi_model", None)
 
@@ -55,13 +141,48 @@ def plot_embedding(adata: AnnData, basis: str = "X_mde", color: list = None, **k
     if basis == "X_scVI_mde" and "X_scVI_mde" not in adata.obsm.keys():
         adata.obsm["X_scVI_mde"] = mde(adata.obsm["X_scVI"], device=device)
 
+    # force defaults
+    frameon = kwargs.pop("frameon", False)
+    wspace = kwargs.pop("wspace", 0.35)
+    save = kwargs.pop("save", False)
+    show = kwargs.pop("show", True)
+    fig_dir = kwargs.pop("fig_dir", None)
+
+    # process fig_dir / save
+    if isinstance(save, bool): 
+        save = "embeddings.png"
+    elif isinstance(save, Path):
+        if fig_dir is None:
+            fig_dir = save.parent
+
+    if fig_dir is not None:  
+        print(fig_dir) 
+        # HACK: flatten path
+        fig_dir = str(fig_dir).replace("/","_")    
+        save = f"{fig_dir}_{save}"
+        if not Path(fig_dir).exists():
+            Path(fig_dir).mkdir(parents=True)
+
+    kwargs.update({"frameon": frameon, 
+                "wspace": wspace,
+                "show":  show,
+                "save": save,
+                })
+
+
     sc.pl.embedding(
-        adata, basis=basis, color=color, frameon=frameon, wspace=wspace, **kwargs
+        adata, basis=basis, color=color,**kwargs
     )
 
 
 def plot_predictions(
-    adata, pred_key="pred", cell_type_key="cell_type", model_name="LBL8R", title_str=""
+    adata, pred_key="pred", 
+    cell_type_key="cell_type", 
+    model_name="LBL8R", 
+    title_str="", 
+    save: bool | Path | str = False,
+    show: bool = True, 
+    fig_dir: Path|str|None = None,
 ):
     """Plot confusion matrix of predictions.
 
@@ -77,6 +198,7 @@ def plot_predictions(
         Name of model. Default is `LBL8R`.
     title_str : str
         Additional string to add to title. Default is `""`.
+    fig_dir : 
 
     Returns
     -------
@@ -98,9 +220,22 @@ def plot_predictions(
     )
     plt.colorbar()
 
+    if isinstance(save, str):        
+        pass
+        # save = f"{model_name}_predictions.png"
+    elif isinstance(save, Path):
+        if fig_dir is None:
+            fig_dir = save.parent
+    elif save:
+        save = f"{model_name}_predictions.png"
+    savefig_or_show(show,save,fig_dir)
+
 
 def plot_scvi_training(
     model_history: dict,
+    save: bool | Path | str = False,
+    show: bool = True, 
+    fig_dir: Path|str|None = None,
 ):
     """Plot training curves of scVI model.
 
@@ -114,29 +249,35 @@ def plot_scvi_training(
     None
 
     """
+    save, fig_dir = _prep_save_dir(save,fig_dir,"scvi_")
+    
     train_elbo = model_history["elbo_train"][1:]
     val_elbo = model_history["elbo_validation"]
-
     ax = train_elbo.plot()
     val_elbo.plot(ax=ax)
+    save = save + "elbo" + ".png"
+    savefig_or_show(show,save,fig_dir)
 
     train_kll = model_history["kl_local_train"][1:]
-    train_klg = model_history["kl_global_train"][1:]
     val_kll = model_history["kl_local_validation"]
-    val_klg = model_history["kl_global_validation"]
-
     ax = train_kll.plot()
     val_kll.plot(ax=ax)
+    save = save + "kl_div" + ".png"
+    savefig_or_show(show,save,fig_dir)
 
     train_loss = model_history["reconstruction_loss_train"][1:]
     val_loss = model_history["reconstruction_loss_validation"]
-
     ax = train_loss.plot()
     val_loss.plot(ax=ax)
+    save = save + "reconstruction_loss" + ".png"
+    savefig_or_show(show,save,fig_dir)
 
 
 def plot_scanvi_training(
     model_history: dict,
+    save: bool | Path | str = False,
+    show: bool = True, 
+    fig_dir: Path|str|None = None,
 ):
     """Plot training curves of scVI model.
 
@@ -150,39 +291,30 @@ def plot_scanvi_training(
     None
 
     """
-    train_elbo = model_history["elbo_train"][1:]
-    val_elbo = model_history["elbo_validation"]
+    save,fig_dir = _prep_save_dir(save,fig_dir,"scanvi_")
 
-    ax = train_elbo.plot()
-    val_elbo.plot(ax=ax)
+    plot_scvi_training(
+            model_history,
+            save=save,
+            show=show,
+            fig_dir=fig_dir
+            )
 
-    train_kll = model_history["kl_local_train"][1:]
-    train_klg = model_history["kl_global_train"][1:]
-    val_kll = model_history["kl_local_validation"]
-    val_klg = model_history["kl_global_validation"]
-
-    ax = train_kll.plot()
-    val_kll.plot(ax=ax)
-
-    train_loss = model_history["reconstruction_loss_train"][1:]
-    val_loss = model_history["reconstruction_loss_validation"]
-
-    ax = train_loss.plot()
-    val_loss.plot(ax=ax)
-
-    train_elbo = model_history["elbo_train"][1:]
     train_class = model_history["train_classification_loss"][1:]
-    train_f1 = model_history["train_f1_score"][1:]
-
-    ax = train_elbo.plot()
-    # val_elbo = model_history["elbo_validation"][1:]
-    # val_elbo.plot(ax=ax)
     _ = train_class.plot()
-    _ = train_f1.plot()
+    save = save + "reconstruction_loss" + ".png"
+    savefig_or_show(show,save,fig_dir)
 
+    train_f1 = model_history["train_f1_score"][1:]
+    _ = train_f1.plot()
+    save = save + "f1" + ".png"
+    savefig_or_show(show,save,fig_dir)
 
 def plot_lbl8r_training(
     model_history: dict,
+    save: bool | Path | str = False,
+    show: bool = True, 
+    fig_dir: Path|str|None = None,
 ):
     """Plot training curves of scVI model.
 
@@ -196,8 +328,14 @@ def plot_lbl8r_training(
     None
 
     """
+
+    save,fig_dir = _prep_save_dir(save,fig_dir,"lbl8r_")
+
     train_loss = model_history["train_loss_epoch"][1:]
     validation_loss = model_history["validation_loss"]
-
     ax = train_loss.plot()
     validation_loss.plot(ax=ax)
+    save = save + "train_loss" + ".png"
+    savefig_or_show(show,save,fig_dir)
+
+

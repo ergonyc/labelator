@@ -3,7 +3,10 @@ import numpy as np
 from scvi.model import SCVI, SCANVI
 from pathlib import Path
 
-from ._models import LBL8R, scviLBL8R
+from xgboost import Booster
+from sklearn.preprocessing import LabelEncoder
+
+from .models._lbl8r import LBL8R, scviLBL8R
 from .utils import (
     mde,
     make_latent_adata,
@@ -17,10 +20,9 @@ from .utils import (
     plot_lbl8r_training,
     make_pc_loading_adata,
 )
+from lbl8r.constants import *
 
-SCVI_LATENT_KEY = "X_scVI"
-SCANVI_LATENT_KEY = "X_scANVI"
-SCANVI_PREDICTIONS_KEY = "C_scANVI"
+from .modules._xgb import (train_xgboost, test_xgboost, load_xgboost, get_xgb_data)
 
 
 # TODO: add save and load flags so we can use the functions and NOT overwrite on accident
@@ -32,6 +34,9 @@ def get_trained_scvi(
     retrain: bool = False,
     model_name: str = "scvi",
     plot_training: bool = False,
+    save: bool | Path | str = False,
+    show: bool = True, 
+    fig_dir: Path|str|None = None,
     **training_kwargs,
 ) -> (SCVI, AnnData):
     """
@@ -53,6 +58,12 @@ def get_trained_scvi(
         Name of the model. Default is `SCVI`.
     plot_training : bool
         Whether to plot training. Default is `False`.
+    save : bool | Path | str
+        Whether to save the model. Default is `False`.
+    show : bool
+        Whether to show the plot. Default is `True`.
+    fig_dir : Path|str|None
+        Path to save the figure. Default is `None`.
     **training_kwargs : dict
         Additional arguments to pass to `scvi.model.SCVI.train`.
 
@@ -115,7 +126,12 @@ def get_trained_scvi(
         vae.save(scvi_path, overwrite=True)
 
     if plot_training:
-        plot_scvi_training(vae.history)
+        plot_scvi_training(vae.history,
+        save = save,
+        show = show,
+        fig_dir = fig_dir)
+
+
     return vae, adata
 
 
@@ -127,6 +143,9 @@ def get_trained_scanvi(
     retrain: bool = False,
     model_name: str = "scanvi",
     plot_training: bool = False,
+    save: bool | Path | str = False,
+    show: bool = True, 
+    fig_dir: Path|str|None = None,
     **training_kwargs,
 ) -> (SCANVI, AnnData):
     """
@@ -148,8 +167,12 @@ def get_trained_scanvi(
         Name of the model. Default is `SCANVI`.
     plot_training : bool
         Whether to plot training. Default is `False`.
-    plot_preds : bool
-        Whether to plot predictions. Default is `True`.
+    save : bool | Path | str
+        Whether to save the model. Default is `False`.
+    show : bool
+        Whether to show the plot. Default is `True`.
+    fig_dir : Path|str|None
+        Path to save the figure. Default is `None`.
     **training_kwargs : dict
         Additional arguments to pass to `scvi.model.SCANVI.train`.
 
@@ -158,7 +181,10 @@ def get_trained_scanvi(
     SCANVI
         scANVI model.
     AnnData
-        Annotated data matrix with latent variables.
+        Annotated dat
+        
+        
+    a matrix with latent variables.
 
     """
     scvi_epochs = 200
@@ -167,9 +193,8 @@ def get_trained_scanvi(
     # n_labels = len(adata.obs[labels_key].cat.categories)
     batch_key = training_kwargs.pop("batch_key", None)
 
-    if (
-        vae is None
-    ):  # get the scVI model.  Note the desired batch_key needs to be passed
+    if vae is None:
+        # get the scVI model.  Note the desired batch_key needs to be passed
         # BUG: this will overwrite the SCVI model... need to fix
         scvi_model_name = "SCVI" + model_name
         vae, adata = get_trained_scvi(
@@ -179,7 +204,9 @@ def get_trained_scanvi(
             model_path=model_path,
             retrain=False,
             model_name=scvi_model_name,
-            plot_training=True,
+            plot_training=plot_training,
+            save=save,
+            show=show,
             **training_kwargs,
         )
 
@@ -205,7 +232,10 @@ def get_trained_scanvi(
         scanvi_model.save(scanvi_path, overwrite=True)
 
     if plot_training:
-        plot_scanvi_training(scanvi_model.history)
+        plot_scanvi_training(scanvi_model.history,
+        save = save,
+        show = show,
+        fig_dir = fig_dir)
 
     return scanvi_model, adata
 
@@ -219,6 +249,9 @@ def query_scvi(
     retrain: bool = False,
     model_name: str = "query_scvi",
     plot_training: bool = False,
+    save: bool | Path | str = False,
+    show: bool = True, 
+    fig_dir: Path|str|None = None,
     **training_kwargs,
 ) -> (SCVI, AnnData):
     """
@@ -258,16 +291,18 @@ def query_scvi(
     qscvi_path = model_path / model_name
 
     batch_key = training_kwargs.pop("batch_key", None)
-    if (
-        vae is None
-    ):  # get the scVI model.  Note the desired batch_key needs to be passed
+    if vae is None :  
+        # get the scVI model.  Note the desired batch_key needs to be passed
         vae, adata = get_trained_scvi(
             adata,
             labels_key=labels_key,
             batch_key=batch_key,
             model_path=model_path,
             retrain=False,
-            plot_training=True,
+            plot_training=plot_training,
+            save=save,
+            show=show,
+            fig_dir=fig_dir,
             **training_kwargs,
         )
 
@@ -281,6 +316,7 @@ def query_scvi(
             train_size=0.85,
             early_stopping=True,
             plan_kwargs=dict(weight_decay=0.0),
+            # datasplitter_kwargs=dict(num_workers=15),
         )
 
     adata.obsm[SCVI_LATENT_KEY] = scvi_query.get_latent_representation(adata)
@@ -289,7 +325,10 @@ def query_scvi(
         scvi_query.save(qscvi_path, overwrite=True)
 
     if plot_training:
-        plot_scvi_training(scvi_query.history)
+        plot_scvi_training(scvi_query.history,
+                            save = save,
+                            show = show,
+                            fig_dir = fig_dir)
 
     return scvi_query, adata
 
@@ -302,6 +341,9 @@ def query_scanvi(
     retrain: bool = False,
     model_name: str = "query_scanvi",
     plot_training: bool = False,
+    save: bool | Path | str = False,
+    show: bool = True, 
+    fig_dir: Path|str|None = None,
     **training_kwargs,
 ) -> (SCANVI, AnnData):
     """
@@ -350,6 +392,7 @@ def query_scanvi(
             train_size=0.85,
             early_stopping=True,
             plan_kwargs=dict(weight_decay=0.0),
+            # datasplitter_kwargs=dict(num_workers=15),
         )
 
     adata.obsm[SCVI_LATENT_KEY] = scanvi_query.get_latent_representation(adata)
@@ -363,7 +406,10 @@ def query_scanvi(
         scanvi_query.save(qscanvi_path, overwrite=True)
 
     if plot_training:
-        plot_scvi_training(scanvi_query.history)
+        plot_scvi_training(scanvi_query.history,
+                            save = save,
+                            show = show,
+                            fig_dir = fig_dir)
 
     return scanvi_query, adata
 
@@ -375,6 +421,9 @@ def get_lbl8r_scvi(
     retrain: bool = False,
     model_name: str = "scvi_nobatch",
     plot_training: bool = False,
+    save: bool | Path | str = False,
+    show: bool = True, 
+    fig_dir: Path|str|None = None,
     **training_kwargs,
 ):
     """
@@ -415,6 +464,9 @@ def get_lbl8r_scvi(
         retrain=retrain,
         model_name=model_name,
         plot_training=plot_training,
+        save=save,
+        show=show,
+        fig_dir=fig_dir,
     )
 
     return vae, adata
@@ -464,88 +516,6 @@ def prep_lbl8r_adata(
         return loadings_ad
 
 
-def add_lbl8r_classifier(
-    adata: AnnData,
-    vae: SCVI,
-    labels_key: str = "cell_type",
-    model_path: Path = Path.cwd(),
-    retrain: bool = False,
-    model_name: str = "LBL8R_scVI_z",
-    plot_training: bool = False,
-    **training_kwargs,
-) -> (SCANVI, AnnData):
-    """
-    Attach a classifier and prep adata for scVI LBL8R model
-
-    Parameters
-    ----------
-    adata : AnnData
-        Annotated data matrix.
-    vae : SCVI
-        An scVI model.
-    labels_key : str
-        Key for cell type labels. Default is `cell_type`.
-    model_path : Path
-        Path to save model. Default is `Path.cwd()`.
-    retrain : bool
-        Whether to retrain the model. Default is `False`.
-    model_name : str
-        Name of the model. Default is `LBL8R_scVI_z`.
-    plot_training : bool
-        Whether to plot training. Default is `False`.
-    plot_preds : bool
-        Whether to plot predictions. Default is `True`.
-    **training_kwargs : dict
-        Additional arguments to pass to `scvi.model.SCANVI.train`.
-
-    Returns
-    -------
-    SCANVI
-        scANVI model.
-    AnnData
-        Annotated data matrix with latent variables as X
-
-
-    """
-    scvi_epochs = 200
-    batch_size = 512
-
-    lbl8rscvi_path = model_path / model_name
-
-    n_labels = len(adata.obs[labels_key].cat.categories)
-
-    # 0. load/train model
-    if lbl8rscvi_path.exists() and not retrain:
-        vae_lbl8r_z = scviLBL8R.load(lbl8rscvi_path.as_posix(), adata.copy())
-
-    else:
-        vae_lbl8r_z = scviLBL8R.from_scvi_model(
-            vae, adata.copy(), n_labels=n_labels, return_dist=False
-        )
-        vae_lbl8r_z.train(
-            max_epochs=scvi_epochs,
-            train_size=0.85,
-            batch_size=batch_size,
-            early_stopping=True,
-        )
-        latent_ad = vae_lbl8r_z.adata
-
-    # 1. add the predictions to the adata
-    predictions_z = vae_lbl8r_z.predict(probs=False, soft=True)
-    latent_ad = add_predictions_to_adata(
-        latent_ad, predictions_z, insert_key="pred", pred_key="label"
-    )
-
-    if retrain or not lbl8rscvi_path.exists():
-        # save the reference model
-        vae_lbl8r_z.save(lbl8rscvi_path, overwrite=True)
-
-    if plot_training:
-        plot_lbl8r_training(vae_lbl8r_z.history)
-
-    return vae_lbl8r_z, latent_ad
-
-
 def get_lbl8r(
     adata: AnnData,
     labels_key: str = "cell_type",
@@ -553,6 +523,9 @@ def get_lbl8r(
     retrain: bool = False,
     model_name: str = "lbl8r",
     plot_training: bool = False,
+    save: bool | Path | str = False,
+    show: bool = True, 
+    fig_dir: Path|str|None = None,
     **training_kwargs,
 ):
     """ """
@@ -592,7 +565,10 @@ def get_lbl8r(
         lat_lbl8r.save(lbl8r_path, overwrite=True)
 
     if plot_training:
-        plot_lbl8r_training(lat_lbl8r.history)
+        plot_lbl8r_training(lat_lbl8r.history,
+                            save = save,
+                            show = show,
+                            fig_dir = fig_dir)
 
     return lat_lbl8r, adata
 
@@ -640,9 +616,14 @@ def get_pca_lbl8r(
     retrain: bool = False,
     model_name: str = "LBL8R_pca",
     plot_training: bool = False,
+    save: bool | Path | str = False,
+    show: bool = True, 
+    fig_dir: Path|str|None = None,
     **training_kwargs,
 ):
-    """ """
+    """ 
+    just a wrapper for get_lbl8r that defaults to modelname = LBL8R_pca
+    """
     pca_lbl8r, adata = get_lbl8r(
         adata,
         labels_key=labels_key,
@@ -650,79 +631,87 @@ def get_pca_lbl8r(
         retrain=retrain,
         model_name=model_name,
         plot_training=plot_training,
+        save=save,
+        show=show,
+        fig_dir=fig_dir,
         **training_kwargs,
     )
 
     return pca_lbl8r, adata
 
-    # PRED_KEY = "pred"
 
-    # lbl8rpca_path = model_path / model_name
-    # labels_key = labels_key
-    # n_labels = len(loadings_ad.obs[labels_key].cat.categories)
+def get_xgb(
+    adata: AnnData,
+    labels_key: str = "cell_type",
+    model_path: Path = ".",
+    retrain: bool = False,
+    model_name: str = "xgb",
+    **training_kwargs,
+) -> (Booster, AnnData, LabelEncoder):
+    """ 
+    Load or train an XGBoost model and return the model, label encoder, and adata with predictions
 
-    # lbl8r_epochs = 200
-    # batch_size = 512
+    """
+    PRED_KEY = "pred"
+    # format model_path / model_name for xgboost
+    bst_path = model_path / model_name if model_name.endswith(".json") else model_path / f"{model_name}.json"
+    
+    labels_key = labels_key
+    n_labels = len(adata.obs[labels_key].cat.categories)
 
-    # # not sure I need this step
-    # LBL8R.setup_anndata(loadings_ad, labels_key=labels_key)
+    X_train, y_train, label_encoder = get_xgb_data(adata, label_key=labels_key)
+    use_gpu = training_kwargs.pop("use_gpu", True)
+    if bst_path.exists() and not retrain:
+        # load trained model''
+        print(f"loading {bst_path}")
+        bst = load_xgboost(bst_path, use_gpu=use_gpu)
+    else:
+        bst = None
 
-    # # 1. load/train model
-    # if lbl8rpca_path.exists() and not retrain:
-    #     pca_lbl8r = LBL8R.load(lbl8rpca_path, loadings_ad.copy())
-    # else:
-    #     pca_lbl8r = LBL8R(loadings_ad, n_labels=n_labels)
-    #     pca_lbl8r.train(
-    #         max_epochs=lbl8r_epochs,
-    #         train_size=0.85,
-    #         batch_size=batch_size,
-    #         early_stopping=True,
-    #     )
+    if bst is None:
+        print(f"training {model_name}")
+        # train
+        bst = train_xgboost(X_train, y_train)
 
-    # # 1. add the predictions to the adata
-    # predictions_z = pca_lbl8r.predict(probs=False, soft=True)
-    # loadings_ad = add_predictions_to_adata(
-    #     loadings_ad, predictions_z, insert_key="pred", pred_key="label"
-    # )
+    if retrain or not bst_path.exists():
+        # save the reference model
+        bst.save_model(bst_path)
+        # HACK: reload to so that the training GPU memory is cleared
+        bst = load_xgboost(bst_path, use_gpu=use_gpu)
+        print("reloaded bst (memory cleared?)")
 
-    # if retrain or not lbl8rpca_path.exists():
-    #     # save the reference model
-    #     pca_lbl8r.save(lbl8rpca_path, overwrite=True)
+    adata, report = query_xgb(adata, bst, label_encoder)
+    return bst, adata, label_encoder
 
-    # if plot_training:
-    #     plot_lbl8r_training(pca_lbl8r.history)
+def query_xgb(
+    adata: AnnData,
+    bst: Booster,
+    label_encoder: LabelEncoder,
+) -> (AnnData, dict):
+    """
+    Attach a classifier and prep adata for scVI LBL8R model
 
-    # return pca_lbl8r, loadings_ad
+    Parameters
+    ----------
+    adata : AnnData
+        Annotated data matrix.
+    labelator : Booster
+        An XGBoost classification model.
+    label_encoder : LabelEncoder
+        The label encoder.
+    labels_key : str
+        Key for cell type labels. Default is `cell_type`.
 
+    Returns
+    -------
+    AnnData
+        Annotated data matrix with latent variables as X
 
-# def prep_lbl8r_adata(
-#     adata: AnnData,
-#     vae: SCVI,
-#     labels_key: str = "cell_type",
-# ) -> AnnData:
-#     """
-#     Attach a classifier and prep adata for scVI LBL8R model
+    """
 
-#     Parameters
-#     ----------
-#     adata : AnnData
-#         Annotated data matrix.
-#     vae : SCVI
-#         An scVI model.
-#     labels_key : str
-#         Key for cell type labels. Default is `cell_type`.
+    predictions, report = test_xgboost(bst, adata, label_encoder )
+    adata = add_predictions_to_adata(
+        adata, predictions, insert_key="pred", pred_key="label"
+    )
 
-#     Returns
-#     -------
-#     AnnData
-#         Annotated data matrix with latent variables as X
-
-
-#     """
-#     # do i need an adata.copy() here?
-#     SCVI.setup_anndata(adata, labels_key=labels_key, batch_key=None)  # "dummy")
-
-#     latent_ad = make_latent_adata(vae, adata, return_dist=False)
-#     latent_ad.obsm[SCVI_LATENT_KEY] = latent_ad.X  # copy to obsm for convenience
-
-#     return latent_ad
+    return adata, report

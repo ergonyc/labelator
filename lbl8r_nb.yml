@@ -1,0 +1,26 @@
+#conda env create -f lbl8r.yaml 
+
+name: lbl8r_nb
+channels:
+- conda-forge
+- pytorch
+- nvidia
+dependencies:
+- python=3.11
+- pytorch
+- torchvision
+- torchaudio
+- pytorch-cuda=12.1
+- jax
+- jaxlib
+- ipykernel
+- notebook
+- pip
+- pip:
+  - scvi-tools==1.1.0rc1
+  - scanpy
+  - anndata
+  - numpy
+  - pandas
+  - pymde
+  - xgboost

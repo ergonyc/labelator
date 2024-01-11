@@ -1,201 +1,172 @@
 #!/usr/bin/env python
 # coding: utf-8
-
-# ## Prototype LABELATOR with anndata pytorch loader
-#
-
+# In[ ]:
+# imports
 import sys
+import os
 
 from pathlib import Path
-
 import scanpy as sc
 import torch
-
-import matplotlib.pyplot as plt
-import numpy as np
 import anndata as ad
+import scvi
 
-from scvi.model import SCVI
-
+### import local python functions in ../lbl8r
+sys.path.append(os.path.abspath((os.path.join(os.getcwd(), '..'))))
 
 from lbl8r.utils import (
-    make_latent_adata,
-    add_predictions_to_adata,
-    plot_predictions,
-    plot_embedding,
-    export_ouput_adata,
-    make_scvi_normalized_adata,
-    make_pc_loading_adata,
-)
-
-from lbl8r.lbl8r import scviLBL8R
+            plot_predictions,
+            plot_embedding,
+            export_ouput_adata,
+            )
 from lbl8r import (
-    get_lbl8r_scvi,
-    add_lbl8r_classifier,
-    prep_lbl8r_adata,
-    query_lbl8r,
-    query_scvi,
-    get_pca_lbl8r,
+                prep_lbl8r_adata,
+                get_pca_lbl8r,
+                query_lbl8r,
+                )
+from lbl8r.constants import *
+from lbl8r.constants import XYLENA_PATH
+
+torch.set_float32_matmul_precision("medium")  
+sc.set_figure_params(figsize=(4, 4))
+scvi.settings.seed = 94705
+
+device = "mps" if sys.platform == "darwin" else "cuda"
+
+# In[ ]:
+root_path = Path("../")
+
+data_path = root_path / XYLENA_PATH
+
+if __name__ == "__main__":
+    save = True
+    fig_dir = "figs"
+    show = False
+else:
+    save = False
+    fig_dir = None
+    show = True
+
+# control figure saving and showing here
+fig_kwargs = dict(
+    save = save,
+    show = show, 
+    fig_dir = fig_dir,
 )
 
-
-sc.set_figure_params(figsize=(4, 4))
-
-
-# Stubs to find the data
-
-root_path = Path("../")
-data_path = root_path / "data/scdata/xylena"
-raw_data_path = root_path / "data/scdata/xylena_raw"
-
-XYLENA_ANNDATA = "brain_atlas_anndata.h5ad"
-XYLENA_METADATA = "final_metadata.csv"
-XYLENA_ANNDATA2 = "brain_atlas_anndata_updated.h5ad"
-
-XYLENA_TRAIN = XYLENA_ANNDATA.replace(".h5ad", "_train_cnt.h5ad")
-XYLENA_TEST = XYLENA_ANNDATA.replace(".h5ad", "_test_cnt.h5ad")
-
-XYLENA_TRAIN_SPARSE = XYLENA_TRAIN.replace(".h5ad", "_sparse.h5ad")
-XYLENA_TEST_SPARSE = XYLENA_TEST.replace(".h5ad", "_sparse.h5ad")
-
-
-# # subsample 40k cells for prototyping
-# subsamples = np.random.choice(train_ad.shape[0], 40_000, replace=False)
-# train_ad = train_ad[subsamples,:].copy() # no copy... just alias
-
-
-# In[6]:
-
-
-CELL_TYPE_KEY = "cell_type"
-OUT_PATH = data_path / "LBL8R"
-
-
+# In[ ]:
 # ## 0. Load training data
+train_filen = data_path / XYLENA_TRAIN
+test_filen = data_path / XYLENA_TEST
 
-# In[7]:
+train_ad = ad.read_h5ad(train_filen)
+
+# In[ ]:
+model_dir = "RAW_pca"
+cell_type_key = "cell_type"
+out_path = data_path / "LBL8Rpca"
 
 
-filen = data_path / XYLENA_TRAIN
-train_ad = ad.read_h5ad(filen)
-
-
-# ## model definition
-
+# In[ ]: ## model definition
 # Here we want to classify based on the PCA loadings.
+# Hand define a helper multilayer perceptron class to use it with a VAE below.
+model_root_path = root_path / "lbl8r_models"
+if not model_root_path.exists():
+    model_root_path.mkdir()
 
-# Here we define a helper multilayer perceptron class to use it with a VAE below.
-
-# In[8]:
-
-
-model_path = root_path / "lbl8r_models"
+model_path = model_root_path / model_dir
 if not model_path.exists():
     model_path.mkdir()
 
+if fig_dir is not None:
+    fig_dir = Path(fig_dir) / model_dir
+    if not fig_dir.exists():
+        fig_dir.mkdir()
+    
+
 retrain = False
+plot_training = True
 
+# In[ ]:
+pca_model_name = "lbl8r_pca"
+pca_train_ad = prep_lbl8r_adata(train_ad, pca_key=PCA_KEY, labels_key=cell_type_key)
 
-#
-# ## 1 setup data and load `pcaLBL8R`
-#
-# `setup_anndata` and load model.  (Or instantiate and train)
-#
-
-# In[9]:
-
-
-MODEL_NAME = "LBL8R_pca"
-labelator, train_ad = get_pca_lbl8r(
-    train_ad,
-    labels_key=CELL_TYPE_KEY,
+labelator, train_ad = get_pca_lbl8r( #get_lbl8r
+    pca_train_ad,
+    labels_key=cell_type_key,
     model_path=model_path,
     retrain=retrain,
-    model_name=MODEL_NAME,
-    plot_training=True,
+    model_name=pca_model_name,
+    plot_training=plot_training,
+    **fig_kwargs,
 )
 
-
-# In[10]:
-
-
+# In[ ]:
+# ## 3: visualize prediction fidelity on training set
 plot_predictions(
-    train_ad,
+    pca_train_ad,
     pred_key="pred",
-    cell_type_key=CELL_TYPE_KEY,
-    model_name=MODEL_NAME,
+    cell_type_key=cell_type_key,
+    model_name=pca_model_name,
     title_str="TRAIN",
-)
+    **fig_kwargs,
+    )
 
-
-# In[11]:
-
-
+# In[ ]:
 # this should also add the embeddings to the adata
-plot_embedding(
-    train_ad,
-    basis="X_mde",
-    color=[CELL_TYPE_KEY, "batch"],
-    frameon=False,
-    wspace=0.35,
-    device="cuda",
-)
+plot_embedding(pca_train_ad,
+               basis="X_mde",
+                color=[cell_type_key, "batch"],
+                frameon=False,
+                wspace=0.35,
+                device=device,
+                save = save,
+                show = show, 
+                fig_dir = fig_dir,
+                )
 
 
+# In[ ]:
 # ------------------
-# Now TEST
-
-# In[12]:
-
-
-filen = data_path / XYLENA_TEST
-test_ad = ad.read_h5ad(filen)
-
-# In[13]:
+# ## TEST
+# ## 4.  Load data
+test_ad = ad.read_h5ad(test_filen)
 
 
-test_ad = make_pc_loading_adata(test_ad)
-
-#
-# latent_test_ad = prep_lbl8r_adata(test_ad, vae, labels_key=CELL_TYPE_KEY)
-
-
-# In[14]:
-
-
-test_ad = query_lbl8r(
-    test_ad,
+# In[ ]:
+# ## 5 - prep lbl8r adata and query (run) model
+pca_test_ad = prep_lbl8r_adata(test_ad, pca_key=PCA_KEY, labels_key=cell_type_key)
+pca_test_ad = query_lbl8r(
+    pca_test_ad,
     labelator,
-    labels_key=CELL_TYPE_KEY,
+    labels_key=cell_type_key,
 )
 
-
-# In[15]:
-
-
+# In[ ]:
 plot_predictions(
-    test_ad,
+    pca_test_ad,
     pred_key="pred",
-    cell_type_key=CELL_TYPE_KEY,
-    model_name="pca_lbl8r",
+    cell_type_key=cell_type_key,
+    model_name=pca_model_name,
     title_str="TEST",
+    **fig_kwargs,
 )
 
-
+# In[ ]:
 # this should also add the embeddings to the adata
-plot_embedding(
-    test_ad,
-    basis="X_mde",
-    color=[CELL_TYPE_KEY, "batch"],
-    frameon=False,
-    wspace=0.35,
-    device="cuda",
-)
+plot_embedding(pca_test_ad,
+               basis="X_mde",
+                color=[cell_type_key, "batch"],
+                frameon=False,
+                wspace=0.35,
+                device=device,
+                save = save,
+                show = show, 
+                fig_dir = fig_dir,
+            )
 
-
+# In[ ]:
 # ## 7: save versions of test/train with latents and embeddings added
+export_ouput_adata(train_ad, train_filen.name.replace("_cnt.h5ad", "_pca.h5ad"), out_path)
+export_ouput_adata(test_ad, test_filen.name.replace("_cnt.h5ad", "_pca.h5ad"), out_path)
 
-# In[17]:
-export_ouput_adata(train_ad, XYLENA_TRAIN.replace("_cnt.h5ad", "_pca.h5ad"), OUT_PATH)
-
-export_ouput_adata(test_ad, XYLENA_TEST.replace("_cnt.h5ad", "_pca.h5ad"), OUT_PATH)

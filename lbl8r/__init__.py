@@ -9,13 +9,9 @@ from ._helper import (
     get_pca_lbl8r,
     get_lbl8r,
     query_lbl8r,
-    SCVI_LATENT_KEY,
-    SCANVI_LATENT_KEY,
-    SCANVI_PREDICTIONS_KEY,
+    get_xgb,
+    query_xgb,
 )
-
-from ._models import scviLBL8R, LBL8R
-
 
 __all__ = [
     "get_lbl8r_scvi",
@@ -28,9 +24,6 @@ __all__ = [
     "query_lbl8r",
     "prep_lbl8r_adata",
     "get_lbl8r",
-    "scviLBL8R",
-    "LBL8R",
-    "SCVI_LATENT_KEY",
-    "SCANVI_LATENT_KEY",
-    "SCANVI_PREDICTIONS_KEY",
+    "get_xgb",
+    "query_xgb",
 ]

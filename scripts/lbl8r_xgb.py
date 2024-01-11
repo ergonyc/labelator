@@ -1,0 +1,263 @@
+#!/usr/bin/env python
+# coding: utf-8
+# 
+# lbl8r xgb variants:
+# - raw counts PCA loadings n=50 features
+# - normalized counts (scVI) PCA loadings
+# - scVI latent
+# - etc.
+# 
+# In[ ]:
+# imports
+import sys
+import os
+
+from pathlib import Path
+import scanpy as sc
+import matplotlib.pyplot as plt
+import numpy as np
+import anndata as ad
+
+
+### import local python functions in ../lbl8r
+sys.path.append(os.path.abspath((os.path.join(os.getcwd(), '..'))))
+
+from lbl8r.modules._xgb import get_xgb_data, train_xgboost, test_xgboost, load_xgboost
+from lbl8r.utils import (
+            plot_predictions,
+            plot_embedding,
+            export_ouput_adata,
+    )
+
+from lbl8r import (
+                get_xgb,
+                query_xgb,
+                )
+
+sc.set_figure_params(figsize=(4, 4))
+
+if __name__ == "__main__":
+    save = True
+    fig_dir = "figs"
+    show = False
+else:
+    save = False
+    fig_dir = None
+    show = True
+
+
+# In[ ]:
+# ### Data Paths
+# ### Load Train, Validate Data 
+root_path = Path("../")
+
+data_path = root_path / "data/scdata/xylena"
+raw_data_path = root_path / "data/scdata/xylena_raw"
+
+XYLENA_ANNDATA = "brain_atlas_anndata.h5ad"
+XYLENA_TRAIN = XYLENA_ANNDATA.replace(".h5ad", "_train_cnt.h5ad")
+XYLENA_TEST = XYLENA_ANNDATA.replace(".h5ad", "_test_cnt.h5ad")
+# XYLENA_TRAIN_SPARSE = XYLENA_TRAIN.replace(".h5ad", "_sparse.h5ad")
+# XYLENA_TEST_SPARSE = XYLENA_TEST.replace(".h5ad", "_sparse.h5ad")
+
+# ## xgb_LBL8R on raw counts
+# In[ ]:
+# ## xgb_LBL8R on raw count PCAs 
+# This is a zeroth order "baseline" for performance.
+# 
+# ## 0. Load training data
+in_path = data_path / "LBL8R"
+
+train_filen = in_path / XYLENA_TRAIN.replace("_cnt.h5ad", "_pca_out.h5ad")
+test_filen = in_path / XYLENA_TEST.replace("_cnt.h5ad", "_pca_out.h5ad")
+
+
+# In[ ]:
+model_dir = "XGB"
+out_path = data_path / model_dir
+
+model_root_path = root_path / "lbl8r_models"
+if not model_root_path.exists():
+    model_root_path.mkdir()
+
+model_path = model_root_path / model_dir
+if not model_path.exists():
+    model_path.mkdir()
+
+cell_type_key = "cell_type"
+
+retrain=False
+
+# In[ ]:
+# load data and get label encoder
+train_ad = ad.read_h5ad(train_filen)
+xgb_model_name = "xgb_raw_pca"
+# In[ ]:
+
+bst,train_ad, le = get_xgb(
+    train_ad,
+    label_key=cell_type_key,
+    model_path=model_path,
+    retrain=retrain,
+    model_name=xgb_model_name,
+)
+
+# In[ ]:
+# 1. add the predictions to the adata
+plot_predictions(train_ad, 
+                 pred_key="pred", 
+                 cell_type_key=cell_type_key, 
+                 model_name=xgb_model_name, 
+                 title_str="TRAIN",
+                save = save,
+                show = show, 
+                fig_dir = fig_dir,
+            )
+# In[ ]:
+# ### test
+test_ad = ad.read_h5ad(test_filen)
+
+test_ad, test_report = query_xgb(test_ad, bst, le)
+plot_predictions(test_ad, 
+                 pred_key="pred", 
+                 cell_type_key=cell_type_key, 
+                 model_name=xgb_model_name, 
+                 title_str="TEST",
+                save = save,
+                show = True, 
+                fig_dir = fig_dir,
+            )
+
+# 
+# In[23]:
+# ## 7: save versions of test/train with latents and embeddings added
+export_ouput_adata(train_ad, train_filen.name.replace(".h5ad", "_xgb.h5ad"), out_path)
+export_ouput_adata(test_ad, test_filen.name.replace(".h5ad", "_xgb.h5ad"), out_path)
+
+
+
+# In[ ]:
+# ## xgb_LBL8R on scVI normalized PCAs 
+# To give the pca "baseline" a fair shake its important to use normalized counts. 
+#  Using the `scVI` normalization is our best shot... (Although the current models 
+#  are NOT batch correcting since we don't have a good strategy to do this with probe data)
+in_path = data_path / "LBL8R"
+
+train_filen = in_path / XYLENA_TRAIN.replace("_cnt.h5ad", "_exp_nb_pca_out.h5ad")
+test_filen = in_path / XYLENA_TEST.replace("_cnt.h5ad", "_exp_nb_pca_out.h5ad")
+
+# In[ ]:
+# load data and get label encoder
+train_ad = ad.read_h5ad(train_filen)
+xgb_model_name = "xgb_exp_nb_pca"
+# In[ ]:
+
+bst,train_ad, le = get_xgb(
+    train_ad,
+    label_key=cell_type_key,
+    model_path=model_path,
+    retrain=retrain,
+    model_name=xgb_model_name,
+)
+
+# In[ ]:
+# 1. add the predictions to the adata
+plot_predictions(train_ad, 
+                 pred_key="pred", 
+                 cell_type_key=cell_type_key, 
+                 model_name=xgb_model_name, 
+                 title_str="TRAIN",
+                save = save,
+                show = show, 
+                fig_dir = fig_dir,
+            )
+# In[ ]:
+# ### test
+test_ad = ad.read_h5ad(test_filen)
+
+# In[ ]:
+test_ad, test_report = query_xgb(test_ad, bst, le)
+
+# In[ ]:
+
+plot_predictions(test_ad, 
+                 pred_key="pred", 
+                 cell_type_key=cell_type_key, 
+                 model_name=xgb_model_name, 
+                 title_str="TEST",
+                save = save,
+                show = True, 
+                fig_dir = fig_dir,
+            )
+
+# 
+# In[23]:
+# ## 7: save versions of test/train with latents and embeddings added
+export_ouput_adata(train_ad, train_filen.name.replace(".h5ad", "_xgb.h5ad"), out_path)
+export_ouput_adata(test_ad, test_filen.name.replace(".h5ad", "_xgb.h5ad"), out_path)
+
+
+
+# ------------------------------------------------
+# 
+# ## xgb_LBL8R on scVI latents  
+# 
+in_path = data_path / "LBL8R"
+
+train_filen = in_path / XYLENA_TRAIN.replace("_cnt.h5ad", "_pca_out.h5ad")
+test_filen = in_path / XYLENA_TEST.replace("_cnt.h5ad", "_pca_out.h5ad")
+
+train_filen = data_path / XYLENA_TRAIN.replace("_cnt.h5ad", "_scvi_nb_out.h5ad")
+test_filen = data_path / XYLENA_TEST.replace("_cnt.h5ad", "_scvi_nb_out.h5ad")
+
+xgb_model_path = model_path / 'xgb_scVI_nb_latent.json'
+
+# In[ ]:
+# load data and get label encoder
+
+# ## 0. Load training data
+
+train_ad = ad.read_h5ad(train_filen)
+xgb_model_name = "xgb_scvi_nb"
+# In[ ]:
+
+bst,train_ad, le = get_xgb(
+    train_ad,
+    label_key=cell_type_key,
+    model_path=model_path,
+    retrain=retrain,
+    model_name=xgb_model_name,
+)
+
+# In[ ]:
+# 1. add the predictions to the adata
+plot_predictions(train_ad, 
+                 pred_key="pred", 
+                 cell_type_key=cell_type_key, 
+                 model_name=xgb_model_name, 
+                 title_str="TRAIN",
+                save = save,
+                show = show, 
+                fig_dir = fig_dir,
+            )
+# In[ ]:
+# ### test
+test_ad = ad.read_h5ad(test_filen)
+
+test_ad, test_report = query_xgb(test_ad, bst, le)
+plot_predictions(test_ad, 
+                 pred_key="pred", 
+                 cell_type_key=cell_type_key, 
+                 model_name=xgb_model_name, 
+                 title_str="TEST",
+                save = save,
+                show = True, 
+                fig_dir = fig_dir,
+            )
+
+# 
+# In[23]:
+# ## 7: save versions of test/train with latents and embeddings added
+export_ouput_adata(train_ad, train_filen.name.replace(".h5ad", "_xgb.h5ad"), out_path)
+export_ouput_adata(test_ad, test_filen.name.replace(".h5ad", "_xgb.h5ad"), out_path)
+
