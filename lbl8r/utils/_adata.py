@@ -229,7 +229,7 @@ def transfer_pcs(train_ad: AnnData, test_ad: AnnData) -> AnnData:
     return test_ad
 
 
-def add_col_into_obs(adata, source_table, insert_key="pred", pred_key="label"):
+def add_cols_into_obs(adata, source_table, insert_keys, prefix=None):
     """
     Add the predictions to the adata object. Performs a merge in case shuffled
 
@@ -241,9 +241,9 @@ def add_col_into_obs(adata, source_table, insert_key="pred", pred_key="label"):
     source_table : pd.DataFrame
         Pandas DataFrame which has column to insert.
     insert_key : str
-        Key in `adata.obs` where predictions are stored. Default is `pred`.
-    pred_key : str
-        Key in `adata.obs` where cell types are stored. Default is `cell_type`.
+        Key in `adata.obs` where predictions are stored. 
+    prefix : str
+    
 
     Returns
     -------
@@ -253,13 +253,20 @@ def add_col_into_obs(adata, source_table, insert_key="pred", pred_key="label"):
     """
 
     obs = adata.obs
-    if insert_key in obs.columns:
-        # replace if its already there
-        obs.drop(columns=[insert_key], inplace=True)
+    # if insert_keys in obs.columns:
+    #     # replace if its already there
+    #     obs.drop(columns=[insert_key], inplace=True)
+    
+    df = source_table[insert_keys].copy()
+
+    if any([k in obs.columns for k in insert_keys]):
+        if prefix is None:
+            prefix = "_"
+        df= df.add_prefix(prefix)
 
     adata.obs = pd.merge(
-        obs, source_table[pred_key], left_index=True, right_index=True, how="left"
-    ).rename(columns={pred_key: insert_key})
+        obs, df, left_index=True, right_index=True, how="left"
+    )
 
     return adata
 
