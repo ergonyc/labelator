@@ -1,7 +1,10 @@
 import scanpy as sc
 from anndata import AnnData
 import numpy as np
+from pandas import crosstab as pd_crosstab
+from sklearn.metrics import precision_score, recall_score, f1_score
 
+import seaborn as sns
 import matplotlib.pyplot as plt
 from pathlib import Path
 
@@ -175,7 +178,7 @@ def plot_embedding(adata: AnnData,
     )
 
 
-def plot_predictions(
+def _plot_predictions(
     adata, pred_key="pred", 
     cell_type_key="cell_type", 
     model_name="LBL8R", 
@@ -205,6 +208,7 @@ def plot_predictions(
     None
 
     """
+    
 
     df = adata.obs.groupby([pred_key, cell_type_key]).size().unstack(fill_value=0)
     norm_df = df / df.sum(axis=0)
@@ -219,6 +223,75 @@ def plot_predictions(
         f"{title_str} accuracy: {np.mean(adata.obs[pred_key] == adata.obs[cell_type_key]):.3f}\n{model_name}"
     )
     plt.colorbar()
+
+    if isinstance(save, str):        
+        pass
+        # save = f"{model_name}_predictions.png"
+    elif isinstance(save, Path):
+        if fig_dir is None:
+            fig_dir = save.parent
+    elif save:
+        save = f"{model_name}_predictions.png"
+    savefig_or_show(show,save,fig_dir)
+
+
+def plot_predictions(
+    adata, pred_key="pred", 
+    cell_type_key="cell_type", 
+    model_name="LBL8R", 
+    title_str="", 
+    save: bool | Path | str = False,
+    show: bool = True, 
+    fig_dir: Path|str|None = None,
+):
+    """Plot confusion matrix of predictions. This version is slooooow (6 seconds)
+
+    Parameters
+    ----------
+    adata : AnnData
+        Annotated data matrix.
+    pred_key : str
+        Key in `adata.obs` where predictions are stored. Default is `pred`.
+    cell_type_key : str
+        Key in `adata.obs` where cell types are stored. Default is `cell_type`.
+    model_name : str
+        Name of model. Default is `LBL8R`.
+    title_str : str
+        Additional string to add to title. Default is `""`.
+    fig_dir : 
+
+    Returns
+    -------
+    None
+
+    """
+
+    df = adata.obs
+    # Calculate precision, recall, and F1-score
+    prec = precision_score(df[cell_type_key],  df[pred_key], average='macro')
+    rec = recall_score(df[cell_type_key],  df[pred_key], average='macro')
+    f1 = f1_score(df[cell_type_key],  df[pred_key], average='macro')
+    acc = (df[pred_key] == df[cell_type_key]).mean()
+
+
+    confusion_matrix = pd_crosstab(
+        df[pred_key],
+        df[cell_type_key],
+        rownames=[f"Prediction {pred_key}"],
+        colnames=[f"Ground truth {cell_type_key}"],
+    )
+    confusion_matrix /= confusion_matrix.sum(1).ravel().reshape(-1, 1)
+    fig, ax = plt.subplots(figsize=(5, 4))
+    sns.heatmap(
+        confusion_matrix,
+        cmap=sns.diverging_palette(245, 320, s=60, as_cmap=True),
+        ax=ax,
+        square=True,
+        cbar_kws=dict(shrink=0.4, aspect=12),
+    )
+    title_str=f"{title_str}: {acc=:3f}:  {prec=:3f}: {rec=:3f}: {f1=:3f}:({model_name})"
+
+    ax.set_title(title_str.split(":")) 
 
     if isinstance(save, str):        
         pass
