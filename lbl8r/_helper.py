@@ -1,28 +1,27 @@
 from anndata import AnnData
-import numpy as np
 from scvi.model import SCVI, SCANVI
 from pathlib import Path
 
 from xgboost import Booster
 from sklearn.preprocessing import LabelEncoder
 
-from .models._lbl8r import LBL8R, scviLBL8R
+from .models._lbl8r import LBL8R
 from .utils import (
-    mde,
     make_latent_adata,
     add_predictions_to_adata,
-    plot_predictions,
-    plot_embedding,
+    merge_into_obs,
     add_scanvi_predictions,
-    export_ouput_adata,
     plot_scvi_training,
     plot_scanvi_training,
     plot_lbl8r_training,
     make_pc_loading_adata,
 )
-from lbl8r.constants import *
 
+from .constants import *
 from .modules._xgb import train_xgboost, test_xgboost, load_xgboost, get_xgb_data
+
+PRED_KEY = "label"
+INSERT_KEY = "pred"
 
 
 # TODO: add save and load flags so we can use the functions and NOT overwrite on accident
@@ -517,9 +516,39 @@ def get_lbl8r(
     fig_dir: Path | str | None = None,
     **training_kwargs,
 ):
-    """ """
-    PRED_KEY = "pred"
+    """
+    Get the LBL8R model for single-cell data.
 
+    Parameters
+    ----------
+    adata : AnnData
+        Annotated data matrix.
+    labels_key : str
+        Key for cell type labels. Default is `cell_type`.
+    model_path : Path
+        Path to save model. Default is `Path.cwd()`.
+    retrain : bool
+        Whether to retrain the model. Default is `False`.
+    model_name : str
+        Name of the model. Default is `lbl8r`.
+    plot_training : bool
+        Whether to plot training. Default is `False`.
+    save : bool | Path | str
+        Whether to save the model. Default is `False`.
+    show : bool
+        Whether to show the plot. Default is `True`.
+    fig_dir : Path|str|None
+        Path to save the figure. Default is `None`.
+    **training_kwargs : dict
+        Additional arguments to pass to `scvi.model.SCVI.train`.
+
+    Returns
+    -------
+    LBL8R
+        LBL8R model.
+    AnnData
+        Annotated data matrix with latent variables.
+    """
     lbl8r_path = model_path / model_name
     labels_key = labels_key
     n_labels = len(adata.obs[labels_key].cat.categories)
@@ -545,9 +574,11 @@ def get_lbl8r(
 
     # 1. add the predictions to the adata
     predictions_z = lat_lbl8r.predict(probs=False, soft=True)
-    loadings_ad = add_predictions_to_adata(
-        adata, predictions_z, insert_key="pred", pred_key="label"
-    )
+
+    # loadings_ad = add_predictions_to_adata(
+    #     adata, predictions_z, insert_key=INSERT_KEY, pred_key=PRED_KEY
+    # )
+    loadings_ad = merge_into_obs(adata, predictions_z)
 
     if retrain or not lbl8r_path.exists():
         # save the reference model
@@ -587,10 +618,10 @@ def query_lbl8r(
     # labelator.setup_anndata(adata, labels_key=labels_key)  # "dummy")
 
     predictions = labelator.predict(adata, probs=False, soft=True)
-    adata = add_predictions_to_adata(
-        adata, predictions, insert_key="pred", pred_key="label"
-    )
-
+    # loadings_ad = add_predictions_to_adata(
+    #     adata, predictions, insert_key=INSERT_KEY, pred_key=PRED_KEY
+    # )
+    loadings_ad = merge_into_obs(adata, predictions)
     return adata
 
 
@@ -701,8 +732,9 @@ def query_xgb(
     """
 
     predictions, report = test_xgboost(bst, adata, label_encoder)
-    adata = add_predictions_to_adata(
-        adata, predictions, insert_key="pred", pred_key="label"
-    )
+    # loadings_ad = add_predictions_to_adata(
+    #     adata, predictions, insert_key=INSERT_KEY, pred_key=PRED_KEY
+    # )
+    loadings_ad = merge_into_obs(adata, predictions)
 
     return adata, report

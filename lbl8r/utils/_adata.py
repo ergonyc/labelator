@@ -204,6 +204,11 @@ def transfer_pcs(train_ad: AnnData, test_ad: AnnData) -> AnnData:
         AnnData object for training with PCs in varm["PCs"]
     test_ad
         AnnData object with "test" data in X
+
+    Returns
+    -------
+    AnnData
+        AnnData object with PCs in varm["PCs"] and "loadings" in obsm["X_pca"]
     """
 
     if "X_pca" in test_ad.obsm.keys():
@@ -230,7 +235,7 @@ def transfer_pcs(train_ad: AnnData, test_ad: AnnData) -> AnnData:
     return test_ad
 
 
-def add_cols_into_obs(adata, source_table, insert_keys, prefix=None):
+def merge_into_obs(adata, source_table, insert_keys=None, prefix=None):
     """
     Add the predictions to the adata object. Performs a merge in case shuffled
 
@@ -245,7 +250,6 @@ def add_cols_into_obs(adata, source_table, insert_keys, prefix=None):
         Key in `adata.obs` where predictions are stored.
     prefix : str
 
-
     Returns
     -------
     AnnData
@@ -253,19 +257,25 @@ def add_cols_into_obs(adata, source_table, insert_keys, prefix=None):
 
     """
 
-    obs = adata.obs
-    # if insert_keys in obs.columns:
-    #     # replace if its already there
-    #     obs.drop(columns=[insert_key], inplace=True)
+    insert_key = "pred"
+    pred_key = "label"
 
-    df = source_table[insert_keys].copy()
+    obs = adata.obs
+    if insert_keys is None:
+        df = source_table
+        insert_keys = source_table.columns
+    else:
+        df = source_table[insert_keys]
 
     if any([k in obs.columns for k in insert_keys]):
         if prefix is None:
             prefix = "_"
         df = df.add_prefix(prefix)
+        pred_key = "_label"
 
-    adata.obs = pd.merge(obs, df, left_index=True, right_index=True, how="left")
+    adata.obs = pd.merge(obs, df, left_index=True, right_index=True, how="left").rename(
+        columns={pred_key: insert_key}
+    )
 
     return adata
 

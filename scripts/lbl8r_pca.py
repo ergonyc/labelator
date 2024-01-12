@@ -81,7 +81,7 @@ fig_kwargs = dict(
     fig_dir=fig_dir,
 )
 
-retrain = True
+retrain = False
 plot_training = True
 
 
