@@ -40,32 +40,21 @@ data_path = root_path / XYLENA_PATH
 
 if __name__ == "__main__":
     save = True
-    fig_dir = "figs"
+    fdir = "figs"
     show = False
 else:
     save = False
-    fig_dir = None
+    fdir = None
     show = True
 
-# control figure saving and showing here
-fig_kwargs = dict(
-    save = save,
-    show = show, 
-    fig_dir = fig_dir,
-)
-
 # In[ ]:
-out_data_path = data_path / "LBL8R"+PCS
+out_data_path = data_path / f"LBL8R{PCS}"
 
 train_filen = data_path / XYLENA_TRAIN
 test_filen = data_path / XYLENA_TEST
 
 # In[ ]:
-# ## 0. Load training data
-train_ad = ad.read_h5ad(train_filen)
-
-# In[ ]:
-model_dir = "RAW_pca"
+model_dir = "PCA"
 cell_type_key = CELL_TYPE_KEY
 
 
@@ -80,17 +69,28 @@ model_path = model_root_path / model_dir
 if not model_path.exists():
     model_path.mkdir()
 
-if fig_dir is not None:
-    fig_dir = Path(fig_dir) / model_dir
+if fdir is not None:
+    fig_dir = Path(fdir) / model_dir
     if not fig_dir.exists():
         fig_dir.mkdir()
     
-
+# control figure saving and showing here
+fig_kwargs = dict(
+    save = save,
+    show = show, 
+    fig_dir = fig_dir,
+)
+    
 retrain = False
 plot_training = True
 
+
 # In[ ]:
-pca_model_name = "lbl8r_pca"
+# ## 0. Load training data
+train_ad = ad.read_h5ad(train_filen)
+
+# In[ ]:
+pca_model_name = "lbl8r_pcs"
 pca_train_ad = prep_lbl8r_adata(train_ad, pca_key=PCA_KEY, labels_key=cell_type_key)
 
 labelator, train_ad = get_pca_lbl8r( #get_lbl8r

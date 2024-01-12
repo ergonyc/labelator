@@ -3,12 +3,13 @@
 # In[ ]:
 import scanpy as sc
 import anndata as ad
-from lbl8r.utils import transfer_pcs, export_ouput_adata
 from pathlib import Path
-### import local python functions in ../lbl8r
 import sys
 import os
+
+### import local python functions in ../lbl8r
 sys.path.append(os.path.abspath((os.path.join(os.getcwd(), '..'))))
+from lbl8r.utils import transfer_pcs, export_ouput_adata
 from lbl8r.constants import *
 from lbl8r.constants import XYLENA_PATH
 

@@ -95,7 +95,12 @@ test_ad.write_h5ad(raw_test_filen)
 
 # In[ ]: delete to save memory and reload one at at time
 del train_ad, test_ad
-train_ad = ad.read_h5ad(raw_train_filen)
+
+# In[ ]: load the raw train_ad
+raw_train_filen = raw_data_path / XYLENA_ANNDATA.replace(H5, TRAIN+H5)
+raw_test_filen = raw_data_path / XYLENA_ANNDATA.replace(H5, TEST+H5)
+
+train_ad = ad.read_h5ad(raw_train_filen, backed=False)
 
 # In[ ]: 
 # use default scanpy for the pca
@@ -104,16 +109,18 @@ sc.pp.pca(train_ad)
 # In[ ]: 
 # export the train_ad with pcas
 train_filen = data_path / XYLENA_TRAIN
+test_filen = data_path / XYLENA_TEST
+
+# In[ ]:
 train_ad.write_h5ad(train_filen)
 
 # In[ ]: 
 # load the raw test_ad
-test_ad = ad.read_h5ad(raw_train_filen)
+test_ad = ad.read_h5ad(raw_test_filen)
 
 # In[ ]: # now we need to copy the PCs to the test set and compute loadings.
 test_ad = transfer_pcs(train_ad, test_ad)
-
-test_filen = data_path / XYLENA_TEST
+# In[ ]:
 test_ad.write_h5ad(test_filen)
 
 # In[ ]:
@@ -124,16 +131,16 @@ del train_ad
 train_ad = ad.read_h5ad(train_filen)
 
 train_ad.X = sp.csr_matrix(train_ad.X)
-outfilen = data_path / XYLENA_TRAIN_SPARSE
-train_ad.write_h5ad(outfilen)
+train_filen = data_path / XYLENA_TRAIN_SPARSE
+train_ad.write_h5ad(train_filen)
 
 
 # In[ ]:
 test_ad = ad.read_h5ad(test_filen)
 
 test_ad.X = sp.csr_matrix(test_ad.X)
-outfilen = data_path / XYLENA_TEST_SPARSE
-test_ad.write_h5ad(outfilen)
+test_filen = data_path / XYLENA_TEST_SPARSE
+test_ad.write_h5ad(test_filen)
 
 
 

@@ -230,6 +230,19 @@ test_ad.obs[cell_type_key] = test_ad.obs["ground_truth"]
 # export_ouput_adata(test_ad, test_filen.name.replace(H5,NOBATCH+H5), out_data_path)
 export_ouput_adata(test_ad, test_filen.name, out_data_path) # will append "_out.h5ad"
 
+
+
+
+
+
+
+
+
+
+
+
+
+
 # In[ ]:
 ## reload the saved adatas and make the scvi normalized adata for further testing... 
 # # _______________

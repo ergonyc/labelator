@@ -44,30 +44,19 @@ data_path = root_path / XYLENA_PATH
 
 if __name__ == "__main__":
     save = True
-    fig_dir = "figs"
+    fdir = "figs"
     show = False
 else:
     save = False
-    fig_dir = None
+    fdir = None
     show = True
 
-# control figure saving and showing here
-fig_kwargs = dict(
-    save = save,
-    show = show, 
-    fig_dir = fig_dir,
-)
 
 # In[ ]:
-out_data_path = data_path / "LBL8R"+EMB
+out_data_path = data_path / "LBL8R_scvi"
 
 train_filen = data_path / XYLENA_TRAIN
 test_filen = data_path / XYLENA_TEST
-
-# In[ ]:
-# ## 0. Load training data
-
-train_ad = ad.read_h5ad(train_filen)
 
 # In[ ]:
 model_dir = "SCVI_nobatch"
@@ -83,17 +72,29 @@ model_path = model_root_path / model_dir
 if not model_path.exists():
     model_path.mkdir()
 
-if fig_dir is not None:
-    fig_dir = Path(fig_dir) / model_dir
+if fdir is not None:
+    fig_dir = Path(fdir) / model_dir
     if not fig_dir.exists():
         fig_dir.mkdir()
     
+# control figure saving and showing here
+fig_kwargs = dict(
+    save = save,
+    show = show, 
+    fig_dir = fig_dir,
+)
+
 retrain = False
 plot_training = True
 
 
 # In[ ]:
-vae_model_name = "scvi_nobatch"
+# ## 0. Load training data
+train_ad = ad.read_h5ad(train_filen)
+
+
+# In[ ]: Call the scvi model "vae" so we don't collide with scvi module
+vae_model_name = "scvi"
 vae, train_ad = get_lbl8r_scvi( # sa,e ast get_trained_scvi but forces "batch"=None
     train_ad,
     labels_key=cell_type_key,
@@ -183,9 +184,33 @@ plot_embedding(latent_test_ad,
 
 # In[ ]:
 # ## 7: save versions of test/train with latents and embeddings added
-export_ouput_adata(latent_ad, train_filen.name.replace(RAW, EMB+NOBATCH), out_data_path)
-export_ouput_adata(latent_test_ad, test_filen.name.replace(RAW, EMB+NOBATCH), out_data_path)
+export_ouput_adata(latent_ad, train_filen.name.replace(RAW, EMB), out_data_path)
+export_ouput_adata(latent_test_ad, test_filen.name.replace(RAW, EMB), out_data_path)
 
+
+
+
+# In[ ]:
+# scvi_query, and vae should give the same results
+exp_train_ad = make_scvi_normalized_adata(vae, train_ad)
+
+# # In[ ]:
+# # test that vae and scvi_query give the same results
+# vaeexp_train_ad = make_scvi_normalized_adata(vae, train_ad)
+# from numpy import allclose
+# assert allclose(exp_train_ad.X, vaeexp_train_ad.X)
+
+
+# In[ ]:
+export_ouput_adata(exp_train_ad, train_filen.name.replace(RAW, EXPR), out_data_path)
+
+
+# In[ ]:
+del exp_train_ad, train_ad
+
+exp_test_ad = make_scvi_normalized_adata(vae, test_ad)
+export_ouput_adata(exp_test_ad, test_filen.name.replace(RAW, EXPR), out_data_path)
+del exp_test_ad
 
 # In[ ]:
 # _______________
@@ -211,20 +236,4 @@ scvi_query, test_ad = query_scvi(
     **fig_kwargs,
 )
 
-
-# In[ ]:
-# scvi_query, and vae should give the same results
-exp_train_ad = make_scvi_normalized_adata(scvi_query, train_ad)
-
-
-# In[ ]:
-export_ouput_adata(exp_train_ad, train_filen.name.replace(RAW, EXPR+NOBATCH), out_data_path)
-
-
-# In[ ]:
-del exp_train_ad, train_ad
-
-exp_test_ad = make_scvi_normalized_adata(scvi_query, test_ad)
-export_ouput_adata(exp_test_ad, test_filen.name.replace(RAW, EXPR+NOBATCH), out_data_path)
-del exp_test_ad, test_ad
-
+# %%

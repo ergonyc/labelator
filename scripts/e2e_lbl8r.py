@@ -51,22 +51,17 @@ data_path = root_path / XYLENA_PATH
 
 if __name__ == "__main__":
     save = True
-    fig_dir = "figs"
+    fdir = "figs"
     show = False
 else:
     save = False
-    fig_dir = None
+    fdir = None
     show = True
 
-fig_kwargs = dict(
-    save = save,
-    show = show, 
-    fig_dir = fig_dir,
-)
 
 # In[8]:
 # ## `AnnData` initialization
-out_data_path = data_path / "LBL8R"+RAW
+out_data_path = data_path / ("LBL8R"+RAW)
 
 # ## 0. Load training data
 train_filen = data_path / XYLENA_TRAIN
@@ -79,7 +74,7 @@ test_filen = data_path / XYLENA_TEST
 # Here we want to classify based on the raw counts
 # Here we define a helper multilayer perceptron class to use it with a VAE below.
 
-model_dir = "RAW_cnt"
+model_dir = "E2E_LBL8R"
 cell_type_key = CELL_TYPE_KEY
 
 # In[6]:
@@ -91,12 +86,18 @@ model_path = model_root_path / model_dir
 if not model_path.exists():
     model_path.mkdir()
 
-if fig_dir is not None:
-    fig_dir = Path(fig_dir) / model_dir
+if fdir is not None:
+    fig_dir = Path(fdir) / model_dir
     if not fig_dir.exists():
         fig_dir.mkdir()
     
-retrain=True
+fig_kwargs = dict(
+    save = save,
+    show = show, 
+    fig_dir = fig_dir,
+)
+
+retrain=False
 plot_training = True
 
 
@@ -179,7 +180,7 @@ plot_predictions(
 # In[ ]:
 # this should also add the embeddings to the adata
 plot_embedding(test_ad,
-               basis=SCVI_MDE_KEY,
+               basis=PCA_KEY,
                 color=[cell_type_key, "batch"],
                 device=device,
                 **fig_kwargs,
@@ -198,23 +199,24 @@ export_ouput_adata(test_ad, test_filen.name, out_data_path) # will append "_out.
 # To give a "baseline" a fair shake its important to use normalized counts.  Using the `scVI` 
 # normalization is our best shot... (Although the current models are NOT batch correcting 
 # since we don't have a good strategy to do this with probe data)
-out_data_path = data_path / "LBL8R"+EMB
+out_data_path = data_path / ("LBL8R"+EMB)
 
 # In[ ]: RE-LOAD TRAIN DATA
 train_ad = ad.read_h5ad(train_filen)
 
+# # this takes too much memory.  we need to create them from SCVI_nobatch and just load them
 
-#######################
-vae_model_path = model_root_path/ "SCVI_nobatch"
-vae_model_name = "scvi_nobatch"
-vae, train_ad = get_lbl8r_scvi( # sa,e ast get_trained_scvi but forces "batch"=None
-    train_ad,
-    labels_key=cell_type_key,
-    model_path=model_path,
-    model_name=vae_model_name,
-)
+# #######################
+# vae_model_path = model_root_path/ "SCVI_nobatch"
+# vae_model_name = "scvi_nobatch"
+# vae, train_ad = get_lbl8r_scvi( # sa,e ast get_trained_scvi but forces "batch"=None
+#     train_ad,
+#     labels_key=cell_type_key,
+#     model_path=model_path,
+#     model_name=vae_model_name,
+# )
 
-train_ad = make_scvi_normalized_adata(vae, train_ad)
+# train_ad = make_scvi_normalized_adata(vae, train_ad)
 
 
 # in_path = out_data_path
@@ -223,7 +225,7 @@ train_ad = make_scvi_normalized_adata(vae, train_ad)
 # train_ad = ad.read_h5ad(train_filen)
 
 # In[9]:
-model_dir = "SCVI_expr"
+model_dir = "E2E_LBL8R"  #same as raw counts
 cell_type_key = CELL_TYPE_KEY
 out_path = data_path 
 

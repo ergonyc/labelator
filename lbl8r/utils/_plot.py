@@ -3,7 +3,6 @@ from anndata import AnnData
 import numpy as np
 
 import matplotlib.pyplot as plt
-from matplotlib import pyplot as pl
 from pathlib import Path
 
 from ._mde import mde
@@ -50,6 +49,7 @@ def savefig_or_show(
                     ext = try_ext[1:]
                     filen = filen.replace(try_ext, '')
                     break
+        plt.suptitle(save)
         save = True
     else:
         ValueError(f"WTF.. how did we get here save must be a Path or a str, not {type(save)}")
@@ -60,11 +60,11 @@ def savefig_or_show(
 
         filename = f"{fig_dir}/{filen}.{ext}"
         print(f"saving figure to file {filename}")
-        pl.savefig(filename, bbox_inches='tight')
+        plt.savefig(filename, bbox_inches='tight')
     if show:
-        pl.show()
+        plt.show()
     if save:
-        pl.close()  # clear figure
+        plt.close()  # clear figure
 
 def _prep_save_dir(save,fig_dir,f_prefix):
     """
@@ -77,8 +77,8 @@ def _prep_save_dir(save,fig_dir,f_prefix):
             fig_dir = save.parent
         save = save.name
     elif save:
-        save = f"{f_prefix}_"
-        print(f"converted save to {save}")
+        save = f"{f_prefix}"
+        print(f"converted `save` to `{save}`")
 
         if isinstance(fig_dir,Path):
             fig_dir = str(fig_dir)
@@ -255,22 +255,22 @@ def plot_scvi_training(
     val_elbo = model_history["elbo_validation"]
     ax = train_elbo.plot()
     val_elbo.plot(ax=ax)
-    save = save + "elbo" + ".png"
-    savefig_or_show(show,save,fig_dir)
+    save_ = save + "elbo" + ".png"
+    savefig_or_show(show,save_,fig_dir)
 
     train_kll = model_history["kl_local_train"][1:]
     val_kll = model_history["kl_local_validation"]
     ax = train_kll.plot()
     val_kll.plot(ax=ax)
-    save = save + "kl_div" + ".png"
-    savefig_or_show(show,save,fig_dir)
+    save_ = save + "kl_div" + ".png"
+    savefig_or_show(show,save_,fig_dir)
 
     train_loss = model_history["reconstruction_loss_train"][1:]
     val_loss = model_history["reconstruction_loss_validation"]
     ax = train_loss.plot()
     val_loss.plot(ax=ax)
-    save = save + "reconstruction_loss" + ".png"
-    savefig_or_show(show,save,fig_dir)
+    save_ = save + "reconstruction_loss" + ".png"
+    savefig_or_show(show,save_,fig_dir)
 
 
 def plot_scanvi_training(
@@ -302,13 +302,13 @@ def plot_scanvi_training(
 
     train_class = model_history["train_classification_loss"][1:]
     _ = train_class.plot()
-    save = save + "reconstruction_loss" + ".png"
-    savefig_or_show(show,save,fig_dir)
+    save_ = save + "reconstruction_loss" + ".png"
+    savefig_or_show(show,save_,fig_dir)
 
     train_f1 = model_history["train_f1_score"][1:]
     _ = train_f1.plot()
-    save = save + "f1" + ".png"
-    savefig_or_show(show,save,fig_dir)
+    save_ = save + "f1" + ".png"
+    savefig_or_show(show,save_,fig_dir)
 
 def plot_lbl8r_training(
     model_history: dict,
@@ -335,7 +335,7 @@ def plot_lbl8r_training(
     validation_loss = model_history["validation_loss"]
     ax = train_loss.plot()
     validation_loss.plot(ax=ax)
-    save = save + "train_loss" + ".png"
-    savefig_or_show(show,save,fig_dir)
+    save_ = save + "train_loss" + ".png"
+    savefig_or_show(show,save_,fig_dir)
 
 

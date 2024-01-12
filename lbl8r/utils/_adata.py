@@ -100,7 +100,7 @@ def make_scvi_normalized_adata(
 
     if "PCs" in exp_adata.varm.keys():
         PCs = exp_adata.varm.pop("PCs")
-        print("adding PCs to exp_adata")
+        print("adding raw PCs to exp_adata")
         exp_adata.varm["_PCs"] = PCs
 
     print(exp_adata.shape)

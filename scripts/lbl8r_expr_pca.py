@@ -50,12 +50,6 @@ else:
     fig_dir = None
     show = True
 
-# control figure saving and showing here
-fig_kwargs = dict(
-    save = save,
-    show = show, 
-    fig_dir = fig_dir,
-)
 # In[ ]:
 # --------------
 # ## pcaLBL8R on PCAs of scVI normalized expression 
@@ -63,14 +57,14 @@ fig_kwargs = dict(
 # Using the `scVI` normalization is our best shot... (Although the current models 
 # are NOT batch correcting since we don't have a good strategy to do this with probe data)
 # In[ ]:
-out_data_path = data_path / "LBL8R"+EXPR+PCS
+out_data_path = data_path / f"LBL8R{EXPR}{PCS}"
 
 # ## 0. Load training data
 # get the input data from lbl8r_scvi.py output
-in_path = data_path / "LBL8R"+EMB
+in_path = data_path / "LBL8R_scvi"
 
-train_filen = in_path / XYLENA_TRAIN.replace(RAW, EXPR+NOBATCH)
-test_filen = in_path / XYLENA_TEST.replace(RAW, EXPR+NOBATCH)
+train_filen = in_path / XYLENA_TRAIN.replace(RAW, EXPR+OUT)
+test_filen = in_path / XYLENA_TEST.replace(RAW, EXPR+OUT)
 
 train_ad = ad.read_h5ad(train_filen)
 
@@ -86,21 +80,22 @@ model_root_path = root_path / MODEL_SAVE_DIR
 if not model_root_path.exists():
     model_root_path.mkdir()
 
-model_path = model_root_path / model_dir
-if not model_path.exists():
-    model_path.mkdir()
-
-if fig_dir is not None:
-    fig_dir = Path(fig_dir) / model_dir
+if fdir is not None:
+    fig_dir = Path(fdir) / model_dir
     if not fig_dir.exists():
         fig_dir.mkdir()
     
-
+# control figure saving and showing here
+fig_kwargs = dict(
+    save = save,
+    show = show, 
+    fig_dir = fig_dir,
+)
 retrain = True
 plot_training = True
 
 # In[ ]:
-pca_model_name = "lbl8r_expr_pca"
+pca_model_name = "lbl8r_expr_pcs"
 pca_train_ad = prep_lbl8r_adata(train_ad, pca_key=PCA_KEY, labels_key=cell_type_key)
 
 labelator, train_ad = get_pca_lbl8r( #get_lbl8r
