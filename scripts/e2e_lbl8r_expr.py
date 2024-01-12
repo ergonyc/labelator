@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# ## Prototype end to end Labelator E2E_LBL8R 
+# ## Prototype end to end Labelator E2E_LBL8R
 # ### List of models
-# 
+#
 # e2e MLP classifier variants:
 # - raw counts: n=3000 features
 # - normalized counts (scVI)
-# 
+#
 # In[ ]:
 # imports
 import sys
@@ -20,26 +20,24 @@ import anndata as ad
 import scvi
 
 ### import local python functions in ../lbl8r
-sys.path.append(os.path.abspath((os.path.join(os.getcwd(), '..'))))
+sys.path.append(os.path.abspath((os.path.join(os.getcwd(), ".."))))
 
 from lbl8r.utils import (
-            plot_predictions,
-            plot_embedding,
-            export_ouput_adata,
-            add_predictions_to_adata,
-            make_scvi_normalized_adata
-            )
+    plot_predictions,
+    plot_embedding,
+    export_ouput_adata,
+    make_scvi_normalized_adata,
+)
 from lbl8r import (
-                get_lbl8r,  
-                query_lbl8r,
-                get_lbl8r_scvi,
-                )
+    get_lbl8r,
+    query_lbl8r,
+)
 
 from lbl8r.models import LBL8R
 from lbl8r.constants import *
 from lbl8r.constants import XYLENA_PATH
 
-torch.set_float32_matmul_precision("medium")  
+torch.set_float32_matmul_precision("medium")
 sc.set_figure_params(figsize=(4, 4))
 scvi.settings.seed = 94705
 
@@ -90,14 +88,14 @@ if fdir is not None:
     fig_dir = Path(fdir) / model_dir
     if not fig_dir.exists():
         fig_dir.mkdir()
-    
+
 fig_kwargs = dict(
-    save = save,
-    show = show, 
-    fig_dir = fig_dir,
+    save=save,
+    show=show,
+    fig_dir=fig_dir,
 )
 
-retrain=True
+retrain = True
 plot_training = True
 
 
@@ -106,7 +104,7 @@ train_ad = ad.read_h5ad(train_filen)
 
 # In[ ]:
 lbl8r_model_name = "raw_cnt"
-labelator, train_ad = get_lbl8r( 
+labelator, train_ad = get_lbl8r(
     train_ad,
     labels_key=cell_type_key,
     model_path=model_path,
@@ -125,19 +123,20 @@ plot_predictions(
     model_name=lbl8r_model_name,
     title_str="TRAIN",
     **fig_kwargs,
-    )
+)
 
 # In[ ]:
 # this should also add the embeddings to the adata
-plot_embedding(train_ad,
-               basis=MDE_KEY,
-                color=[cell_type_key, "batch"],
-                device=device,
-                **fig_kwargs,
-                )
+plot_embedding(
+    train_ad,
+    basis=MDE_KEY,
+    color=[cell_type_key, "batch"],
+    device=device,
+    **fig_kwargs,
+)
 
 # save versions of test/train with latents and embeddings added
-# 
+#
 # In[17]:
 # train_ad.write_h5ad(data_path / train_filen.name.replace(".h5ad", "_out.h5ad") )
 export_ouput_adata(train_ad, train_filen.name, out_data_path)
@@ -174,32 +173,32 @@ plot_predictions(
     model_name=lbl8r_model_name,
     title_str="TEST",
     **fig_kwargs,
-
 )
 
 # In[ ]:
 # this should also add the embeddings to the adata
-plot_embedding(test_ad,
-               basis=PCA_KEY,
-                color=[cell_type_key, "batch"],
-                device=device,
-                **fig_kwargs,
-            )
+plot_embedding(
+    test_ad,
+    basis=PCA_KEY,
+    color=[cell_type_key, "batch"],
+    device=device,
+    **fig_kwargs,
+)
 # save versions of test/train with latents and embeddings added
-# 
+#
 # In[23]:
 # test_ad.write_h5ad(data_path / test_filen.name.replace(".h5ad", "_out.h5ad") )
-export_ouput_adata(test_ad, test_filen.name, out_data_path) # will append "_out.h5ad"
+export_ouput_adata(test_ad, test_filen.name, out_data_path)  # will append "_out.h5ad"
 
 
 # ------------------------------------------
 # In[19]:  TODO: save below to a separate script
 # --------------
-# ## LBL8R on scVI normalized expression  
-# To give a "baseline" a fair shake its important to use normalized counts.  Using the `scVI` 
-# normalization is our best shot... (Although the current models are NOT batch correcting 
+# ## LBL8R on scVI normalized expression
+# To give a "baseline" a fair shake its important to use normalized counts.  Using the `scVI`
+# normalization is our best shot... (Although the current models are NOT batch correcting
 # since we don't have a good strategy to do this with probe data)
-out_data_path = data_path / ("LBL8R"+EMB)
+out_data_path = data_path / ("LBL8R" + EMB)
 
 # In[ ]: RE-LOAD TRAIN DATA
 train_ad = ad.read_h5ad(train_filen)
@@ -225,9 +224,9 @@ train_ad = ad.read_h5ad(train_filen)
 # train_ad = ad.read_h5ad(train_filen)
 
 # In[9]:
-model_dir = "E2E_LBL8R"  #same as raw counts
+model_dir = "E2E_LBL8R"  # same as raw counts
 cell_type_key = CELL_TYPE_KEY
-out_path = data_path 
+out_path = data_path
 
 # In[6]:
 model_root_path = root_path / MODEL_SAVE_DIR
@@ -250,7 +249,7 @@ plot_training = True
 
 lbl8r_model_name = "scvi_expr"
 
-labelator, train_ad = get_lbl8r( 
+labelator, train_ad = get_lbl8r(
     train_ad,
     labels_key=cell_type_key,
     model_path=model_path,
@@ -258,7 +257,6 @@ labelator, train_ad = get_lbl8r(
     model_name=lbl8r_model_name,
     plot_training=plot_training,
     **fig_kwargs,
-
 )
 
 # In[ ]:
@@ -270,21 +268,24 @@ plot_predictions(
     model_name=lbl8r_model_name,
     title_str="TRAIN",
     **fig_kwargs,
-    )
+)
 
 # In[ ]:
 # this should also add the embeddings to the adata
-plot_embedding(train_ad,
-               basis=MDE_KEY,
-                color=[cell_type_key, "batch"],
-                device=device,
-                **fig_kwargs,
-                )
+plot_embedding(
+    train_ad,
+    basis=MDE_KEY,
+    color=[cell_type_key, "batch"],
+    device=device,
+    **fig_kwargs,
+)
 
 # save versions of test/train with latents and embeddings added
-# 
+#
 # In[17]:
-export_ouput_adata(train_ad, train_filen.name.replace(RAW, EXPR+NOBATCH), out_data_path)
+export_ouput_adata(
+    train_ad, train_filen.name.replace(RAW, EXPR + NOBATCH), out_data_path
+)
 
 
 # In[ ]:
@@ -320,20 +321,20 @@ plot_predictions(
     model_name=lbl8r_model_name,
     title_str="TEST",
     **fig_kwargs,
-
 )
 
 # In[ ]:
 # this should also add the embeddings to the adata
-plot_embedding(test_ad,
-               basis=MDE_KEY,
-                color=[cell_type_key, "batch"],
-                device=device,
-                **fig_kwargs,
-            )
+plot_embedding(
+    test_ad,
+    basis=MDE_KEY,
+    color=[cell_type_key, "batch"],
+    device=device,
+    **fig_kwargs,
+)
 # save versions of test/train with latents and embeddings added
-# 
+#
 # In[23]:
-export_ouput_adata(test_ad, test_filen.name.replace(RAW, EXPR+NOBATCH), out_data_path)
+export_ouput_adata(test_ad, test_filen.name.replace(RAW, EXPR + NOBATCH), out_data_path)
 
 # %%

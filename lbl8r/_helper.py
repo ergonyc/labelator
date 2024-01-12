@@ -22,7 +22,7 @@ from .utils import (
 )
 from lbl8r.constants import *
 
-from .modules._xgb import (train_xgboost, test_xgboost, load_xgboost, get_xgb_data)
+from .modules._xgb import train_xgboost, test_xgboost, load_xgboost, get_xgb_data
 
 
 # TODO: add save and load flags so we can use the functions and NOT overwrite on accident
@@ -35,8 +35,8 @@ def get_trained_scvi(
     model_name: str = "scvi",
     plot_training: bool = False,
     save: bool | Path | str = False,
-    show: bool = True, 
-    fig_dir: Path|str|None = None,
+    show: bool = True,
+    fig_dir: Path | str | None = None,
     **training_kwargs,
 ) -> (SCVI, AnnData):
     """
@@ -126,11 +126,7 @@ def get_trained_scvi(
         vae.save(scvi_path, overwrite=True)
 
     if plot_training:
-        plot_scvi_training(vae.history,
-        save = save,
-        show = show,
-        fig_dir = fig_dir)
-
+        plot_scvi_training(vae.history, save=save, show=show, fig_dir=fig_dir)
 
     return vae, adata
 
@@ -144,8 +140,8 @@ def get_trained_scanvi(
     model_name: str = "scanvi",
     plot_training: bool = False,
     save: bool | Path | str = False,
-    show: bool = True, 
-    fig_dir: Path|str|None = None,
+    show: bool = True,
+    fig_dir: Path | str | None = None,
     **training_kwargs,
 ) -> (SCANVI, AnnData):
     """
@@ -182,8 +178,8 @@ def get_trained_scanvi(
         scANVI model.
     AnnData
         Annotated dat
-        
-        
+
+
     a matrix with latent variables.
 
     """
@@ -232,10 +228,9 @@ def get_trained_scanvi(
         scanvi_model.save(scanvi_path, overwrite=True)
 
     if plot_training:
-        plot_scanvi_training(scanvi_model.history,
-        save = save,
-        show = show,
-        fig_dir = fig_dir)
+        plot_scanvi_training(
+            scanvi_model.history, save=save, show=show, fig_dir=fig_dir
+        )
 
     return scanvi_model, adata
 
@@ -250,8 +245,8 @@ def query_scvi(
     model_name: str = "query_scvi",
     plot_training: bool = False,
     save: bool | Path | str = False,
-    show: bool = True, 
-    fig_dir: Path|str|None = None,
+    show: bool = True,
+    fig_dir: Path | str | None = None,
     **training_kwargs,
 ) -> (SCVI, AnnData):
     """
@@ -291,7 +286,7 @@ def query_scvi(
     qscvi_path = model_path / model_name
 
     batch_key = training_kwargs.pop("batch_key", None)
-    if vae is None :  
+    if vae is None:
         # get the scVI model.  Note the desired batch_key needs to be passed
         vae, adata = get_trained_scvi(
             adata,
@@ -325,10 +320,7 @@ def query_scvi(
         scvi_query.save(qscvi_path, overwrite=True)
 
     if plot_training:
-        plot_scvi_training(scvi_query.history,
-                            save = save,
-                            show = show,
-                            fig_dir = fig_dir)
+        plot_scvi_training(scvi_query.history, save=save, show=show, fig_dir=fig_dir)
 
     return scvi_query, adata
 
@@ -342,8 +334,8 @@ def query_scanvi(
     model_name: str = "query_scanvi",
     plot_training: bool = False,
     save: bool | Path | str = False,
-    show: bool = True, 
-    fig_dir: Path|str|None = None,
+    show: bool = True,
+    fig_dir: Path | str | None = None,
     **training_kwargs,
 ) -> (SCANVI, AnnData):
     """
@@ -406,10 +398,7 @@ def query_scanvi(
         scanvi_query.save(qscanvi_path, overwrite=True)
 
     if plot_training:
-        plot_scvi_training(scanvi_query.history,
-                            save = save,
-                            show = show,
-                            fig_dir = fig_dir)
+        plot_scvi_training(scanvi_query.history, save=save, show=show, fig_dir=fig_dir)
 
     return scanvi_query, adata
 
@@ -422,8 +411,8 @@ def get_lbl8r_scvi(
     model_name: str = "scvi_nobatch",
     plot_training: bool = False,
     save: bool | Path | str = False,
-    show: bool = True, 
-    fig_dir: Path|str|None = None,
+    show: bool = True,
+    fig_dir: Path | str | None = None,
     **training_kwargs,
 ):
     """
@@ -524,8 +513,8 @@ def get_lbl8r(
     model_name: str = "lbl8r",
     plot_training: bool = False,
     save: bool | Path | str = False,
-    show: bool = True, 
-    fig_dir: Path|str|None = None,
+    show: bool = True,
+    fig_dir: Path | str | None = None,
     **training_kwargs,
 ):
     """ """
@@ -565,10 +554,7 @@ def get_lbl8r(
         lat_lbl8r.save(lbl8r_path, overwrite=True)
 
     if plot_training:
-        plot_lbl8r_training(lat_lbl8r.history,
-                            save = save,
-                            show = show,
-                            fig_dir = fig_dir)
+        plot_lbl8r_training(lat_lbl8r.history, save=save, show=show, fig_dir=fig_dir)
 
     return lat_lbl8r, adata
 
@@ -617,11 +603,11 @@ def get_pca_lbl8r(
     model_name: str = "LBL8R_pca",
     plot_training: bool = False,
     save: bool | Path | str = False,
-    show: bool = True, 
-    fig_dir: Path|str|None = None,
+    show: bool = True,
+    fig_dir: Path | str | None = None,
     **training_kwargs,
 ):
-    """ 
+    """
     just a wrapper for get_lbl8r that defaults to modelname = LBL8R_pca
     """
     pca_lbl8r, adata = get_lbl8r(
@@ -648,14 +634,18 @@ def get_xgb(
     model_name: str = "xgb",
     **training_kwargs,
 ) -> (Booster, AnnData, LabelEncoder):
-    """ 
+    """
     Load or train an XGBoost model and return the model, label encoder, and adata with predictions
 
     """
     PRED_KEY = "pred"
     # format model_path / model_name for xgboost
-    bst_path = model_path / model_name if model_name.endswith(".json") else model_path / f"{model_name}.json"
-    
+    bst_path = (
+        model_path / model_name
+        if model_name.endswith(".json")
+        else model_path / f"{model_name}.json"
+    )
+
     labels_key = labels_key
     n_labels = len(adata.obs[labels_key].cat.categories)
 
@@ -683,6 +673,7 @@ def get_xgb(
     adata, report = query_xgb(adata, bst, label_encoder)
     return bst, adata, label_encoder
 
+
 def query_xgb(
     adata: AnnData,
     bst: Booster,
@@ -709,7 +700,7 @@ def query_xgb(
 
     """
 
-    predictions, report = test_xgboost(bst, adata, label_encoder )
+    predictions, report = test_xgboost(bst, adata, label_encoder)
     adata = add_predictions_to_adata(
         adata, predictions, insert_key="pred", pred_key="label"
     )

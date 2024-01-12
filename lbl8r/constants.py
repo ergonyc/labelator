@@ -1,5 +1,3 @@
-
-
 import sys
 import os
 from pathlib import Path
@@ -33,11 +31,11 @@ MODEL_SAVE_DIR = "lbl8r_models"
 
 ## xylena data names
 XYLENA_ANNDATA = "brain_atlas_anndata.h5ad"
-XYLENA_TRAIN = XYLENA_ANNDATA.replace(H5, TRAIN+RAW+H5)
-XYLENA_TEST = XYLENA_ANNDATA.replace(H5, TEST+RAW+H5)
+XYLENA_TRAIN = XYLENA_ANNDATA.replace(H5, TRAIN + RAW + H5)
+XYLENA_TEST = XYLENA_ANNDATA.replace(H5, TEST + RAW + H5)
 
-XYLENA_TRAIN_SPARSE = XYLENA_TRAIN.replace(H5, SPARSE+H5)
-XYLENA_TEST_SPARSE = XYLENA_TEST.replace(H5, SPARSE+H5)
+XYLENA_TRAIN_SPARSE = XYLENA_TRAIN.replace(H5, SPARSE + H5)
+XYLENA_TEST_SPARSE = XYLENA_TEST.replace(H5, SPARSE + H5)
 
 ## path to data (to be overridden by CLI or user scripts)
 IN_COLAB = "google.colab" in sys.modules
@@ -48,7 +46,7 @@ else:
     if sys.platform == "darwin":
         XYLENA_PATH = "data/xylena"
         XYLENA_RAW_PATH = "data/xylena_raw"
-    else: #linux
+    else:  # linux
         XYLENA_PATH = "data/scdata/xylena"
         XYLENA_RAW_PATH = "data/scdata/xylena_raw"
 

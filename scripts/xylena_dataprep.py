@@ -16,14 +16,19 @@ from pathlib import Path
 import scipy.sparse as sp
 import pandas as pd
 
-sys.path.append(os.path.abspath((os.path.join(os.getcwd(), '..'))))
+sys.path.append(os.path.abspath((os.path.join(os.getcwd(), ".."))))
 
 from lbl8r.utils import transfer_pcs
 
 from lbl8r.constants import *
-from lbl8r.constants import XYLENA_PATH, XYLENA_RAW_PATH, XYLENA_METADATA, XYLENA_ANNDATA2
+from lbl8r.constants import (
+    XYLENA_PATH,
+    XYLENA_RAW_PATH,
+    XYLENA_METADATA,
+    XYLENA_ANNDATA2,
+)
 
-# ### Load Train, Validate Data 
+# ### Load Train, Validate Data
 
 # In[ ]:
 root_path = Path("../")
@@ -52,22 +57,26 @@ train_samples_path = raw_data_path / "Model Combinations - training_set_98.csv"
 train_samples = pd.read_csv(train_samples_path)
 
 # In[ ]:
-newmeta = obs.join(metadat.set_index("cells"),lsuffix='', rsuffix='_other')
+newmeta = obs.join(metadat.set_index("cells"), lsuffix="", rsuffix="_other")
 
-newmeta['clean'] =  [s in set(clean_samples['sample']) for s in newmeta['sample'] ]
-newmeta['test'] =  [s in set(test_samples['sample']) for s in newmeta['sample'] ]
-newmeta['train'] =  [s in set(train_samples['sample']) for s in newmeta['sample'] ]
+newmeta["clean"] = [s in set(clean_samples["sample"]) for s in newmeta["sample"]]
+newmeta["test"] = [s in set(test_samples["sample"]) for s in newmeta["sample"]]
+newmeta["train"] = [s in set(train_samples["sample"]) for s in newmeta["sample"]]
 
 
 # In[ ]:
-### WARNING:  
-# Fix the missing `cell_type` by inferring label from the class logits columns 
+### WARNING:
+# Fix the missing `cell_type` by inferring label from the class logits columns
 # in newmeta.  Not sure why these were missing.
-na_rows = newmeta['cell_type'].isna()
-logit_cols = ['ExN1', 'InN2', 'MG3', 'Astro4', 'Oligo5', 'OPC6', 'VC7']
-newmeta.loc[na_rows,'cell_type'] = newmeta.loc[na_rows,logit_cols].idxmax(axis=1).str[:-1]
+na_rows = newmeta["cell_type"].isna()
+logit_cols = ["ExN1", "InN2", "MG3", "Astro4", "Oligo5", "OPC6", "VC7"]
+newmeta.loc[na_rows, "cell_type"] = (
+    newmeta.loc[na_rows, logit_cols].idxmax(axis=1).str[:-1]
+)
 
-newmeta['long_type']=newmeta['cell_type'].astype(str) + " " + newmeta['type'].astype(str)
+newmeta["long_type"] = (
+    newmeta["cell_type"].astype(str) + " " + newmeta["type"].astype(str)
+)
 
 
 # In[ ]:
@@ -79,34 +88,34 @@ outfilen = raw_data_path / XYLENA_ANNDATA2
 raw_ad.write_h5ad(outfilen)
 
 # In[ ]:  make the tran and test anndatas
-train_ad = raw_ad[raw_ad.obs['train']].copy()
-test_ad = raw_ad[raw_ad.obs['test']].copy()
+train_ad = raw_ad[raw_ad.obs["train"]].copy()
+test_ad = raw_ad[raw_ad.obs["test"]].copy()
 
 # In[ ]:clean up
 del raw_ad
 del metadat, obs
 
 # In[ ]:
-raw_train_filen = raw_data_path / XYLENA_ANNDATA.replace(H5, TRAIN+H5)
+raw_train_filen = raw_data_path / XYLENA_ANNDATA.replace(H5, TRAIN + H5)
 train_ad.write_h5ad(raw_train_filen)
 
-raw_test_filen = raw_data_path / XYLENA_ANNDATA.replace(H5, TEST+H5)
+raw_test_filen = raw_data_path / XYLENA_ANNDATA.replace(H5, TEST + H5)
 test_ad.write_h5ad(raw_test_filen)
 
 # In[ ]: delete to save memory and reload one at at time
 del train_ad, test_ad
 
 # In[ ]: load the raw train_ad
-raw_train_filen = raw_data_path / XYLENA_ANNDATA.replace(H5, TRAIN+H5)
-raw_test_filen = raw_data_path / XYLENA_ANNDATA.replace(H5, TEST+H5)
+raw_train_filen = raw_data_path / XYLENA_ANNDATA.replace(H5, TRAIN + H5)
+raw_test_filen = raw_data_path / XYLENA_ANNDATA.replace(H5, TEST + H5)
 
 train_ad = ad.read_h5ad(raw_train_filen, backed=False)
 
-# In[ ]: 
+# In[ ]:
 # use default scanpy for the pca
-sc.pp.pca(train_ad) 
+sc.pp.pca(train_ad)
 
-# In[ ]: 
+# In[ ]:
 # export the train_ad with pcas
 train_filen = data_path / XYLENA_TRAIN
 test_filen = data_path / XYLENA_TEST
@@ -114,7 +123,7 @@ test_filen = data_path / XYLENA_TEST
 # In[ ]:
 train_ad.write_h5ad(train_filen)
 
-# In[ ]: 
+# In[ ]:
 # load the raw test_ad
 test_ad = ad.read_h5ad(raw_test_filen)
 
@@ -143,7 +152,6 @@ test_filen = data_path / XYLENA_TEST_SPARSE
 test_ad.write_h5ad(test_filen)
 
 
-
 # In[ ]:
 del test_ad, train_ad
 
@@ -151,18 +159,9 @@ del test_ad, train_ad
 full_ad = ad.read_h5ad(raw_data_path / XYLENA_ANNDATA2)
 full_ad.X = sp.csr_matrix(full_ad.X)
 
-outfilen = raw_data_path / XYLENA_ANNDATA.replace(H5, SPARSE+H5)
+outfilen = raw_data_path / XYLENA_ANNDATA.replace(H5, SPARSE + H5)
 full_ad.write_h5ad(outfilen)
 del full_ad
 
 
-
-
-
-
-
 # In[ ]:
-
-
-
-

@@ -8,7 +8,8 @@ from numpy import asarray, argmax, unique, array
 from pandas import DataFrame
 from typing import Any
 
-def get_xgb_data(adata, label_key='cell_type'):
+
+def get_xgb_data(adata, label_key="cell_type"):
     """
     consider adding a "pre-processing" step to normalize the data
     """
@@ -19,25 +20,26 @@ def get_xgb_data(adata, label_key='cell_type'):
     y = label_encoder.transform(y)
     return X, y, label_encoder
 
-def train_xgboost(X,y,num_round = 50 , use_gpu=True) -> xgb.Booster: 
+
+def train_xgboost(X, y, num_round=50, use_gpu=True) -> xgb.Booster:
     """
     wrapper to split validation set and train xgboost and train model
     """
-    
+
     X_train, X_valid, y_train, y_valid = train_test_split(X, y, test_size=0.15)
     dtrain = xgb.DMatrix(X_train, label=y_train)
     dvalid = xgb.DMatrix(X_valid, label=y_valid)
     n_cats = len(unique(y))
     params = {
-        'max_depth': 7,
-        'objective': 'multi:softprob',  # error evaluation for multiclass training
-        'num_class': n_cats,
-        'eta': 0.3,  # the training step for each iteration
+        "max_depth": 7,
+        "objective": "multi:softprob",  # error evaluation for multiclass training
+        "num_class": n_cats,
+        "eta": 0.3,  # the training step for each iteration
         # 'n_gpus': 0
     }
     if use_gpu:
         params["device"] = "cuda"
-    
+
     # # Set up parameters for xgboost
     # param = {
     # 'max_depth': 6,  # the maximum depth of each tree
@@ -47,10 +49,18 @@ def train_xgboost(X,y,num_round = 50 , use_gpu=True) -> xgb.Booster:
 
     # evallist = [(dval, 'eval'), (dtrain, 'train')]
     # bst = xgb.train(param, dtrain, num_round, evallist)
-    bst = xgb.train(params, dtrain, num_round, evals=[(dvalid, 'valid')], early_stopping_rounds=10, verbose_eval=10)
+    bst = xgb.train(
+        params,
+        dtrain,
+        num_round,
+        evals=[(dvalid, "valid")],
+        early_stopping_rounds=10,
+        verbose_eval=10,
+    )
     return bst
 
-def load_xgboost(model_path: Path|str, use_gpu:bool=False) -> xgb.Booster|None:
+
+def load_xgboost(model_path: Path | str, use_gpu: bool = False) -> xgb.Booster | None:
     """
     Load an XGBoost classifier model from a file.
 
@@ -86,11 +96,11 @@ def load_xgboost(model_path: Path|str, use_gpu:bool=False) -> xgb.Booster|None:
         return None
 
 
-
-def test_xgboost(bst:xgb.Booster, 
-    adata:AnnData, 
-    label_encoder:LabelEncoder, 
-    label_key:str='cell_type'
+def test_xgboost(
+    bst: xgb.Booster,
+    adata: AnnData,
+    label_encoder: LabelEncoder,
+    label_key: str = "cell_type",
 ) -> (DataFrame, dict):
     """
     Test the XGBoost classifier on the test set.
@@ -124,19 +134,20 @@ def test_xgboost(bst:xgb.Booster,
     best_preds = asarray([argmax(line) for line in preds])
 
     # Evaluate the model on the test set
-    report = classification_report(y_test, best_preds, target_names=classes, output_dict=True)
+    report = classification_report(
+        y_test, best_preds, target_names=classes, output_dict=True
+    )
 
     # Convert predictions to DataFrame
-    preds_df = DataFrame(preds, columns=classes,index=index)
+    preds_df = DataFrame(preds, columns=classes, index=index)
 
     # Convert the predictions into class labels
     # there's a pandas argmax way thats cleaner
     best_preds = asarray([argmax(line) for line in preds])
     # Add actual and predicted labels to DataFrame
-    preds_df['label'] = label_encoder.inverse_transform(best_preds)
+    preds_df["label"] = label_encoder.inverse_transform(best_preds)
 
     # # Evaluate the model on the test set
     # print(classification_report(y_test, best_preds, target_names=classes))
 
     return preds_df, report
-

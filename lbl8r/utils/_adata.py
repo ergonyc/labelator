@@ -3,8 +3,10 @@ from scvi.model import SCVI
 import pandas as pd
 from pathlib import Path
 import numpy as np
+
 # from scanpy.pp import pca
 from ..constants import OUT, H5
+
 
 def make_latent_adata(scvi_model: SCVI, adata: AnnData, return_dist: bool = True):
     """
@@ -95,9 +97,9 @@ def make_scvi_normalized_adata(
 
     # rename keys for PCA from the raw data
     # better pattern:
-        # val = exp_adata.obsm.pop(key, None)
-        # if val is not None:
-        #     exp_adata.obsm[f"_{key}"] = val
+    # val = exp_adata.obsm.pop(key, None)
+    # if val is not None:
+    #     exp_adata.obsm[f"_{key}"] = val
 
     if "X_pca" in exp_adata.obsm.keys():
         X_pca = exp_adata.obsm.pop("X_pca")
@@ -113,7 +115,7 @@ def make_scvi_normalized_adata(
         exp_adata.uns["_pca"] = pca_dict
         _ = exp_adata.uns.pop("_scvi_uuid", None)
         _ = exp_adata.uns.pop("_scvi_manager_uuid", None)
-        
+
     return exp_adata
 
 
@@ -204,7 +206,6 @@ def transfer_pcs(train_ad: AnnData, test_ad: AnnData) -> AnnData:
         AnnData object with "test" data in X
     """
 
-
     if "X_pca" in test_ad.obsm.keys():
         X_pca = test_ad.obsm.pop("X_pca")
         test_ad.obsm["_X_pca"] = X_pca
@@ -219,7 +220,7 @@ def transfer_pcs(train_ad: AnnData, test_ad: AnnData) -> AnnData:
         test_ad.uns["_pca"] = pca_dict
         _ = test_ad.uns.pop("_scvi_uuid", None)
         _ = test_ad.uns.pop("_scvi_manager_uuid", None)
-        
+
     test_ad.varm["PCs"] = train_ad.varm["PCs"].copy()
     # compute loadings
     test_ad.obsm["X_pca"] = test_ad.X @ test_ad.varm["PCs"]
@@ -241,9 +242,9 @@ def add_cols_into_obs(adata, source_table, insert_keys, prefix=None):
     source_table : pd.DataFrame
         Pandas DataFrame which has column to insert.
     insert_key : str
-        Key in `adata.obs` where predictions are stored. 
+        Key in `adata.obs` where predictions are stored.
     prefix : str
-    
+
 
     Returns
     -------
@@ -256,17 +257,15 @@ def add_cols_into_obs(adata, source_table, insert_keys, prefix=None):
     # if insert_keys in obs.columns:
     #     # replace if its already there
     #     obs.drop(columns=[insert_key], inplace=True)
-    
+
     df = source_table[insert_keys].copy()
 
     if any([k in obs.columns for k in insert_keys]):
         if prefix is None:
             prefix = "_"
-        df= df.add_prefix(prefix)
+        df = df.add_prefix(prefix)
 
-    adata.obs = pd.merge(
-        obs, df, left_index=True, right_index=True, how="left"
-    )
+    adata.obs = pd.merge(obs, df, left_index=True, right_index=True, how="left")
 
     return adata
 
@@ -311,9 +310,9 @@ def export_ouput_adata(adata: AnnData, file_name: str, out_path: Path):
         out_path.mkdir()
 
     # if filename ends with _out.h5ad, strip the _out since we are adding back in
-    file_name = file_name.replace(OUT, "").replace(H5, OUT+H5)
+    file_name = file_name.replace(OUT, "").replace(H5, OUT + H5)
 
     adata.write_h5ad(out_path / file_name)
 
-    print( f"wrote: {out_path / file_name}" )
+    print(f"wrote: {out_path / file_name}")
     return None

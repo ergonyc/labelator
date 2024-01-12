@@ -14,23 +14,23 @@ import anndata as ad
 import scvi
 
 ### import local python functions in ../lbl8r
-sys.path.append(os.path.abspath((os.path.join(os.getcwd(), '..'))))
+sys.path.append(os.path.abspath((os.path.join(os.getcwd(), ".."))))
 
 from lbl8r.utils import (
-            plot_predictions,
-            plot_embedding,
-            export_ouput_adata,
-            )
+    plot_predictions,
+    plot_embedding,
+    export_ouput_adata,
+)
 from lbl8r import (
-                get_pca_lbl8r, 
-                query_lbl8r, 
-                prep_lbl8r_adata,
-                )
-            
+    get_pca_lbl8r,
+    query_lbl8r,
+    prep_lbl8r_adata,
+)
+
 from lbl8r.constants import *
 from lbl8r.constants import XYLENA_PATH
 
-torch.set_float32_matmul_precision("medium")  
+torch.set_float32_matmul_precision("medium")
 sc.set_figure_params(figsize=(4, 4))
 scvi.settings.seed = 94705
 
@@ -52,9 +52,9 @@ else:
 
 # In[ ]:
 # --------------
-# ## pcaLBL8R on PCAs of scVI normalized expression 
-# To give the pca "baseline" a fair shake its important to use normalized counts.  
-# Using the `scVI` normalization is our best shot... (Although the current models 
+# ## pcaLBL8R on PCAs of scVI normalized expression
+# To give the pca "baseline" a fair shake its important to use normalized counts.
+# Using the `scVI` normalization is our best shot... (Although the current models
 # are NOT batch correcting since we don't have a good strategy to do this with probe data)
 # In[ ]:
 out_data_path = data_path / f"LBL8R{EXPR}{PCS}"
@@ -63,8 +63,8 @@ out_data_path = data_path / f"LBL8R{EXPR}{PCS}"
 # get the input data from lbl8r_scvi.py output
 in_path = data_path / "LBL8R_scvi"
 
-train_filen = in_path / XYLENA_TRAIN.replace(RAW, EXPR+OUT)
-test_filen = in_path / XYLENA_TEST.replace(RAW, EXPR+OUT)
+train_filen = in_path / XYLENA_TRAIN.replace(RAW, EXPR + OUT)
+test_filen = in_path / XYLENA_TEST.replace(RAW, EXPR + OUT)
 
 train_ad = ad.read_h5ad(train_filen)
 
@@ -88,12 +88,12 @@ if fdir is not None:
     fig_dir = Path(fdir) / model_dir
     if not fig_dir.exists():
         fig_dir.mkdir()
-    
+
 # control figure saving and showing here
 fig_kwargs = dict(
-    save = save,
-    show = show, 
-    fig_dir = fig_dir,
+    save=save,
+    show=show,
+    fig_dir=fig_dir,
 )
 retrain = True
 plot_training = True
@@ -102,7 +102,7 @@ plot_training = True
 pca_model_name = "lbl8r_expr_pcs"
 pca_train_ad = prep_lbl8r_adata(train_ad, pca_key=PCA_KEY, labels_key=cell_type_key)
 # In[ ]:
-labelator, train_ad = get_pca_lbl8r( #get_lbl8r
+labelator, train_ad = get_pca_lbl8r(  # get_lbl8r
     pca_train_ad,
     labels_key=cell_type_key,
     model_path=model_path,
@@ -121,16 +121,17 @@ plot_predictions(
     model_name=pca_model_name,
     title_str="TRAIN",
     **fig_kwargs,
-    )
+)
 
 # In[ ]:
 # this should also add the embeddings to the adata
-plot_embedding(pca_train_ad,
-               basis=MDE_KEY,
-                color=[cell_type_key, "batch"],
-                device=device,
-               **fig_kwargs,
-                )
+plot_embedding(
+    pca_train_ad,
+    basis=MDE_KEY,
+    color=[cell_type_key, "batch"],
+    device=device,
+    **fig_kwargs,
+)
 
 # ---------------------------------------------------
 # In[ ]:
@@ -161,18 +162,17 @@ plot_predictions(
 
 # In[ ]:
 # this should also add the embeddings to the adata
-plot_embedding(pca_test_ad,
-               basis=MDE_KEY,
-                color=[cell_type_key, "batch"],
-                device=device,
-                **fig_kwargs,
-            )
+plot_embedding(
+    pca_test_ad,
+    basis=MDE_KEY,
+    color=[cell_type_key, "batch"],
+    device=device,
+    **fig_kwargs,
+)
 
 # In[ ]:
-export_ouput_adata(pca_train_ad, train_filen.name.replace(OUT,PCS), out_data_path)
-export_ouput_adata(pca_test_ad, test_filen.name.replace(OUT,PCS), out_data_path)
-
-
+export_ouput_adata(pca_train_ad, train_filen.name.replace(OUT, PCS), out_data_path)
+export_ouput_adata(pca_test_ad, test_filen.name.replace(OUT, PCS), out_data_path)
 
 
 # %%
