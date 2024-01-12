@@ -25,12 +25,16 @@ sys.path.append(os.path.abspath((os.path.join(os.getcwd(), '..'))))
 from lbl8r.utils import (
             plot_predictions,
             plot_embedding,
-            add_predictions_to_adata
+            export_ouput_adata,
+            add_predictions_to_adata,
+            make_scvi_normalized_adata
             )
 from lbl8r import (
                 get_lbl8r,  
                 query_lbl8r,
+                get_lbl8r_scvi,
                 )
+
 from lbl8r.models import LBL8R
 from lbl8r.constants import *
 from lbl8r.constants import XYLENA_PATH
@@ -62,7 +66,7 @@ fig_kwargs = dict(
 
 # In[8]:
 # ## `AnnData` initialization
-out_path = data_path
+out_data_path = data_path / "LBL8R"+RAW
 
 # ## 0. Load training data
 train_filen = data_path / XYLENA_TRAIN
@@ -75,8 +79,8 @@ test_filen = data_path / XYLENA_TEST
 # Here we want to classify based on the raw counts
 # Here we define a helper multilayer perceptron class to use it with a VAE below.
 
-model_dir = "RAW"
-cell_type_key = "cell_type"
+model_dir = "RAW_cnt"
+cell_type_key = CELL_TYPE_KEY
 
 # In[6]:
 model_root_path = root_path / MODEL_SAVE_DIR
@@ -92,7 +96,7 @@ if fig_dir is not None:
     if not fig_dir.exists():
         fig_dir.mkdir()
     
-retrain=False
+retrain=True
 plot_training = True
 
 
@@ -125,10 +129,8 @@ plot_predictions(
 # In[ ]:
 # this should also add the embeddings to the adata
 plot_embedding(train_ad,
-               basis="X_mde",
+               basis=MDE_KEY,
                 color=[cell_type_key, "batch"],
-                frameon=False,
-                wspace=0.35,
                 device=device,
                 **fig_kwargs,
                 )
@@ -136,7 +138,8 @@ plot_embedding(train_ad,
 # save versions of test/train with latents and embeddings added
 # 
 # In[17]:
-train_ad.write_h5ad(data_path / train_filen.name.replace(".h5ad", "_out.h5ad") )
+# train_ad.write_h5ad(data_path / train_filen.name.replace(".h5ad", "_out.h5ad") )
+export_ouput_adata(train_ad, train_filen.name, out_data_path)
 
 # In[ ]:
 # ------------------
@@ -155,13 +158,13 @@ test_ad = query_lbl8r(
 )
 
 
-LBL8R.setup_anndata(test_ad, labels_key=cell_type_key)
+# LBL8R.setup_anndata(test_ad, labels_key=cell_type_key)
 
-test_predictions = labelator.predict(test_ad, probs=False, soft=True)
-# In[20]:
-test_ad = add_predictions_to_adata(
-    test_ad, test_predictions, insert_key="pred", pred_key="label"
-)
+# test_predictions = labelator.predict(test_ad, probs=False, soft=True)
+# # In[20]:
+# test_ad = add_predictions_to_adata(
+#     test_ad, test_predictions, insert_key="pred", pred_key="label"
+# )
 # In[ ]:
 plot_predictions(
     test_ad,
@@ -176,38 +179,56 @@ plot_predictions(
 # In[ ]:
 # this should also add the embeddings to the adata
 plot_embedding(test_ad,
-               basis="X_mde",
+               basis=SCVI_MDE_KEY,
                 color=[cell_type_key, "batch"],
-                frameon=False,
-                wspace=0.35,
                 device=device,
                 **fig_kwargs,
             )
 # save versions of test/train with latents and embeddings added
 # 
 # In[23]:
-test_ad.write_h5ad(data_path / test_filen.name.replace(".h5ad", "_out.h5ad") )
+# test_ad.write_h5ad(data_path / test_filen.name.replace(".h5ad", "_out.h5ad") )
+export_ouput_adata(test_ad, test_filen.name, out_data_path) # will append "_out.h5ad"
 
 
 
-# In[19]:
+# In[19]:  TODO: save below to a separate script
 # --------------
 # ## LBL8R on scVI normalized expression  
 # To give a "baseline" a fair shake its important to use normalized counts.  Using the `scVI` 
 # normalization is our best shot... (Although the current models are NOT batch correcting 
 # since we don't have a good strategy to do this with probe data)
+out_data_path = data_path / "LBL8R"+EMB
 
-train_filen = data_path / "LBL8R" / XYLENA_TRAIN.replace("_cnt.h5ad", "_scvi_nb_out.h5ad")
-test_filen = data_path / "LBL8R" / XYLENA_TEST.replace("_cnt.h5ad", "_scvi_nb_out.h5ad")
+# In[ ]: RE-LOAD TRAIN DATA
 train_ad = ad.read_h5ad(train_filen)
 
+
+#######################
+vae_model_path = model_root_path/ "SCVI_nobatch"
+vae_model_name = "scvi_nobatch"
+vae, train_ad = get_lbl8r_scvi( # sa,e ast get_trained_scvi but forces "batch"=None
+    train_ad,
+    labels_key=cell_type_key,
+    model_path=model_path,
+    model_name=vae_model_name,
+)
+
+train_ad = make_scvi_normalized_adata(vae, train_ad)
+
+
+# in_path = out_data_path
+# train_filen = in_path / XYLENA_TRAIN.replace("_cnt.h5ad", "_scvi_nb_out.h5ad")
+# test_filen = in_path / XYLENA_TEST.replace("_cnt.h5ad", "_scvi_nb_out.h5ad")
+# train_ad = ad.read_h5ad(train_filen)
+
 # In[9]:
-model_dir = "SCVI_exp"
-cell_type_key = "cell_type"
+model_dir = "SCVI_expr"
+cell_type_key = CELL_TYPE_KEY
 out_path = data_path 
 
 # In[6]:
-model_root_path = root_path / "lbl8r_models"
+model_root_path = root_path / MODEL_SAVE_DIR
 if not model_root_path.exists():
     model_root_path.mkdir()
 
@@ -225,7 +246,7 @@ retrain = False
 plot_training = True
 # In[ ]:
 
-lbl8r_model_name = "scvi_exp"
+lbl8r_model_name = "scvi_expr"
 
 labelator, train_ad = get_lbl8r( 
     train_ad,
@@ -246,16 +267,14 @@ plot_predictions(
     cell_type_key=cell_type_key,
     model_name=lbl8r_model_name,
     title_str="TRAIN",
-                **fig_kwargs,
+    **fig_kwargs,
     )
 
 # In[ ]:
 # this should also add the embeddings to the adata
 plot_embedding(train_ad,
-               basis="X_mde",
+               basis=MDE_KEY,
                 color=[cell_type_key, "batch"],
-                frameon=False,
-                wspace=0.35,
                 device=device,
                 **fig_kwargs,
                 )
@@ -263,32 +282,34 @@ plot_embedding(train_ad,
 # save versions of test/train with latents and embeddings added
 # 
 # In[17]:
-train_ad.write_h5ad(data_path / train_filen.name.replace(".h5ad", "_scvi_nb_out.h5ad") )
+export_ouput_adata(train_ad, train_filen.name.replace(RAW, EXPR+NOBATCH), out_data_path)
+
 
 # In[ ]:
 # ------------------
 # ## TEST
 # ## 4.  Load data
 test_ad = ad.read_h5ad(test_filen)
+test_ad = make_scvi_normalized_adata(vae, test_ad)
 
 # test_ad.obs["ground_truth"] = test_ad.obs[cell_type_key]
 
 # In[19]:
 
-test_ad = query_lbl8r(
+exp_test_ad = query_lbl8r(
     test_ad,
     labelator,
     labels_key=cell_type_key,
 )
 
 
-LBL8R.setup_anndata(test_ad, labels_key=cell_type_key)
+# LBL8R.setup_anndata(test_ad, labels_key=cell_type_key)
 
-test_predictions = labelator.predict(test_ad, probs=False, soft=True)
-# In[20]:
-test_ad = add_predictions_to_adata(
-    test_ad, test_predictions, insert_key="pred", pred_key="label"
-)
+# test_predictions = labelator.predict(test_ad, probs=False, soft=True)
+# # In[20]:
+# test_ad = add_predictions_to_adata(
+#     test_ad, test_predictions, insert_key="pred", pred_key="label"
+# )
 # In[ ]:
 plot_predictions(
     test_ad,
@@ -303,15 +324,14 @@ plot_predictions(
 # In[ ]:
 # this should also add the embeddings to the adata
 plot_embedding(test_ad,
-               basis="X_mde",
+               basis=MDE_KEY,
                 color=[cell_type_key, "batch"],
-                frameon=False,
-                wspace=0.35,
                 device=device,
                 **fig_kwargs,
             )
 # save versions of test/train with latents and embeddings added
 # 
 # In[23]:
-test_ad.write_h5ad(data_path / test_filen.name.replace(".h5ad", "_scvi_nb_out.h5ad") )
+export_ouput_adata(test_ad, test_filen.name.replace(RAW, EXPR+NOBATCH), out_data_path)
+
 # %%

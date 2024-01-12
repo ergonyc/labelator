@@ -102,7 +102,7 @@ cell_type_key = 'cell_type'
 # In[4]:
 
 
-model_path = root_path / "lbl8r_models"
+model_path = root_path / MODEL_SAVE_DIR
 scvi_path = model_path / "scvi_nobatch"
 
 labels_key = 'cell_type'

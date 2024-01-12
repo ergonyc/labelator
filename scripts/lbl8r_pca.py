@@ -55,22 +55,24 @@ fig_kwargs = dict(
 )
 
 # In[ ]:
-# ## 0. Load training data
+out_data_path = data_path / "LBL8R"+PCS
+
 train_filen = data_path / XYLENA_TRAIN
 test_filen = data_path / XYLENA_TEST
 
+# In[ ]:
+# ## 0. Load training data
 train_ad = ad.read_h5ad(train_filen)
 
 # In[ ]:
 model_dir = "RAW_pca"
-cell_type_key = "cell_type"
-out_path = data_path / "LBL8Rpca"
+cell_type_key = CELL_TYPE_KEY
 
 
 # In[ ]: ## model definition
 # Here we want to classify based on the PCA loadings.
 # Hand define a helper multilayer perceptron class to use it with a VAE below.
-model_root_path = root_path / "lbl8r_models"
+model_root_path = root_path / MODEL_SAVE_DIR
 if not model_root_path.exists():
     model_root_path.mkdir()
 
@@ -115,14 +117,10 @@ plot_predictions(
 # In[ ]:
 # this should also add the embeddings to the adata
 plot_embedding(pca_train_ad,
-               basis="X_mde",
+               basis=MDE_KEY,
                 color=[cell_type_key, "batch"],
-                frameon=False,
-                wspace=0.35,
                 device=device,
-                save = save,
-                show = show, 
-                fig_dir = fig_dir,
+               **fig_kwargs,
                 )
 
 
@@ -155,18 +153,14 @@ plot_predictions(
 # In[ ]:
 # this should also add the embeddings to the adata
 plot_embedding(pca_test_ad,
-               basis="X_mde",
+               basis=MDE_KEY,
                 color=[cell_type_key, "batch"],
-                frameon=False,
-                wspace=0.35,
                 device=device,
-                save = save,
-                show = show, 
-                fig_dir = fig_dir,
+                **fig_kwargs,
             )
 
 # In[ ]:
 # ## 7: save versions of test/train with latents and embeddings added
-export_ouput_adata(train_ad, train_filen.name.replace("_cnt.h5ad", "_pca.h5ad"), out_path)
-export_ouput_adata(test_ad, test_filen.name.replace("_cnt.h5ad", "_pca.h5ad"), out_path)
+export_ouput_adata(pca_train_ad, train_filen.name.replace(H5,PCS+H5), out_data_path)
+export_ouput_adata(pca_test_ad, test_filen.name.replace(H5,PCS+H5), out_data_path)
 

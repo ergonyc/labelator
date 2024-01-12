@@ -300,7 +300,7 @@ train_ad.obsm['X_mde2'] = mde(train_ad.obsm['X_pca'], device="cuda")
 
 sc.pl.embedding(
     train_ad,
-    basis="X_mde",
+    basis=MDE_KEY,
     color=["cell_type", "batch"],
     frameon=False,
     wspace=0.35,
@@ -967,7 +967,7 @@ test_ad.obsm['X_mde'] = scvi.model.utils.mde(test_ad.obsm['X_pca'])
 
 sc.pl.embedding(
     test_ad,
-    basis="X_mde",
+    basis=MDE_KEY,
     color=["cell_type", "batch"],
     frameon=False,
     wspace=0.35,

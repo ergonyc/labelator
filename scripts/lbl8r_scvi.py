@@ -57,22 +57,25 @@ fig_kwargs = dict(
     show = show, 
     fig_dir = fig_dir,
 )
+
 # In[ ]:
-# ## 0. Load training data
+out_data_path = data_path / "LBL8R"+EMB
+
 train_filen = data_path / XYLENA_TRAIN
 test_filen = data_path / XYLENA_TEST
+
+# In[ ]:
+# ## 0. Load training data
 
 train_ad = ad.read_h5ad(train_filen)
 
 # In[ ]:
 model_dir = "SCVI_nobatch"
-cell_type_key = "cell_type"
-out_path = data_path / "LBL8Rscvi"
-
+cell_type_key = CELL_TYPE_KEY
 
 # ### scVI model definition
 # In[ ]:
-model_root_path = root_path / "lbl8r_models"
+model_root_path = root_path / MODEL_SAVE_DIR
 if not model_root_path.exists():
     model_root_path.mkdir()
 
@@ -88,11 +91,10 @@ if fig_dir is not None:
 retrain = False
 plot_training = True
 
-print(f"save is set to: {save}")
 
 # In[ ]:
 vae_model_name = "scvi_nobatch"
-vae, train_ad = get_lbl8r_scvi(
+vae, train_ad = get_lbl8r_scvi( # sa,e ast get_trained_scvi but forces "batch"=None
     train_ad,
     labels_key=cell_type_key,
     model_path=model_path,
@@ -133,15 +135,11 @@ plot_predictions(
 # In[ ]:
 # this should also add the embeddings to the adata
 plot_embedding(train_ad,
-               basis="X_scVI_mde",
+               basis=SCVI_MDE_KEY,
                 color=[cell_type_key, "batch"],
-                frameon=False,
-                wspace=0.35,
                 device=device,
                 scvi_model = vae,
-                save = save,
-                show = show, 
-                fig_dir = fig_dir,
+                **fig_kwargs,
                 )
 
 # In[ ]:
@@ -168,30 +166,25 @@ plot_predictions(latent_test_ad,
                  cell_type_key=cell_type_key, 
                  model_name=lbl8r_model_name, 
                  title_str="TEST",
-                save = save,
-                show = show, 
-                fig_dir = fig_dir,
+                 **fig_kwargs,
+
             )
 
 
 # In[ ]:
 # this should also add the embeddings to the adata
 plot_embedding(latent_test_ad,
-               basis="X_scVI_mde",
+               basis=SCVI_MDE_KEY,
                 color=[cell_type_key, "batch"],
-                frameon=False,
-                wspace=0.35,
                 device=device,
                 scvi_model = vae,
-                save = save,
-                show = show, 
-                fig_dir = fig_dir,
+                **fig_kwargs,
             )
 
 # In[ ]:
 # ## 7: save versions of test/train with latents and embeddings added
-export_ouput_adata(latent_ad, train_filen.name.replace("_cnt.h5ad", "_scvi_nb.h5ad"), out_path)
-export_ouput_adata(latent_test_ad, test_filen.name.replace("_cnt.h5ad", "_scvi_nb.h5ad"), out_path)
+export_ouput_adata(latent_ad, train_filen.name.replace(RAW, EMB+NOBATCH), out_data_path)
+export_ouput_adata(latent_test_ad, test_filen.name.replace(RAW, EMB+NOBATCH), out_data_path)
 
 
 # In[ ]:
@@ -205,7 +198,6 @@ export_ouput_adata(latent_test_ad, test_filen.name.replace("_cnt.h5ad", "_scvi_n
 # - transform the counts into expression
 # - make the new AnnData
 # - save
-retrain=True
 # In[ ]:
 qscvi_model_name = "query_scvi"
 scvi_query, test_ad = query_scvi(
@@ -226,15 +218,13 @@ exp_train_ad = make_scvi_normalized_adata(scvi_query, train_ad)
 
 
 # In[ ]:
-export_ouput_adata(exp_train_ad, train_filen.name.replace("_cnt.h5ad", "_exp_nb.h5ad"), out_path)
+export_ouput_adata(exp_train_ad, train_filen.name.replace(RAW, EXPR+NOBATCH), out_data_path)
 
 
 # In[ ]:
 del exp_train_ad, train_ad
 
 exp_test_ad = make_scvi_normalized_adata(scvi_query, test_ad)
-export_ouput_adata(exp_test_ad, test_filen.name.replace("_cnt.h5ad", "_exp_nb.h5ad"), out_path)
+export_ouput_adata(exp_test_ad, test_filen.name.replace(RAW, EXPR+NOBATCH), out_data_path)
 del exp_test_ad, test_ad
-
-
 

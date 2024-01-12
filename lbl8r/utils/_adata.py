@@ -4,7 +4,7 @@ import pandas as pd
 from pathlib import Path
 import numpy as np
 # from scanpy.pp import pca
-
+from ..constants import OUT, H5
 
 def make_latent_adata(scvi_model: SCVI, adata: AnnData, return_dist: bool = True):
     """
@@ -270,10 +270,13 @@ def export_ouput_adata(adata: AnnData, file_name: str, out_path: Path):
 
 
     """
-
     if not out_path.exists():
         out_path.mkdir()
-    adata.write_h5ad(out_path / file_name.replace(".h5ad", "_out.h5ad"))
 
-    print(f"wrote: {out_path / file_name.replace('.h5ad', '_out.h5ad')}")
+    # if filename ends with _out.h5ad, strip the _out since we are adding back in
+    file_name = file_name.replace(OUT, "").replace(H5, OUT+H5)
+
+    adata.write_h5ad(out_path / file_name)
+
+    print( f"wrote: {out_path / file_name}" )
     return None

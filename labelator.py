@@ -12,8 +12,7 @@ import click
 import logging
 import os
 import pandas as pd
-import scanpy as sc
-import scvi
+import anndata as ad 
 import sys
 from pathlib import Path
 from typing import Optional, Union
@@ -45,7 +44,7 @@ def main():
     logging.basicConfig(level=logging.INFO)
 
     # load data
-    adata = sc.read(input_file)
+    adata = ad.read_h5ad(input_file)
 
     # initialize model
     model = scvi.model.SCVI(adata)
