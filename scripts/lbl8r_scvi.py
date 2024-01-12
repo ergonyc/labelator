@@ -84,7 +84,7 @@ fig_kwargs = dict(
     fig_dir = fig_dir,
 )
 
-retrain = False
+retrain = True
 plot_training = True
 
 
@@ -110,7 +110,7 @@ latent_ad = prep_lbl8r_adata(train_ad, vae, labels_key=cell_type_key)
 
 # In[ ]:
 lbl8r_model_name = "lbl8r"
-retrain = False
+retrain = True
 
 labelator, latent_ad = get_lbl8r(
     latent_ad,
@@ -209,7 +209,13 @@ export_ouput_adata(exp_train_ad, train_filen.name.replace(RAW, EXPR), out_data_p
 del exp_train_ad, train_ad
 
 exp_test_ad = make_scvi_normalized_adata(vae, test_ad)
+
+# In[ ]:
 export_ouput_adata(exp_test_ad, test_filen.name.replace(RAW, EXPR), out_data_path)
+test_ad, exp_test_ad 
+
+
+# %%
 del exp_test_ad
 
 # In[ ]:
@@ -235,5 +241,33 @@ scvi_query, test_ad = query_scvi(
     plot_training=plot_training,
     **fig_kwargs,
 )
+
+# %%
+del vae, scvi_query
+
+
+# %%  ADD the PCs
+import scanpy as sc
+from lbl8r.utils import transfer_pcs
+
+# %% 
+out_data_path = data_path / "LBL8R_scvi"
+train_expn_filen = out_data_path / train_filen.name.replace(RAW, EXPR+OUT)
+train_ad = ad.read_h5ad(train_expn_filen)
+
+# %% 
+# DO PCA
+sc.pp.pca(train_ad) 
+
+# %%
+test_exp_filen = out_data_path / test_filen.name.replace(RAW, EXPR+OUT)
+test_ad = ad.read_h5ad(test_exp_filen)
+
+# In[ ]: # now we need to copy the PCs to the test set and compute loadings.
+test_ad = transfer_pcs(train_ad, test_ad)
+# In[ ]:
+export_ouput_adata(train_ad, train_expn_filen.name.replace(RAW, EXPR), out_data_path)
+export_ouput_adata(test_ad, test_exp_filen.name.replace(RAW, EXPR), out_data_path)
+
 
 # %%

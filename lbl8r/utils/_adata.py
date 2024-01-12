@@ -90,10 +90,15 @@ def make_scvi_normalized_adata(
     exp_adata.obs = adata.obs.copy()
     exp_adata.var = adata.var.copy()
     exp_adata.obsm = adata.obsm.copy()
-    exp_adata.uns = {}
+    exp_adata.uns = adata.uns.copy()
     exp_adata.varm = adata.varm.copy()
 
     # rename keys for PCA from the raw data
+    # better pattern:
+        # val = exp_adata.obsm.pop(key, None)
+        # if val is not None:
+        #     exp_adata.obsm[f"_{key}"] = val
+
     if "X_pca" in exp_adata.obsm.keys():
         X_pca = exp_adata.obsm.pop("X_pca")
         exp_adata.obsm["_X_pca"] = X_pca
@@ -103,7 +108,12 @@ def make_scvi_normalized_adata(
         print("adding raw PCs to exp_adata")
         exp_adata.varm["_PCs"] = PCs
 
-    print(exp_adata.shape)
+    if "pca" in exp_adata.uns.keys():
+        pca_dict = exp_adata.uns.pop("pca")
+        exp_adata.uns["_pca"] = pca_dict
+        _ = exp_adata.uns.pop("_scvi_uuid", None)
+        _ = exp_adata.uns.pop("_scvi_manager_uuid", None)
+        
     return exp_adata
 
 
@@ -139,7 +149,9 @@ def make_pc_loading_adata(adata: AnnData, pca_key: str = "X_pca"):
     loading_adata.obs = adata.obs.copy()
     loading_adata.var_names = var_names
     loading_adata.obsm = adata.obsm.copy()
-    loading_adata.uns = {}
+    loading_adata.uns = adata.uns.copy()
+    _ = loading_adata.uns.pop("_scvi_uuid", None)
+    _ = loading_adata.uns.pop("_scvi_manager_uuid", None)
 
     print(loading_adata.shape)
     return loading_adata
@@ -191,11 +203,29 @@ def transfer_pcs(train_ad: AnnData, test_ad: AnnData) -> AnnData:
     test_ad
         AnnData object with "test" data in X
     """
+
+
+    if "X_pca" in test_ad.obsm.keys():
+        X_pca = test_ad.obsm.pop("X_pca")
+        test_ad.obsm["_X_pca"] = X_pca
+
+    if "PCs" in test_ad.varm.keys():
+        PCs = test_ad.varm.pop("PCs")
+        print("saving raw PCs to test_ad")
+        test_ad.varm["_PCs"] = PCs
+
+    if "pca" in test_ad.uns.keys():
+        pca_dict = test_ad.uns.pop("pca")
+        test_ad.uns["_pca"] = pca_dict
+        _ = test_ad.uns.pop("_scvi_uuid", None)
+        _ = test_ad.uns.pop("_scvi_manager_uuid", None)
+        
     test_ad.varm["PCs"] = train_ad.varm["PCs"].copy()
     # compute loadings
     test_ad.obsm["X_pca"] = test_ad.X @ test_ad.varm["PCs"]
     # update the uns dictionary. there migth be a reason/way to compute this relative to ad_out
-    test_ad.uns.update(train_ad.uns.copy())
+    # test_ad.uns.update(train_ad.uns.copy())
+
     return test_ad
 
 

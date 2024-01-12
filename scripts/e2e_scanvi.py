@@ -43,20 +43,12 @@ data_path = root_path / XYLENA_PATH
 
 if __name__ == "__main__":
     save = True
-    fig_dir = "figs"
+    fdir = "figs"
     show = False
 else:
     save = False
-    fig_dir = None
+    fdir = None
     show = True
-
-# control figure saving and showing here
-fig_kwargs = dict(
-    save = save,
-    show = show, 
-    fig_dir = fig_dir,
-)
-
 
 # TODO: make a wrapper called scanvi_pipeline which takes batch.  then e2e_scanvi and e2e_scanvi_nb have the same code. 
 # In[ ]:
@@ -80,12 +72,18 @@ model_path = model_root_path / model_dir
 if not model_path.exists():
     model_path.mkdir()
 
-if fig_dir is not None:
-    fig_dir = Path(fig_dir) / model_dir
+if fdir is not None:
+    fig_dir = Path(fdir) / model_dir
     if not fig_dir.exists():
         fig_dir.mkdir()
     
-retrain=True
+# control figure saving and showing here
+fig_kwargs = dict(
+    save = save,
+    show = show, 
+    fig_dir = fig_dir,
+)
+retrain = True
 plot_training = True
 
 # In[ ]: LOAD TRAIN DATA
@@ -138,6 +136,7 @@ plot_embedding(
     train_ad,
     basis=SCVI_MDE_KEY,
     color=["C_scANVI", "batch"],
+    device=device,
     scvi_model=vae,
     **fig_kwargs,
 
@@ -223,6 +222,24 @@ test_ad.obs[cell_type_key] = test_ad.obs["ground_truth"]
 
 export_ouput_adata(test_ad, test_filen.name, out_data_path) # will append "_out.h5ad"
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # In[ ]:
 ## reload the saved adatas and make the scvi normalized adata for further testing... 
 # # _______________
@@ -275,8 +292,6 @@ test_ad = transfer_pcs(train_ad, test_ad)
 # In[ ]:
 export_ouput_adata(train_ad, train_filen.name.replace(RAW, EXPR), out_data_path)
 export_ouput_adata(test_ad, test_filen.name.replace(RAW, EXPR), out_data_path)
-
-
 
 
 

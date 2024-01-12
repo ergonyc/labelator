@@ -54,7 +54,7 @@ train_filen = data_path / XYLENA_TRAIN
 test_filen = data_path / XYLENA_TEST
 
 # In[ ]:
-model_dir = "PCA"
+model_dir = "PCS"
 cell_type_key = CELL_TYPE_KEY
 
 
@@ -81,7 +81,7 @@ fig_kwargs = dict(
     fig_dir = fig_dir,
 )
     
-retrain = False
+retrain = True
 plot_training = True
 
 

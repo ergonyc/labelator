@@ -43,11 +43,11 @@ data_path = root_path / XYLENA_PATH
 
 if __name__ == "__main__":
     save = True
-    fig_dir = "figs"
+    fdir = "figs"
     show = False
 else:
     save = False
-    fig_dir = None
+    fdir = None
     show = True
 
 # In[ ]:
@@ -69,7 +69,7 @@ test_filen = in_path / XYLENA_TEST.replace(RAW, EXPR+OUT)
 train_ad = ad.read_h5ad(train_filen)
 
 # In[ ]:
-model_dir = "EXPR_pca"
+model_dir = "PCS"
 cell_type_key = CELL_TYPE_KEY
 
 
@@ -79,6 +79,10 @@ cell_type_key = CELL_TYPE_KEY
 model_root_path = root_path / MODEL_SAVE_DIR
 if not model_root_path.exists():
     model_root_path.mkdir()
+
+model_path = model_root_path / model_dir
+if not model_path.exists():
+    model_path.mkdir()
 
 if fdir is not None:
     fig_dir = Path(fdir) / model_dir
@@ -97,7 +101,7 @@ plot_training = True
 # In[ ]:
 pca_model_name = "lbl8r_expr_pcs"
 pca_train_ad = prep_lbl8r_adata(train_ad, pca_key=PCA_KEY, labels_key=cell_type_key)
-
+# In[ ]:
 labelator, train_ad = get_pca_lbl8r( #get_lbl8r
     pca_train_ad,
     labels_key=cell_type_key,
@@ -165,8 +169,10 @@ plot_embedding(pca_test_ad,
             )
 
 # In[ ]:
-export_ouput_adata(pca_train_ad, train_filen.name.replace(H5,PCS+H5), out_data_path)
-export_ouput_adata(pca_test_ad, test_filen.name.replace(H5,PCS+H5), out_data_path)
+export_ouput_adata(pca_train_ad, train_filen.name.replace(OUT,PCS), out_data_path)
+export_ouput_adata(pca_test_ad, test_filen.name.replace(OUT,PCS), out_data_path)
 
 
 
+
+# %%

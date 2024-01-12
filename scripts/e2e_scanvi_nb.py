@@ -43,20 +43,13 @@ data_path = root_path / XYLENA_PATH
 
 if __name__ == "__main__":
     save = True
-    fig_dir = "figs"
+    fdir = "figs"
     show = False
 else:
     save = False
-    fig_dir = None
+    fdir = None
     show = True
 
-
-# control figure saving and showing here
-fig_kwargs = dict(
-    save = save,
-    show = show, 
-    fig_dir = fig_dir,
-)
 
 # In[ ]:
 out_data_path = data_path / "SCANVI_nobatch"
@@ -80,12 +73,18 @@ model_path = model_root_path / model_dir
 if not model_path.exists():
     model_path.mkdir()
 
-if fig_dir is not None:
-    fig_dir = Path(fig_dir) / model_dir
+if fdir is not None:
+    fig_dir = Path(fdir) / model_dir
     if not fig_dir.exists():
         fig_dir.mkdir()
     
-retrain=True
+# control figure saving and showing here
+fig_kwargs = dict(
+    save = save,
+    show = show, 
+    fig_dir = fig_dir,
+)
+retrain = True
 plot_training = True
 
 # In[ ]: LOAD TRAIN DATA
@@ -176,7 +175,7 @@ scvi_query, test_ad = query_scvi(
     model_path=model_path,
     retrain=retrain,
     model_name=qscvi_model_name,
-    plot_training=True,
+    plot_training=plot_training,
     **fig_kwargs,
 )
 
@@ -190,7 +189,7 @@ scanvi_query, test_ad = query_scanvi(
     model_path=model_path,
     retrain=retrain,
     model_name=qscanvi_model_name,
-    plot_training=True,
+    plot_training=plot_training,
     **fig_kwargs,
 )
 # In[ ]:
