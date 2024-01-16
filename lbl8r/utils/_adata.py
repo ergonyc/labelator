@@ -5,7 +5,51 @@ from pathlib import Path
 import numpy as np
 
 # from scanpy.pp import pca
-from ..constants import OUT, H5
+from ..constants import OUT, H5, SCVI_LATENT_KEY
+
+
+def prep_lbl8r_adata(
+    adata: AnnData,
+    vae: SCVI | None = None,
+    pca_key: str | None = None,
+    labels_key: str = "cell_type",
+) -> AnnData:
+    """
+    make an adata with embeddings in adata.X.  It if `vae is not None`
+    it will use the `vae` model to make the latent representation.  Otherwise,
+    if pca_key is not None, it will use the `adata.obsm{pca_key)' slot in the adata.
+    If both are None, it will raise an error.
+
+    Parameters
+    ----------
+    adata : AnnData
+        Annotated data matrix.
+    vae : SCVI
+        An scVI model. Default is `None`.
+    pca_key : str
+        Key for pca loadings. Default is `None`.
+
+    Returns
+    -------
+    AnnData
+        Annotated data matrix with latent variables as X
+
+    """
+
+    if vae is None and pca_key is None:
+        raise ValueError("vae and pca_key cannot both be None")
+
+    if vae is not None:
+        # do i need an adata.copy() here?
+        SCVI.setup_anndata(adata, labels_key=labels_key, batch_key=None)  # "dummy")
+
+        latent_ad = make_latent_adata(vae, adata, return_dist=False)
+        latent_ad.obsm[SCVI_LATENT_KEY] = latent_ad.X  # copy to obsm for convenience
+        return latent_ad
+
+    if pca_key is not None:
+        loadings_ad = make_pc_loading_adata(adata, pca_key)
+        return loadings_ad
 
 
 def make_latent_adata(scvi_model: SCVI, adata: AnnData, return_dist: bool = True):

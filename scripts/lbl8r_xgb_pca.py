@@ -39,11 +39,14 @@ scvi.settings.seed = 94705
 device = "mps" if sys.platform == "darwin" else "cuda"
 
 # In[ ]:
+# setup 1 #######################################
+############################################################################
+############################################################################
 root_path = Path("../")
 
 data_path = root_path / XYLENA_PATH
 
-if __name__ == "__main__":
+if "ipykernel" in sys.modules:
     save = True
     fdir = "figs"
     show = False
@@ -97,66 +100,11 @@ fig_kwargs = dict(
 )
 
 retrain = True
-
-# In[ ]:
-# load data and get label encoder
-train_ad = ad.read_h5ad(train_filen)
 xgb_model_name = "xgb_raw_pcs"
-# In[ ]:
-
-bst, train_ad, le = get_xgb(
-    train_ad,
-    label_key=cell_type_key,
-    model_path=model_path,
-    retrain=retrain,
-    model_name=xgb_model_name,
-)
-
-# In[ ]:
-# 1. add the predictions to the adata
-plot_predictions(
-    train_ad,
-    pred_key="pred",
-    cell_type_key=cell_type_key,
-    model_name=xgb_model_name,
-    title_str="TRAIN",
-    **fig_kwargs,
-)
-# In[ ]:
-# ### test
-test_ad = ad.read_h5ad(test_filen)
-
-test_ad, test_report = query_xgb(test_ad, bst, le)
-plot_predictions(
-    test_ad,
-    pred_key="pred",
-    cell_type_key=cell_type_key,
-    model_name=xgb_model_name,
-    title_str="TEST",
-    **fig_kwargs,
-)
-
-#
-# In[23]:
-# ## 7: save versions of test/train with latents and embeddings added
-export_ouput_adata(train_ad, train_filen.name, out_data_path)
-export_ouput_adata(test_ad, test_filen.name, out_data_path)
-
-# ------------------------------------------------
-# In[ ]:
-# ## XGB LBL8R on scVI normalized PCAs
-# To give the pca "baseline" a fair shake its important to use normalized counts.
-#  Using the `scVI` normalization is our best shot... (Although the current models
-#  are NOT batch correcting since we don't have a good strategy to do this with probe data)
-in_data_path = data_path / f"LBL8R{EXPR}{PCS}"
-
-train_filen = in_data_path / XYLENA_TRAIN.replace(RAW, EXPR + PCS + OUT)
-test_filen = in_data_path / XYLENA_TEST.replace(RAW, EXPR + PCS + OUT)
 
 # In[ ]:
 # load data and get label encoder
 train_ad = ad.read_h5ad(train_filen)
-xgb_model_name = "xgb_expr_pcs"
 # In[ ]:
 
 bst, train_ad, le = get_xgb(
@@ -166,8 +114,16 @@ bst, train_ad, le = get_xgb(
     retrain=retrain,
     model_name=xgb_model_name,
 )
+train_ad, report = query_xgb(train_ad, bst, le)
 
 # In[ ]:
+
+# In[ ]:
+# ### test
+test_ad = ad.read_h5ad(test_filen)
+
+test_ad, test_report = query_xgb(test_ad, bst, le)
+
 # 1. add the predictions to the adata
 plot_predictions(
     train_ad,
@@ -177,15 +133,6 @@ plot_predictions(
     title_str="TRAIN",
     **fig_kwargs,
 )
-# In[ ]:
-# ### test
-test_ad = ad.read_h5ad(test_filen)
-
-# In[ ]:
-test_ad, test_report = query_xgb(test_ad, bst, le)
-
-# In[ ]:
-
 plot_predictions(
     test_ad,
     pred_key="pred",
@@ -200,63 +147,3 @@ plot_predictions(
 # ## 7: save versions of test/train with latents and embeddings added
 export_ouput_adata(train_ad, train_filen.name, out_data_path)
 export_ouput_adata(test_ad, test_filen.name, out_data_path)
-
-
-# ------------------------------------------------
-# In[ ]:
-# ## xgb_LBL8R on scVI latents
-#
-in_data_path = data_path / "LBL8R_scvi"
-
-train_filen = in_data_path / XYLENA_TRAIN.replace(RAW, EMB + OUT)
-test_filen = in_data_path / XYLENA_TEST.replace(RAW, EMB + OUT)
-
-# In[ ]:
-# load data and get label encoder
-
-# ## 0. Load training data
-
-train_ad = ad.read_h5ad(train_filen)
-xgb_model_name = "xgb_scvi_nb"
-# In[ ]:
-
-bst, train_ad, le = get_xgb(
-    train_ad,
-    label_key=cell_type_key,
-    model_path=model_path,
-    retrain=retrain,
-    model_name=xgb_model_name,
-)
-
-# In[ ]:
-# 1. add the predictions to the adata
-plot_predictions(
-    train_ad,
-    pred_key="pred",
-    cell_type_key=cell_type_key,
-    model_name=xgb_model_name,
-    title_str="TRAIN",
-    **fig_kwargs,
-)
-# In[ ]:
-# ### test
-test_ad = ad.read_h5ad(test_filen)
-
-test_ad, test_report = query_xgb(test_ad, bst, le)
-plot_predictions(
-    test_ad,
-    pred_key="pred",
-    cell_type_key=cell_type_key,
-    model_name=xgb_model_name,
-    title_str="TEST",
-    **fig_kwargs,
-)
-
-#
-# In[23]:
-# ## 7: save versions of test/train with latents and embeddings added
-export_ouput_adata(train_ad, train_filen.name, out_data_path)
-export_ouput_adata(test_ad, test_filen.name, out_data_path)
-
-
-# %%
