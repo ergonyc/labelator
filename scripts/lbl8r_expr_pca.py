@@ -41,7 +41,7 @@ root_path = Path("../")
 
 data_path = root_path / XYLENA_PATH
 
-if __name__ == "__main__":
+if "ipykernel" in sys.modules:
     save = True
     fdir = "figs"
     show = False
@@ -111,6 +111,13 @@ labelator, train_ad = get_pca_lbl8r(  # get_lbl8r
     plot_training=plot_training,
     **fig_kwargs,
 )
+
+train_ad = query_lbl8r(
+    train_ad,
+    labelator,
+    labels_key=cell_type_key,
+)
+
 
 # In[ ]:
 # ## 3: visualize prediction fidelity on training set

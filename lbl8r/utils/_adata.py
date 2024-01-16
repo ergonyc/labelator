@@ -5,7 +5,51 @@ from pathlib import Path
 import numpy as np
 
 # from scanpy.pp import pca
-from ..constants import OUT, H5
+from ..constants import OUT, H5, SCVI_LATENT_KEY
+
+
+def prep_lbl8r_adata(
+    adata: AnnData,
+    vae: SCVI | None = None,
+    pca_key: str | None = None,
+    labels_key: str = "cell_type",
+) -> AnnData:
+    """
+    make an adata with embeddings in adata.X.  It if `vae is not None`
+    it will use the `vae` model to make the latent representation.  Otherwise,
+    if pca_key is not None, it will use the `adata.obsm{pca_key)' slot in the adata.
+    If both are None, it will raise an error.
+
+    Parameters
+    ----------
+    adata : AnnData
+        Annotated data matrix.
+    vae : SCVI
+        An scVI model. Default is `None`.
+    pca_key : str
+        Key for pca loadings. Default is `None`.
+
+    Returns
+    -------
+    AnnData
+        Annotated data matrix with latent variables as X
+
+    """
+
+    if vae is None and pca_key is None:
+        raise ValueError("vae and pca_key cannot both be None")
+
+    if vae is not None:
+        # do i need an adata.copy() here?
+        SCVI.setup_anndata(adata, labels_key=labels_key, batch_key=None)  # "dummy")
+
+        latent_ad = make_latent_adata(vae, adata, return_dist=False)
+        latent_ad.obsm[SCVI_LATENT_KEY] = latent_ad.X  # copy to obsm for convenience
+        return latent_ad
+
+    if pca_key is not None:
+        loadings_ad = make_pc_loading_adata(adata, pca_key)
+        return loadings_ad
 
 
 def make_latent_adata(scvi_model: SCVI, adata: AnnData, return_dist: bool = True):
@@ -204,6 +248,11 @@ def transfer_pcs(train_ad: AnnData, test_ad: AnnData) -> AnnData:
         AnnData object for training with PCs in varm["PCs"]
     test_ad
         AnnData object with "test" data in X
+
+    Returns
+    -------
+    AnnData
+        AnnData object with PCs in varm["PCs"] and "loadings" in obsm["X_pca"]
     """
 
     if "X_pca" in test_ad.obsm.keys():
@@ -230,7 +279,7 @@ def transfer_pcs(train_ad: AnnData, test_ad: AnnData) -> AnnData:
     return test_ad
 
 
-def add_cols_into_obs(adata, source_table, insert_keys, prefix=None):
+def merge_into_obs(adata, source_table, insert_keys=None, prefix=None):
     """
     Add the predictions to the adata object. Performs a merge in case shuffled
 
@@ -245,7 +294,6 @@ def add_cols_into_obs(adata, source_table, insert_keys, prefix=None):
         Key in `adata.obs` where predictions are stored.
     prefix : str
 
-
     Returns
     -------
     AnnData
@@ -253,19 +301,25 @@ def add_cols_into_obs(adata, source_table, insert_keys, prefix=None):
 
     """
 
-    obs = adata.obs
-    # if insert_keys in obs.columns:
-    #     # replace if its already there
-    #     obs.drop(columns=[insert_key], inplace=True)
+    insert_key = "pred"
+    pred_key = "label"
 
-    df = source_table[insert_keys].copy()
+    obs = adata.obs
+    if insert_keys is None:
+        df = source_table
+        insert_keys = source_table.columns
+    else:
+        df = source_table[insert_keys]
 
     if any([k in obs.columns for k in insert_keys]):
         if prefix is None:
             prefix = "_"
         df = df.add_prefix(prefix)
+        pred_key = "_label"
 
-    adata.obs = pd.merge(obs, df, left_index=True, right_index=True, how="left")
+    adata.obs = pd.merge(obs, df, left_index=True, right_index=True, how="left").rename(
+        columns={pred_key: insert_key}
+    )
 
     return adata
 

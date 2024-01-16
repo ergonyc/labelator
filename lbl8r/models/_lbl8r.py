@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import io
 import logging
 import warnings
-from collections.abc import Sequence
-from contextlib import redirect_stdout
 
-import anndata
+import torch.nn.functional as F
+from torch.distributions import Categorical
+import torch
 import numpy as np
 import pandas as pd
 import torch
@@ -29,12 +28,87 @@ from scvi.utils._docstrings import devices_dsp
 # from typing import Optional
 
 
-from ..utils._pred import get_stats_from_logits, get_stats_table
+from ..utils._pred import get_stats_table
 from ..modules._classifier import Classifier
 
 logger = logging.getLogger(__name__)
 
 LABELS_KEY = "cell_type"
+
+
+def get_stats_from_logits(logits: torch.Tensor, categories: np.ndarray) -> dict:
+    """
+    Get probabilities, entropy, log entropy, labels, and margin of probability from logits.
+
+    Parameters
+    ----------
+    logits : torch.Tensor
+        Logits from a model.
+    categories : np.ndarray
+        Array of categories.
+
+    Returns
+    -------
+    dict
+        Dictionary of probabilities, entropy, log entropy, labels, and margin of probability.
+
+    """
+    # Applying softmax to convert logits to probabilities
+    probabilities = F.softmax(logits, dim=1)
+
+    # Create a Categorical distribution
+    distribution = Categorical(probs=probabilities)
+
+    # Calculate entropy
+    entropy = distribution.entropy()
+
+    # n_classes = probabilities.shape[1]
+
+    logs = logits.numpy()
+    probs = probabilities.numpy()
+    ents = entropy.numpy()
+    logents = entropy.log().numpy()
+
+    # print("Logits: ", logs)
+    # print("Probabilities: ", probs)
+
+    maxprobs = probs.max(axis=1)
+
+    labels = categories[probs.argmax(axis=1)]
+
+    margin = calculate_margin_of_probability(probabilities)
+
+    return {
+        "logit": logs,
+        "prob": probs,
+        "entropy": ents,
+        "logE": logents,
+        "max_p": maxprobs,
+        "mop": margin,
+        "label": labels,
+    }
+
+
+def calculate_margin_of_probability(probabilities: torch.Tensor) -> np.ndarray:
+    """
+    Calculate the margin of probability.
+
+    Parameters
+    ----------
+    probabilities : torch.Tensor
+        Probabilities from a model.
+
+    Returns
+    -------
+    np.ndarray
+        Array of margin of probability.
+    """
+    # Get the top two probabilities
+    top_probs, _ = torch.topk(probabilities, 2)
+
+    # Calculate the margin
+    margin = top_probs[:, 0] - top_probs[:, 1]
+    return margin.numpy()
 
 
 def _validate_scvi_model(scvi_model: SCVI, restrict_to_batch: str):

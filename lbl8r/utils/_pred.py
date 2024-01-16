@@ -1,87 +1,5 @@
-import torch.nn.functional as F
-from torch.distributions import Categorical
-import torch
 import pandas as pd
 import numpy as np
-from anndata import AnnData
-from scvi.model import SCANVI
-
-# from scanpy.pp import pca
-
-
-def calculate_margin_of_probability(probabilities: torch.Tensor) -> np.ndarray:
-    """
-    Calculate the margin of probability.
-
-    Parameters
-    ----------
-    probabilities : torch.Tensor
-        Probabilities from a model.
-
-    Returns
-    -------
-    np.ndarray
-        Array of margin of probability.
-    """
-    # Get the top two probabilities
-    top_probs, _ = torch.topk(probabilities, 2)
-
-    # Calculate the margin
-    margin = top_probs[:, 0] - top_probs[:, 1]
-    return margin.numpy()
-
-
-def get_stats_from_logits(logits: torch.Tensor, categories: np.ndarray) -> dict:
-    """
-    Get probabilities, entropy, log entropy, labels, and margin of probability from logits.
-
-    Parameters
-    ----------
-    logits : torch.Tensor
-        Logits from a model.
-    categories : np.ndarray
-        Array of categories.
-
-    Returns
-    -------
-    dict
-        Dictionary of probabilities, entropy, log entropy, labels, and margin of probability.
-
-    """
-    # Applying softmax to convert logits to probabilities
-    probabilities = F.softmax(logits, dim=1)
-
-    # Create a Categorical distribution
-    distribution = Categorical(probs=probabilities)
-
-    # Calculate entropy
-    entropy = distribution.entropy()
-
-    # n_classes = probabilities.shape[1]
-
-    logs = logits.numpy()
-    probs = probabilities.numpy()
-    ents = entropy.numpy()
-    logents = entropy.log().numpy()
-
-    # print("Logits: ", logs)
-    # print("Probabilities: ", probs)
-
-    maxprobs = probs.max(axis=1)
-
-    labels = categories[probs.argmax(axis=1)]
-
-    margin = calculate_margin_of_probability(probabilities)
-
-    return {
-        "logit": logs,
-        "prob": probs,
-        "entropy": ents,
-        "logE": logents,
-        "max_p": maxprobs,
-        "mop": margin,
-        "label": labels,
-    }
 
 
 def get_stats_table(
@@ -150,33 +68,6 @@ def get_stats_table(
 #     return latent_adata
 
 
-def add_scanvi_predictions(ad: AnnData, model: SCANVI, insert_key: str = "label"):
-    """
-    Get the "soft" and label predictions from a SCANVI model,
-    and then add into the ad.obs
-
-    Parameters
-    ----------
-    ad : ad.AnnData
-        AnnData object to add the predictions to
-    model : SCANVI
-        SCANVI model to use to get the predictions
-    Returns
-    -------
-    ad.AnnData
-        AnnData object with the predictions added
-
-    """
-
-    predictions = model.predict(ad, soft=True)
-    predictions[insert_key] = model.predict(ad, soft=False)
-
-    obs = ad.obs
-    if set(predictions.columns) & set(obs.columns):
-        ValueError("Predictions and obs have overlapping columns")
-        return ad
-
-    obs = pd.merge(obs, predictions, left_index=True, right_index=True, how="left")
-
-    ad.obs = obs
-    return ad
+#    adata = add_scanvi_predictions(
+#         adata, scanvi_query, insert_key=SCANVI_PREDICTIONS_KEY
+#     )

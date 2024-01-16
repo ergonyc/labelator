@@ -43,7 +43,7 @@ root_path = Path("../")
 
 data_path = root_path / XYLENA_PATH
 
-if __name__ == "__main__":
+if "ipykernel" in sys.modules:
     save = True
     fdir = "figs"
     show = False

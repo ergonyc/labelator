@@ -7,91 +7,72 @@ from sklearn.metrics import precision_score, recall_score, f1_score
 import seaborn as sns
 import matplotlib.pyplot as plt
 from pathlib import Path
+from scvi.model import SCVI, SCANVI
 
 from ._mde import mde
-
-# -------------------------------------------------------------------------------
-# Helper functions
-# -------------------------------------------------------------------------------
+from ..constants import *
+from ..models import LBL8R
 
 
-def savefig_or_show(
-    show: bool | None = None,
-    save: bool | str = False,
-    fig_dir: str | None = None,
-    ext: str = None,
+"""
+logic:  dataclass holds the list of models / names
+
+     iterating through all the models  we can generate the plots for everything at once.
+
+"""
+
+
+def plot_all(
+    adata: AnnData,
+    plots: list = ["embedding", "predictions", "training"],
+    model: LBL8R | SCVI | SCANVI = None,
+    model_name: str = "LBL8R",
+    emb_kwargs: dict = None,
+    pred_kwargs: dict = None,
+    fig_kwargs: dict = None,
 ):
-    """Save current figure to file and/or show it.
+    """Plot all the things.
 
     Parameters
     ----------
-    show : bool
-        Whether to show the figure. Default is `True`.
+    adata : AnnData
+        Annotated data matrix.
+    model : scvi.models.VAE | scvi.models.SCANVI | None
+        grainable
     save : bool | Path | str
         If `True` or a `Path` or a `str`, save the figure. Default is `False`.
+    show : bool
+        Whether to show the figure. Default is `True`.
     fig_dir : Path | str
         Directory to save figure to. Default is `None`.
-    ext : str
-        Figure extension. Default is `None`.
+
+    Returns
+    -------
+    None
+
     """
-
-    if fig_dir is None:
-        fig_dir = "."
-
-    if isinstance(save, Path):
-        fig_dir += save.root
-        filen = save.name
-
-    elif isinstance(save, str):
-        # check whether `save` contains a figure extension
-        filen = save
-        if ext is None:
-            ext = "png"  # default to png
-            for try_ext in [".svg", ".pdf", ".png"]:
-                if save.endswith(try_ext):
-                    ext = try_ext[1:]
-                    filen = filen.replace(try_ext, "")
-                    break
-        plt.suptitle(save)
-        save = True
-    else:
-        ValueError(
-            f"WTF.. how did we get here save must be a Path or a str, not {type(save)}"
+    # fig_kwargs =dict(save=save,show=show,fig_dir=fig_dir)
+    if "embedding" in plots:
+        plot_embedding(
+            adata,
+            **emb_kwargs,
+            **fig_kwargs,
         )
+    if "predictions" in plots:
+        plot_predictions(
+            adata,
+            **pred_kwargs**fig_kwargs,
+        )
+    if "training" in plots:
+        if model.__class__.__name__ == "LBL8R":
+            plot_lbl8r_training(model.history, **fig_kwargs)
+        elif model.__class__.__name__ == "SCANVI":
+            plot_scanvi_training(model.history, **fig_kwargs)
+        elif model.__class__.__name__ == "SCVI":
+            plot_scvi_training(model.history, **fig_kwargs)
 
-    if save:
-        if not Path(fig_dir).exists():
-            Path(fig_dir).mkdir(parents=True)
-
-        filename = f"{fig_dir}/{filen}.{ext}"
-        print(f"saving figure to file {filename}")
-        plt.savefig(filename, bbox_inches="tight")
-    if show:
-        plt.show()
-    if save:
-        plt.close()  # clear figure
-
-
-def _prep_save_dir(save, fig_dir, f_prefix):
-    """
-    force save to be a string and handle fig_dir
-    """
-    if isinstance(save, str):
-        print(f"found {save}")
-    elif isinstance(save, Path):
-        if fig_dir is None:
-            fig_dir = save.parent
-        save = save.name
-    elif save:
-        save = f"{f_prefix}"
-        print(f"converted `save` to `{save}`")
-
-        if isinstance(fig_dir, Path):
-            fig_dir = str(fig_dir)
-            print(f"{fig_dir=}")
-    else:
-        fig_dir = None
-    return save, fig_dir
+        else:  # xgb?
+            pass
 
 
 def plot_embedding(adata: AnnData, basis: str = "X_mde", color: list = None, **kwargs):
@@ -177,11 +158,11 @@ def plot_embedding(adata: AnnData, basis: str = "X_mde", color: list = None, **k
 
 
 def _plot_predictions(
-    adata,
-    pred_key="pred",
-    cell_type_key="cell_type",
-    model_name="LBL8R",
-    title_str="",
+    adata: AnnData,
+    pred_key: str = "pred",
+    cell_type_key: str = "cell_type",
+    model_name: str = "LBL8R",
+    title_str: str = "",
     save: bool | Path | str = False,
     show: bool = True,
     fig_dir: Path | str | None = None,
@@ -230,15 +211,16 @@ def _plot_predictions(
             fig_dir = save.parent
     elif save:
         save = f"{model_name}_predictions.png"
+
     savefig_or_show(show, save, fig_dir)
 
 
 def plot_predictions(
-    adata,
-    pred_key="pred",
-    cell_type_key="cell_type",
-    model_name="LBL8R",
-    title_str="",
+    adata: AnnData,
+    pred_key: str = "pred",
+    cell_type_key: str = "cell_type",
+    model_name: str = "LBL8R",
+    title_str: str = "",
     save: bool | Path | str = False,
     show: bool = True,
     fig_dir: Path | str | None = None,
@@ -406,3 +388,85 @@ def plot_lbl8r_training(
     validation_loss.plot(ax=ax)
     save_ = save + "train_loss" + ".png"
     savefig_or_show(show, save_, fig_dir)
+
+
+# -------------------------------------------------------------------------------
+# Helper functions
+# -------------------------------------------------------------------------------
+def savefig_or_show(
+    show: bool | None = None,
+    save: bool | str = False,
+    fig_dir: str | None = None,
+    ext: str = None,
+):
+    """Save current figure to file and/or show it.
+
+    Parameters
+    ----------
+    show : bool
+        Whether to show the figure. Default is `True`.
+    save : bool | Path | str
+        If `True` or a `Path` or a `str`, save the figure. Default is `False`.
+    fig_dir : Path | str
+        Directory to save figure to. Default is `None`.
+    ext : str
+        Figure extension. Default is `None`.
+    """
+
+    if fig_dir is None:
+        fig_dir = "."
+
+    if isinstance(save, Path):
+        fig_dir += save.root
+        filen = save.name
+
+    elif isinstance(save, str):
+        # check whether `save` contains a figure extension
+        filen = save
+        if ext is None:
+            ext = "png"  # default to png
+            for try_ext in [".svg", ".pdf", ".png"]:
+                if save.endswith(try_ext):
+                    ext = try_ext[1:]
+                    filen = filen.replace(try_ext, "")
+                    break
+        plt.suptitle(save)
+        save = True
+    else:
+        ValueError(
+            f"WTF.. how did we get here save must be a Path or a str, not {type(save)}"
+        )
+
+    if save:
+        if not Path(fig_dir).exists():
+            Path(fig_dir).mkdir(parents=True)
+
+        filename = f"{fig_dir}/{filen}.{ext}"
+        print(f"saving figure to file {filename}")
+        plt.savefig(filename, bbox_inches="tight")
+    if show:
+        plt.show()
+    if save:
+        plt.close()  # clear figure
+
+
+def _prep_save_dir(save, fig_dir, f_prefix):
+    """
+    force save to be a string and handle fig_dir
+    """
+    if isinstance(save, str):
+        print(f"found {save}")
+    elif isinstance(save, Path):
+        if fig_dir is None:
+            fig_dir = save.parent
+        save = save.name
+    elif save:
+        save = f"{f_prefix}"
+        print(f"converted `save` to `{save}`")
+
+        if isinstance(fig_dir, Path):
+            fig_dir = str(fig_dir)
+            print(f"{fig_dir=}")
+    else:
+        fig_dir = None
+    return save, fig_dir

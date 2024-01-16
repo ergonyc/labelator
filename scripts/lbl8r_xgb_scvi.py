@@ -39,12 +39,14 @@ scvi.settings.seed = 94705
 device = "mps" if sys.platform == "darwin" else "cuda"
 
 # In[ ]:
-# 0. setup 1
+# setup 1 #######################################
+############################################################################
+############################################################################
 root_path = Path("../")
 
 data_path = root_path / XYLENA_PATH
 
-if __name__ == "__main__":
+if "ipykernel" in sys.modules:
     save = True
     fdir = "figs"
     show = False
@@ -98,12 +100,14 @@ fig_kwargs = dict(
 )
 
 retrain = True
+xgb_model_name = "xgb_scvi_nb"
 
 # ------------------------------------------------
-# %% Load training data
-
+# In[ ]: LOAD TRAIN DATA
+# TRAIN #######################################
+############################################################################
+## LOAD  ###################################################################
 train_ad = ad.read_h5ad(train_filen)
-xgb_model_name = "xgb_scvi_nb"
 # In[ ]:
 ## get predictions
 bst, train_ad, le = get_xgb(
@@ -115,7 +119,23 @@ bst, train_ad, le = get_xgb(
 )
 
 # In[ ]:
-# plot results
+# TEST #######################################
+############################################################################
+## LOAD  ###################################################################
+test_ad = ad.read_h5ad(test_filen)
+
+## QUERY  ###################################################################
+test_ad, test_report = query_xgb(test_ad, bst, le)
+
+
+# In[ ]:
+# ARTIFACTS ###########################################################################
+############################################################################
+## PLOTS  ###################################################################
+# ## 3: visualize prediction fidelity on training set
+
+# PLOT predictions ###############################################################
+############################################################################
 plot_predictions(
     train_ad,
     pred_key="pred",
@@ -124,11 +144,6 @@ plot_predictions(
     title_str="TRAIN",
     **fig_kwargs,
 )
-# In[ ]:
-# ### test
-test_ad = ad.read_h5ad(test_filen)
-
-test_ad, test_report = query_xgb(test_ad, bst, le)
 plot_predictions(
     test_ad,
     pred_key="pred",
@@ -140,6 +155,8 @@ plot_predictions(
 
 #
 # In[ ]:
+## ADATAS  ###################################################################
+############################################################################
 #  save versions of test/train with latents and embeddings added
 export_ouput_adata(train_ad, train_filen.name, out_data_path)
 export_ouput_adata(test_ad, test_filen.name, out_data_path)

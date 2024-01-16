@@ -20,13 +20,15 @@ from lbl8r.utils import (
     plot_embedding,
     export_ouput_adata,
     make_scvi_normalized_adata,
+    plot_scvi_training,
+    plot_lbl8r_training,
 )
 from lbl8r import (
     get_lbl8r_scvi,
     get_lbl8r,
     prep_lbl8r_adata,
     query_lbl8r,
-    query_scvi,
+    get_query_scvi,
 )
 from lbl8r.constants import *
 from lbl8r.constants import XYLENA_PATH
@@ -38,11 +40,14 @@ scvi.settings.seed = 94705
 device = "mps" if sys.platform == "darwin" else "cuda"
 
 # In[ ]:
+# setup 1 #######################################
+############################################################################
+############################################################################
 root_path = Path("../")
 
 data_path = root_path / XYLENA_PATH
 
-if __name__ == "__main__":
+if "ipykernel" in sys.modules:
     save = True
     fdir = "figs"
     show = False
@@ -86,15 +91,18 @@ fig_kwargs = dict(
 
 retrain = True
 plot_training = True
-
+vae_model_name = "scvi"
+lbl8r_model_name = "lbl8r"
 
 # In[ ]:
 # ## 0. Load training data
+# TRAIN #######################################
+############################################################################
+## LOAD  ###################################################################
 train_ad = ad.read_h5ad(train_filen)
 
 
 # In[ ]: Call the scvi model "vae" so we don't collide with scvi module
-vae_model_name = "scvi"
 vae, train_ad = get_lbl8r_scvi(  # sa,e ast get_trained_scvi but forces "batch"=None
     train_ad,
     labels_key=cell_type_key,
@@ -108,10 +116,6 @@ vae, train_ad = get_lbl8r_scvi(  # sa,e ast get_trained_scvi but forces "batch"=
 # In[ ]:
 latent_ad = prep_lbl8r_adata(train_ad, vae, labels_key=cell_type_key)
 
-# In[ ]:
-lbl8r_model_name = "lbl8r"
-retrain = True
-
 labelator, latent_ad = get_lbl8r(
     latent_ad,
     labels_key=cell_type_key,
@@ -122,8 +126,39 @@ labelator, latent_ad = get_lbl8r(
     **fig_kwargs,
 )
 
+
+latent_ad = query_lbl8r(
+    latent_ad,
+    labelator,
+    labels_key=cell_type_key,
+)
+
+
 # In[ ]:
+# TEST #######################################
+############################################################################
+## LOAD  ###################################################################
+test_ad = ad.read_h5ad(test_filen)
+
+# ## 5 - prep lbl8r adata and query (run) model
+latent_test_ad = prep_lbl8r_adata(test_ad, vae, labels_key=cell_type_key)
+
+## QUERY  ###################################################################
+############################################################################
+latent_test_ad = query_lbl8r(
+    latent_test_ad,
+    labelator,
+    labels_key=cell_type_key,
+)
+
+# In[ ]:
+# ARTIFACTS ###########################################################################
+############################################################################
+## PLOTS  ###################################################################
 # ## 3: visualize prediction fidelity on training set
+
+# PLOT predictions ###############################################################
+############################################################################
 plot_predictions(
     latent_ad,
     pred_key="pred",
@@ -133,36 +168,7 @@ plot_predictions(
     **fig_kwargs,
 )
 
-# In[ ]:
-# this should also add the embeddings to the adata
-plot_embedding(
-    train_ad,
-    basis=SCVI_MDE_KEY,
-    color=[cell_type_key, "batch"],
-    device=device,
-    scvi_model=vae,
-    **fig_kwargs,
-)
 
-# In[ ]:
-# ------------------
-# ## TEST
-# ## 4.  Load data
-test_ad = ad.read_h5ad(test_filen)
-
-# In[ ]:
-# ## 5 - prep lbl8r adata and query (run) model
-latent_test_ad = prep_lbl8r_adata(test_ad, vae, labels_key=cell_type_key)
-latent_test_ad = query_lbl8r(
-    latent_test_ad,
-    labelator,
-    labels_key=cell_type_key,
-)
-
-# In[ ]:
-# ## 6.  check the results on out-of-sample data
-# - plot_predictions
-# - visualize embeddings
 plot_predictions(
     latent_test_ad,
     pred_key="pred",
@@ -172,9 +178,18 @@ plot_predictions(
     **fig_kwargs,
 )
 
-
 # In[ ]:
+# PLOT embeddings ###############################################################
+############################################################################
 # this should also add the embeddings to the adata
+plot_embedding(
+    train_ad,
+    basis=SCVI_MDE_KEY,
+    color=[cell_type_key, "batch"],
+    device=device,
+    scvi_model=vae,
+    **fig_kwargs,
+)
 plot_embedding(
     latent_test_ad,
     basis=SCVI_MDE_KEY,
@@ -184,7 +199,17 @@ plot_embedding(
     **fig_kwargs,
 )
 
+# PLOT TRAINING ###############################################################
+############################################################################
+if plot_training:
+    plot_lbl8r_training(labelator.history, save=save, show=show, fig_dir=fig_dir)
+
+if plot_training:
+    plot_scvi_training(
+        vae.history, save=save, show=show, fig_dir=fig_dir
+    )  #    **fig_kwargs
 # In[ ]:
+## ADATAS  ###################################################################
 # ## 7: save versions of test/train with latents and embeddings added
 export_ouput_adata(latent_ad, train_filen.name.replace(RAW, EMB), out_data_path)
 export_ouput_adata(latent_test_ad, test_filen.name.replace(RAW, EMB), out_data_path)
@@ -231,7 +256,7 @@ del exp_test_ad
 # - save
 # In[ ]:
 qscvi_model_name = "query_scvi"
-scvi_query, test_ad = query_scvi(
+scvi_query, test_ad = get_query_scvi(
     test_ad,
     vae,
     labels_key=cell_type_key,

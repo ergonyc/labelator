@@ -20,12 +20,15 @@ from lbl8r.utils import (
     export_ouput_adata,
     make_scvi_normalized_adata,
     transfer_pcs,
+    plot_scanvi_training,
+    plot_scvi_training,
 )
 from lbl8r import (
     get_trained_scanvi,
     get_trained_scvi,
+    get_query_scanvi,
+    get_query_scvi,
     query_scanvi,
-    query_scvi,
 )
 from lbl8r.constants import *
 from lbl8r.constants import XYLENA_PATH
@@ -37,11 +40,14 @@ scvi.settings.seed = 94705
 device = "mps" if sys.platform == "darwin" else "cuda"
 
 # In[ ]:
+# setup 1 #######################################
+############################################################################
+############################################################################
 root_path = Path("../")
 
 data_path = root_path / XYLENA_PATH
 
-if __name__ == "__main__":
+if "ipykernel" in sys.modules:
     save = True
     fdir = "figs"
     show = False
@@ -86,15 +92,22 @@ fig_kwargs = dict(
 retrain = True
 plot_training = True
 
+batch_key = "sample"  #'batch'
+vae_model_name = "scvi"
+scanvi_model_name = "scanvi"
+qscvi_model_name = "query_scvi"
+qscanvi_model_name = "query_scanvi"
+
 # In[ ]: LOAD TRAIN DATA
+# TRAIN #######################################
+############################################################################
+## LOAD  ###################################################################
 train_ad = ad.read_h5ad(train_filen)
+train_ad.obs["ground_truth"] = train_ad.obs[cell_type_key]
 
 
 # In[ ]: for scanvi we need to query with "unknown" cell_types so save "ground_truth" before overwriting
-train_ad.obs["ground_truth"] = train_ad.obs[cell_type_key]
 # ### Model setup
-batch_key = "sample"  #'batch'
-vae_model_name = "scvi"
 vae, train_ad = get_trained_scvi(
     train_ad,
     labels_key=cell_type_key,
@@ -102,12 +115,10 @@ vae, train_ad = get_trained_scvi(
     model_path=model_path,
     retrain=retrain,
     model_name=vae_model_name,
-    plot_training=plot_training,
     **fig_kwargs,
 )
 
 # In[ ]: Now we can train scANVI and transfer the labels!
-scanvi_model_name = "scanvi"
 scanvi_model, train_ad = get_trained_scanvi(
     train_ad,
     vae,
@@ -115,7 +126,69 @@ scanvi_model, train_ad = get_trained_scanvi(
     model_path=model_path,
     retrain=retrain,
     model_name=scanvi_model_name,
+    **fig_kwargs,
+)
+
+# In[ ]:
+# TEST #######################################
+############################################################################
+## LOAD  ###################################################################
+
+test_ad = ad.read_h5ad(test_filen)
+
+# "Hide" the labels
+test_ad.obs["ground_truth"] = test_ad.obs[cell_type_key]
+# pretend like we don't know the cell_type
+test_ad.obs[cell_type_key] = "Unknown"
+# # we can't just project the test data onto the reference model, because the batch variables are unknown
+# scvi_lat = scvi_ref.get_latent_representation(test_ad)
+
+# In[ ]: "Inference" query scVI model with test data
+## QUERY  ###################################################################
+############################################################################
+scvi_query, test_ad = get_query_scvi(
+    test_ad,
+    vae,
+    labels_key=cell_type_key,
+    model_path=model_path,
+    model_name=qscvi_model_name,
+    retrain=retrain,
     plot_training=plot_training,
+    **fig_kwargs,
+)
+
+# In[ ]:
+# ### query scANVI model with test data
+scanvi_query, test_ad = get_query_scanvi(
+    test_ad,
+    scanvi_model,
+    labels_key=cell_type_key,
+    model_path=model_path,
+    retrain=retrain,
+    model_name=qscanvi_model_name,
+    plot_training=plot_training,
+    **fig_kwargs,
+)
+
+## QUERY  ###################################################################
+train_ad = query_scanvi(train_ad, scanvi_model, insert_key=SCANVI_PREDICTIONS_KEY)
+test_ad = query_scanvi(test_ad, scanvi_query, insert_key=SCANVI_PREDICTIONS_KEY)
+
+
+# In[ ]:
+# ARTIFACTS ###########################################################################
+############################################################################
+## PLOTS  ###################################################################
+# ## 3: visualize prediction fidelity on training set
+
+# PLOT predictions ###############################################################
+############################################################################
+plot_predictions(
+    test_ad,
+    pred_key=SCANVI_PREDICTIONS_KEY,
+    cell_type_key="ground_truth",
+    model_name=qscanvi_model_name,
+    title_str="TEST",
     **fig_kwargs,
 )
 
@@ -129,6 +202,20 @@ plot_predictions(
     **fig_kwargs,
 )
 
+
+# In[ ]:
+# PLOT embeddings ###############################################################
+############################################################################
+plot_embedding(
+    test_ad,
+    basis=SCVI_MDE_KEY,
+    color=[SCANVI_PREDICTIONS_KEY, "batch"],
+    frameon=False,
+    wspace=0.35,
+    device=device,
+    scvi_model=scvi_query,
+    **fig_kwargs,
+)
 # In[ ]:
 # this should also add the embeddings to the adata
 plot_embedding(
@@ -140,86 +227,33 @@ plot_embedding(
     **fig_kwargs,
 )
 
+# PLOT TRAINING ###############################################################
+############################################################################
+if plot_training:
+    plot_scvi_training(
+        vae.history, save=save, show=show, fig_dir=fig_dir
+    )  #    **fig_kwargs
+
+if plot_training:
+    plot_scanvi_training(scanvi_model.history, save=save, show=show, fig_dir=fig_dir)
+
+if plot_training:
+    plot_scvi_training(scvi_query.history, save=save, show=show, fig_dir=fig_dir)
+
 # In[ ]:
+## ADATAS  ###################################################################
+############################################################################
 export_ouput_adata(train_ad, train_filen.name, out_data_path)
 
-# In[ ]:
-# ----------------------
-# ## Test & Probe
-test_ad = ad.read_h5ad(test_filen)
-
-# "Hide" the labels
-test_ad.obs["ground_truth"] = test_ad.obs[cell_type_key]
-# pretend like we don't know the cell_type
-test_ad.obs[cell_type_key] = "Unknown"
-# # we can't just project the test data onto the reference model, because the batch variables are unknown
-# scvi_lat = scvi_ref.get_latent_representation(test_ad)
-
-# In[ ]:
-# ## "Inference"
-# ### query scVI model with test data
-
-qscvi_model_name = "query_scvi"
-scvi_query, test_ad = query_scvi(
-    test_ad,
-    vae,
-    labels_key=cell_type_key,
-    model_path=model_path,
-    model_name=qscvi_model_name,
-    retrain=retrain,
-    plot_training=plot_training,
-    **fig_kwargs,
-)
-
-# In[ ]:
-# ### query scANVI model with test data
-qscanvi_model_name = "query_scanvi"
-scanvi_query, test_ad = query_scanvi(
-    test_ad,
-    scanvi_model,
-    labels_key=cell_type_key,
-    model_path=model_path,
-    retrain=retrain,
-    model_name=qscanvi_model_name,
-    plot_training=plot_training,
-    **fig_kwargs,
-)
-# In[ ]:
-# ## Assessment
-# Compute Accuracy of model classifier for query dataset and compare predicted
-# and observed cell types
-plot_predictions(
-    test_ad,
-    pred_key=SCANVI_PREDICTIONS_KEY,
-    cell_type_key="ground_truth",
-    model_name=qscanvi_model_name,
-    title_str="TEST",
-    **fig_kwargs,
-)
-
-# In[ ]:
-# ### save train and test adatas with embeddings
-# We have already added the `scVI` and `scANVI` embeddings to the obsm
-# Lets also compute the PCAs and MSE embeddings for visualization.
-
-# this should also add the embeddings to the adata
-plot_embedding(
-    test_ad,
-    basis=SCVI_MDE_KEY,
-    color=[SCANVI_PREDICTIONS_KEY, "batch"],
-    frameon=False,
-    wspace=0.35,
-    device=device,
-    scvi_model=scvi_query,
-    **fig_kwargs,
-)
-
-# In[ ]:
 # reset the cell_type_key before exporting
 test_ad.obs[cell_type_key] = test_ad.obs["ground_truth"]
 
 export_ouput_adata(test_ad, test_filen.name, out_data_path)  # will append "_out.h5ad"
 
+############################################################################
+############################################################################
+############################################################################
+############################################################################
 
 # In[ ]:
 ## reload the saved adatas and make the scvi normalized adata for further testing...
