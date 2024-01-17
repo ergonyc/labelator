@@ -1,88 +1,159 @@
 import click
-
+import torch
 
 from lbl8r.labelator import (
     setup_paths,
-    load_and_prep,
+    load_training_data,
+    load_query_data,
+    prep_pc_data,
+    prep_latent_data,
     get_model,
     query_model,
     create_artifacts,
+    CELL_TYPE_KEY,
 )
 
 
 @click.command()
+
+# model paths / names
 @click.option(
-    "--setup/--no-setup", default=False, help="Enable/Disable the setup process."
+    "--model-path",
+    type=click.Path(exists=False),
+    require=True,
+    help="Path to load/save the trained model.",
 )
 @click.option(
-    "--model-params-file", type=str, help="Path to a file containing model parameters."
+    "--model-name", type=str, require=True, help="Name of the model to load/train."
 )
-@click.option("--data-path", type=str, help="Path to the dataset.")
-@click.option("--config-path", type=str, help="Path to additional configuration files.")
+
+# data paths / names
 @click.option(
-    "--model/--no-model",
+    "--data-path",
+    type=click.Path(exists=True),
+    default=None,
+    show_default=True,
+    required=False,
+    help="Full path to the training dataset. Will skip to `query` if not provided.",
+)
+@click.option(
+    "--query-path",
+    type=click.Path(exists=True),
+    default=None,
+    show_default=True,
+    required=False,
+    help="Full Path to query data. Will skip query if not provided",
+)
+
+
+# artifacts (figures, data outputs, etc)
+@click.option(
+    "--output-data-path",
+    type=click.Path(exists=True),
+    default=None,
+    show_default=True,
+    required=False,
+    help="Path to save AnnData artifacts.",
+)
+@click.option(
+    "--artifacts-path",
+    type == click.Path(exists=True),
+    default=None,
+    show_default=True,
+    required=False,
+    help="""
+        Path to save artifacts. Figures will be saved to '`artifacts-path`/figs/`model-name`/' (if `
+        make-plots` is True) and results tables will be saved to '`artifacts-path`/results/`model-name`' 
+        """,
+)
+@click.option(
+    "--make-plots",
+    is_flag=True,
+    default=True,
+    show_default=True,
+    required=False,
+    help="Flag to generate plots.",
+)
+
+# Training options
+@click.option(
+    "--retrain-model",
+    is_flag=True,
     default=False,
-    help="Enable/Disable the model loading/training process.",
+    show_default=True,
+    required=False,
+    help="Flag to force re-training the model. Default will attempt to load model from file",
 )
-@click.option("--model-name", type=str, help="Name of the model.")
-@click.option("--train-model", is_flag=True, help="Flag to train the model.")
-@click.option("--save-model-path", type=str, help="Path to save the trained model.")
-@click.option("--load-model-path", type=str, help="Path to load the model from disk.")
+## set labels_key, batch_key,
 @click.option(
-    "--query/--no-query", default=False, help="Enable/Disable the query process."
-)
-@click.option(
-    "--query-data-path", type=str, help="Path to the data for making inferences."
-)
-@click.option("--output-path", type=str, help="Path to save the inference results.")
-@click.option(
-    "--artifacts/--no-artifacts",
-    default=False,
-    help="Enable/Disable the artifacts generation process.",
+    "--labels-key",
+    type=str,
+    default=CELL_TYPE_KEY,
+    show_default=True,
+    required=False,
+    help="Key to adata.obsm 'ground_truth' labels.",
 )
 @click.option(
-    "--generate-visualizations", is_flag=True, help="Flag to generate visualizations."
+    "--batch-key",
+    type=str,
+    default=None,
+    show_default=True,
+    required=False,
+    help="""
+        Key to adata.obsm 'batch' labels for instantiating `scVI`.. e.g. `sample`. Defaults 
+        to None wich will instantiate scVI having no batch correction.
+        """,
 )
-@click.option("--visualization-path", type=str, help="Path to save visualizations.")
-@click.option(
-    "--generate-artifacts", is_flag=True, help="Flag to generate data artifacts."
-)
-@click.option("--artifacts-path", type=str, help="Path to save artifacts.")
+#
+# TODO:  add options for model configureaion: e.g. n_hidden, n_latent, n_layers, dropout_rate, dispersion, gene_likelihood, latent_distribution encode_covariates,
+# TODO: enable other **training_kwargs:  train_size, accelerators, devices, early_stopping, early_stopping_kwargs, batch_size, epochs, etc.
+
+
+# TODO: add logging
 def cli(
-    setup,
-    model_params_file,
     data_path,
-    config_path,
-    model,
+    query_path,
+    model_path,
     model_name,
-    train_model,
-    save_model_path,
-    load_model_path,
-    query,
-    query_data_path,
-    output_path,
-    artifacts,
-    generate_visualizations,
-    visualization_path,
-    generate_artifacts,
+    output_data_path,
     artifacts_path,
+    make_plots,
+    retrain_model,
 ):
     """
     Command line interface for model processing pipeline.
     """
-    if setup:
-        setup_paths(
-            model_params_file=model_params_file,
-            data_path=data_path,
-            config_path=config_path,
+
+    # setup
+    torch.set_float32_matmul_precision("medium")
+
+    # load data
+    if train := data_path is not None:
+        train_data = load_training_data(data_path)
+
+    if query := query_path is not None:
+        query_data = load_training_data(query_path)
+
+    if not (train | query):
+        raise click.UsageError(
+            "Must provide either `data-path` or `query-path` or both"
         )
 
-    if model:
-        data = load_and_prep(data_path)
-        if train_model:
-            model = get_model(data, model_name, "train", save_model_path)
-        else:
-            model = get_model(None, model_name, "load", load_model_path)
+    data = load_and_prep(data_path)
+    if train_model:
+        model = get_model(data, model_name, "train", save_model_path)
+    else:
+        model = get_model(None, model_name, "load", load_model_path)
+
+    ## GET   ###################################################################
+    model = get_model(
+        train_data,
+        model_name=model_name,
+        model_path=model_path,
+        labels_key=cell_type_key,
+        retrain=retrain_model,
+        **training_kwargs,
+    )
 
     if query:
         query_data = load_and_prep(query_data_path)

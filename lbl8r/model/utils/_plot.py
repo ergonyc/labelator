@@ -136,66 +136,67 @@ def prep_save_dir(save, fig_dir, f_prefix):
     return save, fig_dir
 
 
-def plot_all(
-    adata: AnnData,
-    plots: list = ["embedding", "predictions", "training"],
-    model: SCVIModel = None,
-    model_name: str = "LBL8R",
-    emb_kwargs: dict = None,
-    pred_kwargs: dict = None,
-    fig_kwargs: dict = None,
-):
-    """Plot all the things.
+# def plot_all(
+#     adata: AnnData,
+#     plots: list = ["embedding", "predictions", "training"],
+#     model: SCVIModel = None,
+#     model_name: str = "LBL8R",
+#     emb_kwargs: dict = None,
+#     pred_kwargs: dict = None,
+#     fig_kwargs: dict = None,
+# ):
+#     """Plot all the things.
 
-    Parameters
-    ----------
-    adata : AnnData
-        Annotated data matrix.
-    model : scvi.models.VAE | scvi.models.SCANVI | None
-        grainable
-    save : bool | Path | str
-        If `True` or a `Path` or a `str`, save the figure. Default is `False`.
-    show : bool
-        Whether to show the figure. Default is `True`.
-    fig_dir : Path | str
-        Directory to save figure to. Default is `None`.
+#     Parameters
+#     ----------
+#     adata : AnnData
+#         Annotated data matrix.
+#     model : scvi.models.VAE | scvi.models.SCANVI | None
+#         grainable
+#     save : bool | Path | str
+#         If `True` or a `Path` or a `str`, save the figure. Default is `False`.
+#     show : bool
+#         Whether to show the figure. Default is `True`.
+#     fig_dir : Path | str
+#         Directory to save figure to. Default is `None`.
 
-    Returns
-    -------
-    None
+#     Returns
+#     -------
+#     None
 
-    """
-    figs = []
-    # fig_kwargs =dict(save=save,show=show,fig_dir=fig_dir)
-    if "embedding" in plots:
-        fg = plot_embedding(
-            adata,
-            **emb_kwargs,
-            **fig_kwargs,
-        )
-        figs.append(fg)
+#     """
+#     figs = []
+#     # fig_kwargs =dict(save=save,show=show,fig_dir=fig_dir)
+#     if "embedding" in plots:
+#         fg = plot_embedding(
+#             adata,
+#             **emb_kwargs,
+#             **fig_kwargs,
+#         )
+#         figs.append(fg)
 
-    if "predictions" in plots:
-        fg = plot_predictions(
-            adata,
-            **pred_kwargs**fig_kwargs,
-        )
-        figs.append(fg)
+#     if "predictions" in plots:
+#         fg = plot_predictions(
+#             adata,
+#             **pred_kwargs,
+#             **fig_kwargs,
+#         )
+#         figs.append(fg)
 
-    if "training" in plots:
-        if model.__class__.__name__ == "LBL8R":
-            # if isinstance(model, LBL8R):
-            plot_lbl8r_training(model.history, **fig_kwargs)
-        elif model.__class__.__name__ == "SCANVI":
-            # elif isinstance(model, SCANVI):
-            plot_scanvi_training(model.history, **fig_kwargs)
-        elif model.__class__.__name__ == "SCVI":
-            # elif isinstance(model, SCVI):
-            fg = plot_scvi_training(model.history, **fig_kwargs)
-        else:  # xgb?
-            pass
-        figs.append(fg)
-    return figs
+#     if "training" in plots:
+#         if model.__class__.__name__ == "LBL8R":
+#             # if isinstance(model, LBL8R):
+#             plot_lbl8r_training(model.history, **fig_kwargs)
+#         elif model.__class__.__name__ == "SCANVI":
+#             # elif isinstance(model, SCANVI):
+#             plot_scanvi_training(model.history, **fig_kwargs)
+#         elif model.__class__.__name__ == "SCVI":
+#             # elif isinstance(model, SCVI):
+#             fg = plot_scvi_training(model.history, **fig_kwargs)
+#         else:  # xgb?
+#             pass
+#         figs.append(fg)
+#     return figs
 
 
 def plot_embedding(adata: AnnData, basis: str = "X_mde", color: list = None, **kwargs):

@@ -233,11 +233,59 @@ def get_model(
     # SCVI/SCANVI models ( "" or "_nobatch")
     if model_name.startswith("scvi"):
         _get_model = get_trained_scvi
+
     elif model_name.startswith("scanvi"):
+        # load the scvi model
+        vae_name = model_name.replace("lbl8r_scvi", "scvi")
+        print(f"scanvi getting {(model_path/vae_name)}")
+        vae, ad = get_trained_scvi(
+            data.adata,
+            labels_key=labels_key,
+            batch_key=None,
+            model_path=model_path,
+            retrain=retrain,
+            model_name=vae_name,
+            **training_kwargs,
+        )
+        # add vae=vae to training_kwargs
+        training_kwargs["vae"] = vae
+
         _get_model = get_trained_scanvi
+
     elif model_name.startswith("query_scvi"):
+        # load the scvi model
+        vae_name = model_name.replace("lbl8r_scvi", "scvi")
+        print(f"query_scvi getting {(model_path/vae_name)}")
+        vae, ad = get_trained_scvi(
+            data.adata,
+            labels_key=labels_key,
+            batch_key=None,
+            model_path=model_path,
+            retrain=retrain,
+            model_name=vae_name,
+            **training_kwargs,
+        )
+        # add vae=vae to training_kwargs
+        training_kwargs["vae"] = vae
+
         _get_model = get_query_scvi
+
     elif model_name.startswith("query_scanvi"):
+        # load the scvi model
+        scanvi_name = model_name.replace("lbl8r_scvi", "scvi")
+        print(f"query_scanvi getting {(model_path/vae_name)}")
+        scanvi_model, ad = get_trained_scanvi(
+            data.adata,
+            labels_key=labels_key,
+            batch_key=None,
+            model_path=model_path,
+            retrain=retrain,
+            model_name=scanvi_name,
+            **training_kwargs,
+        )
+        # add vae=vae to training_kwargs
+        training_kwargs["scanvi_model"] = scanvi_model
+
         _get_model = get_query_scanvi
 
     # LBL8R models
@@ -250,6 +298,7 @@ def get_model(
             _get_model = get_pca_lbl8r
         elif "scvi" in model_name:
             vae_name = model_name.replace("lbl8r_scvi", "scvi")
+            print(f"getting {(model_path/vae_name)}")
             vae, ad = get_trained_scvi(
                 data.adata,
                 labels_key=labels_key,
@@ -261,8 +310,12 @@ def get_model(
             )
             # 1. get the latent representation
             ad = prep_latent_z_adata(ad, vae=vae, labels_key=labels_key)
+            print(f"made latent ad")
+
             # 2. update the data with the latent representation
             data.update(ad)
+            print(f"getting {(model_path/model_name)}")
+            _get_model = get_lbl8r
 
     elif model_name.startswith("xgb"):
         if "pcs" in model_name:  # "lbl8r_cnt_pcs", "lbl8r_expr_pcs"
