@@ -3,6 +3,7 @@ from anndata import AnnData
 import numpy as np
 from pandas import crosstab as pd_crosstab
 from sklearn.metrics import precision_score, recall_score, f1_score
+from dataclasses import dataclass
 
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -12,17 +13,8 @@ from scvi.model.base import BaseModelClass as SCVIModel
 # from scvi.model import SCVI, SCANVI
 
 from ._mde import mde
-from .._scvi import (
-    plot_scanvi_training,
-    plot_scvi_training,
-)
 
 from ..._constants import *
-
-from .._lbl8r import (
-    plot_lbl8r_training,
-)
-
 
 """
 logic:  dataclass holds the list of models / names
@@ -32,7 +24,7 @@ logic:  dataclass holds the list of models / names
 """
 
 
-@dataclasses.dataclass
+@dataclass
 class Figure:
     """
     Figure class for storing figures.
@@ -41,18 +33,28 @@ class Figure:
     fig: plt.Figure
     path: str | Path
     name: str
-    ext: "png" | "svg" | "pdf" = "png"
+    ext: str
 
-    def __init__(self, fig, fig_path):
+    #  from enum import Enum?
+    # "png" | "svg" | "pdf"
+    def __init__(self, fig, path, name, ext: str = "png"):
         self.fig = fig
-        self.fig_path = fig_path
+        self.path = path
+        self.name = name
+        self.ext = ext
 
-    def savefig(self, adata, fig_kwargs):
+    def savefig(self):
         """
         Save figure to disk.
         """
+        if not Path(self.path).exists():
+            Path(self.path).mkdir(parents=True)
 
-        self.fig.savefig(self.fig_path, bbox_inches="tight")
+        filename = f"{self.path}/{self.name}.{self.ext}"
+        print(f"saving figure to file {filename}")
+        self.fig.savefig(filename, bbox_inches="tight")
+
+        # self.fig.savefig(self.fig_path, bbox_inches="tight")
 
     def show(self):
         """
@@ -108,19 +110,8 @@ def savefig_or_show(
             f"WTF.. how did we get here save must be a Path or a str, not {type(save)}"
         )
 
-    Figure(fig, fig_path)
-
-    if save:
-        if not Path(fig_dir).exists():
-            Path(fig_dir).mkdir(parents=True)
-
-        filename = f"{fig_dir}/{filen}.{ext}"
-        print(f"saving figure to file {filename}")
-        plt.savefig(filename, bbox_inches="tight")
-    if show:
-        plt.show()
-    if save:
-        plt.close()  # clear figure
+    fig = Figure(plt.gcf(), fig_dir, filen, ext)
+    return fig
 
 
 def prep_save_dir(save, fig_dir, f_prefix):
@@ -174,28 +165,37 @@ def plot_all(
     None
 
     """
+    figs = []
     # fig_kwargs =dict(save=save,show=show,fig_dir=fig_dir)
     if "embedding" in plots:
-        plot_embedding(
+        fg = plot_embedding(
             adata,
             **emb_kwargs,
             **fig_kwargs,
         )
+        figs.append(fg)
+
     if "predictions" in plots:
-        plot_predictions(
+        fg = plot_predictions(
             adata,
             **pred_kwargs**fig_kwargs,
         )
+        figs.append(fg)
+
     if "training" in plots:
         if model.__class__.__name__ == "LBL8R":
+            # if isinstance(model, LBL8R):
             plot_lbl8r_training(model.history, **fig_kwargs)
         elif model.__class__.__name__ == "SCANVI":
+            # elif isinstance(model, SCANVI):
             plot_scanvi_training(model.history, **fig_kwargs)
         elif model.__class__.__name__ == "SCVI":
-            plot_scvi_training(model.history, **fig_kwargs)
-
+            # elif isinstance(model, SCVI):
+            fg = plot_scvi_training(model.history, **fig_kwargs)
         else:  # xgb?
             pass
+        figs.append(fg)
+    return figs
 
 
 def plot_embedding(adata: AnnData, basis: str = "X_mde", color: list = None, **kwargs):
@@ -272,12 +272,15 @@ def plot_embedding(adata: AnnData, basis: str = "X_mde", color: list = None, **k
         {
             "frameon": frameon,
             "wspace": wspace,
-            "show": show,
-            "save": save,
+            # "show": show,
+            # "save": save,
+            "return_fig": True,
         }
     )
-
-    sc.pl.embedding(adata, basis=basis, color=color, **kwargs)
+    # TODO: simpify... remove show/save?
+    fig = sc.pl.embedding(adata, basis=basis, color=color, **kwargs)
+    fig = Figure(fig, fig_dir, save)
+    return fig
 
 
 def _plot_predictions(
@@ -335,7 +338,8 @@ def _plot_predictions(
     elif save:
         save = f"{model_name}_predictions.png"
 
-    savefig_or_show(show, save, fig_dir)
+    fig = savefig_or_show(show, save, fig_dir)
+    return fig
 
 
 def plot_predictions(
@@ -406,7 +410,8 @@ def plot_predictions(
             fig_dir = save.parent
     elif save:
         save = f"{model_name}_predictions.png"
-    savefig_or_show(show, save, fig_dir)
+    fig = savefig_or_show(show, save, fig_dir)
+    return fig
 
 
 def plot_lbl8r_training(
@@ -435,7 +440,8 @@ def plot_lbl8r_training(
     ax = train_loss.plot()
     validation_loss.plot(ax=ax)
     save_ = save + "train_loss" + ".png"
-    savefig_or_show(show, save_, fig_dir)
+    fig = savefig_or_show(show, save_, fig_dir)
+    return fig
 
 
 def plot_scvi_training(
@@ -456,6 +462,8 @@ def plot_scvi_training(
     None
 
     """
+
+    figs = []
     save, fig_dir = prep_save_dir(save, fig_dir, "scvi_")
 
     train_elbo = model_history["elbo_train"][1:]
@@ -463,21 +471,25 @@ def plot_scvi_training(
     ax = train_elbo.plot()
     val_elbo.plot(ax=ax)
     save_ = save + "elbo" + ".png"
-    savefig_or_show(show, save_, fig_dir)
+    fg = savefig_or_show(show, save_, fig_dir)
+    figs.append(fg)
 
     train_kll = model_history["kl_local_train"][1:]
     val_kll = model_history["kl_local_validation"]
     ax = train_kll.plot()
     val_kll.plot(ax=ax)
     save_ = save + "kl_div" + ".png"
-    savefig_or_show(show, save_, fig_dir)
+    fg = savefig_or_show(show, save_, fig_dir)
+    figs.append(fg)
 
     train_loss = model_history["reconstruction_loss_train"][1:]
     val_loss = model_history["reconstruction_loss_validation"]
     ax = train_loss.plot()
     val_loss.plot(ax=ax)
     save_ = save + "reconstruction_loss" + ".png"
-    savefig_or_show(show, save_, fig_dir)
+    fg = savefig_or_show(show, save_, fig_dir)
+    figs.append(fg)
+    return figs
 
 
 def plot_scanvi_training(
@@ -500,14 +512,20 @@ def plot_scanvi_training(
     """
     save, fig_dir = prep_save_dir(save, fig_dir, "scanvi_")
 
-    plot_scvi_training(model_history, save=save, show=show, fig_dir=fig_dir)
+    figs = plot_scvi_training(model_history, save=save, show=show, fig_dir=fig_dir)
+    figs.append(fg)
 
     train_class = model_history["train_classification_loss"][1:]
     _ = train_class.plot()
     save_ = save + "reconstruction_loss" + ".png"
-    savefig_or_show(show, save_, fig_dir)
+    fg = savefig_or_show(show, save_, fig_dir)
+    figs.append(fg)
 
     train_f1 = model_history["train_f1_score"][1:]
     _ = train_f1.plot()
     save_ = save + "f1" + ".png"
     savefig_or_show(show, save_, fig_dir)
+    fg = savefig_or_show(show, save_, fig_dir)
+    figs.append(fg)
+
+    return figs

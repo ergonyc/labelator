@@ -128,9 +128,7 @@ def setup_paths(model_params, data_path, config_path):
 #     load_adata(data_path)
 
 
-def create_artifacts(
-    data: list(Adata), model: list(MODEL), visualization_path, artifacts_path
-):
+def create_artifacts(data: list, model: list, visualization_path, artifacts_path):
     """
     Create the artifacts
     """

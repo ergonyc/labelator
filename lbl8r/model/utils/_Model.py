@@ -1,6 +1,6 @@
 ## functions for generating and archiving artifacts: figures, models, adatas
 
-import dataclasses
+from dataclasses import dataclass
 import anndata as ad
 import torch
 import matplotlib.pyplot as plt
@@ -14,7 +14,7 @@ from .._lbl8r import LBL8R
 from ._data import Adata
 
 
-@dataclasses.dataclass
+@dataclass
 class Model:
     """
     Model class for storing models.

@@ -1,6 +1,6 @@
 ## functions for generating and archiving artifacts: figures, models, adatas
 
-import dataclasses
+from dataclasses import dataclass
 import matplotlib.pyplot as plt
 from pathlib import Path
 import torch
@@ -11,7 +11,7 @@ from ..model.utils._Model import Model
 from ..model.utils._plot import Figure
 
 
-@dataclasses.dataclass
+@dataclass
 class Artifact:
     """
     Artifacts class for storing artifacts.
@@ -29,7 +29,7 @@ class Artifact:
         self.name = name
 
 
-@dataclasses.dataclass
+@dataclass
 class Artifacts:
     """
     Artifacts class for storing artifacts.

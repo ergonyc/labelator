@@ -1,5 +1,4 @@
 import dataclasses
-from anndata import AnnData
 import pandas as pd
 from pathlib import Path
 import anndata as ad
@@ -47,7 +46,7 @@ class Adata:
 
         self.adata.write(out_path)
 
-    def update(self, adata: AnnData):
+    def update(self, adata: ad.AnnData):
         """
         Update the adata object.
         """
@@ -97,7 +96,7 @@ def add_predictions_to_adata(adata, predictions, insert_key="pred", pred_key="la
     return adata
 
 
-def transfer_pcs(train_ad: AnnData, test_ad: AnnData) -> AnnData:
+def transfer_pcs(train_ad: ad.AnnData, test_ad: ad.AnnData) -> ad.AnnData:
     """Transfer PCs from training data to get "loadings" (`X_pca`)
 
     Parameters
@@ -182,12 +181,12 @@ def merge_into_obs(adata, source_table, insert_keys=None, prefix=None):
     return adata
 
 
-def sparsify_adata(adata: AnnData):
+def sparsify_adata(adata: ad.AnnData):
     """replace the adata.X with a sparse matrix
 
     Parameters
     ----------
-    adata : AnnData
+    adata : ad.AnnData
         Annotated data matrix.
 
     Returns
@@ -201,7 +200,7 @@ def sparsify_adata(adata: AnnData):
     return adata
 
 
-def export_ouput_adata(adata: AnnData, file_name: str, out_path: Path):
+def export_ouput_adata(adata: ad.AnnData, file_name: str, out_path: Path):
     """
     Export the AnnData object with the model name and file name appended to the file name.
 
@@ -230,7 +229,7 @@ def export_ouput_adata(adata: AnnData, file_name: str, out_path: Path):
     return None
 
 
-def make_pc_loading_adata(adata: AnnData, pca_key: str = "X_pca"):
+def make_pc_loading_adata(adata: ad.AnnData, pca_key: str = "X_pca"):
     """
     Makes adata with PCA loadings
 
@@ -250,7 +249,7 @@ def make_pc_loading_adata(adata: AnnData, pca_key: str = "X_pca"):
     """
     if pca_key in adata.obsm.keys():
         # already have the loadings...
-        loading_adata = AnnData(adata.obsm[pca_key])
+        loading_adata = ad.AnnData(adata.obsm[pca_key])
     else:  #
         ValueError("Need to get PCA loadings first")
         print("doing nothing")
