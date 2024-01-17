@@ -38,18 +38,18 @@ def get_xgb(
     n_labels = len(adata.obs[labels_key].cat.categories)
 
     X_train, y_train, label_encoder = get_xgb_data(adata, label_key=labels_key)
-    use_gpu = training_kwargs.pop("use_gpu", True)
+
     if bst_path.exists() and not retrain:
         # load trained model''
         print(f"loading {bst_path}")
-        bst = load_xgboost(bst_path, use_gpu=use_gpu)
+        bst = load_xgboost(bst_path)
     else:
         bst = None
 
     if bst is None:
         print(f"training {model_name}")
         # train
-        bst = train_xgboost(X_train, y_train)
+        bst = train_xgboost(X_train, y_train, **training_kwargs)
 
     if retrain or not bst_path.exists():
         # save the reference model
@@ -73,7 +73,7 @@ def get_xgb_data(adata, label_key="cell_type"):
     return X, y, label_encoder
 
 
-def train_xgboost(X, y, num_round=50, use_gpu=True) -> xgb.Booster:
+def train_xgboost(X, y, num_round=50, **training_kwargs) -> xgb.Booster:
     """
     wrapper to split validation set and train xgboost and train model
     """
@@ -82,15 +82,30 @@ def train_xgboost(X, y, num_round=50, use_gpu=True) -> xgb.Booster:
     dtrain = xgb.DMatrix(X_train, label=y_train)
     dvalid = xgb.DMatrix(X_valid, label=y_valid)
     n_cats = len(unique(y))
-    params = {
-        "max_depth": 7,
-        "objective": "multi:softprob",  # error evaluation for multiclass training
-        "num_class": n_cats,
-        "eta": 0.3,  # the training step for each iteration
-        # 'n_gpus': 0
-    }
-    if use_gpu:
-        params["device"] = "cuda"
+
+    use_gpu = training_kwargs.pop("use_gpu", False)
+    max_depth = training_kwargs.pop("max_depth", 7)
+    objective = training_kwargs.pop("objective", "multi:softprob")
+    eta = training_kwargs.pop("eta", 0.3)
+    device = "cuda" if use_gpu else None
+
+    params = dict(
+        max_depth=max_depth,
+        objective=objective,
+        num_class=n_cats,
+        eta=eta,
+        device=device,
+    )
+
+    # params = {
+    #     "max_depth": 7,
+    #     "objective": "multi:softprob",  # error evaluation for multiclass training
+    #     "num_class": n_cats,
+    #     "eta": 0.3,  # the training step for each iteration
+    #     # 'n_gpus': 0
+    # }
+    # if use_gpu:
+    #     params["device"] = "cuda"
 
     # # Set up parameters for xgboost
     # param = {
@@ -112,7 +127,7 @@ def train_xgboost(X, y, num_round=50, use_gpu=True) -> xgb.Booster:
     return bst
 
 
-def load_xgboost(model_path: Path | str, use_gpu: bool = False) -> xgb.Booster | None:
+def load_xgboost(model_path: Path | str) -> xgb.Booster | None:
     """
     Load an XGBoost classifier model from a file.
 

@@ -3,7 +3,7 @@
 #     get_lbl8r,
 #     plot_lbl8r_training,
 #     query_lbl8r,
-#     prep_lbl8r_adata,
+#     prep_pcs_adata,
 # )
 
 # from ._scvi import (
@@ -41,5 +41,5 @@
 #     "plot_scanvi_training",
 #     "get_xgb",
 #     "get_xgb_data",
-#     "prep_lbl8r_adata",
+#     "prep_pcs_adata",
 # )

@@ -68,6 +68,7 @@ from .model._lbl8r import (
     query_lbl8r,
     get_scvi_lbl8r,
     get_pca_lbl8r,
+    prep_pcs_adata,
 )
 
 from .model._scvi import (
@@ -76,6 +77,7 @@ from .model._scvi import (
     get_query_scvi,
     get_query_scanvi,
     query_scanvi,
+    prep_latent_z_adata,
 )
 
 from .model._xgb import get_xgb, query_xgb
@@ -83,18 +85,17 @@ from .model.utils._data import Adata
 from .model.utils._Model import Model
 from ._constants import *
 
+MODEL = SCVI | SCANVI | LBL8R | Booster
+
 PRED_KEY = "label"
 INSERT_KEY = "pred"
 # Model = SCVI | SCANVI | LBL8R | Booster
 
 
-def setup_paths(model_params_file, data_path, config_path):
+def setup_paths(model_params, data_path, config_path):
     """
     Create the paths for models and artifacts
     """
-
-    # load the model params
-    model_params = yaml.load(model_params_file)
 
     # create the paths
     model_path = Path(model_params["model_path"])
@@ -117,17 +118,19 @@ def setup_paths(model_params_file, data_path, config_path):
     # create the paths for the config
 
 
-def load_and_prep(data_path):
-    """
-    Load and prep the data
-    """
+# def load_and_prep(data_path):
+#     """
+#     Load and prep the data
+#     """
 
-    # prep
+#     # prep
 
-    load_adata(data_path)
+#     load_adata(data_path)
 
 
-def create_artifacts(visualization_path, artifacts_path):
+def create_artifacts(
+    data: list(Adata), model: list(MODEL), visualization_path, artifacts_path
+):
     """
     Create the artifacts
     """
@@ -229,30 +232,59 @@ def get_model(
     if not model_path.exists():
         raise ValueError(f"{model_path} does not exist")
 
+    # SCVI/SCANVI models ( "" or "_nobatch")
     if model_name.startswith("scvi"):
         _get_model = get_trained_scvi
-
     elif model_name.startswith("scanvi"):
         _get_model = get_trained_scanvi
-
-    elif model_name.startswith("lbl8r"):
-        if model_name == "lbl8r_pca":
-            # do dataprep
-            _get_model = get_pca_lbl8r
-        elif model_name == "lbl8r_scvi":
-            # do dataprep
-            _get_model = get_scvi_lbl8r
-        else:
-            _get_model = get_lbl8r
-
-    elif model_name.startswith("xgb"):
-        _get_model = get_xgb
-
     elif model_name.startswith("query_scvi"):
         _get_model = get_query_scvi
-
     elif model_name.startswith("query_scanvi"):
         _get_model = get_query_scanvi
+
+    # LBL8R models
+    elif model_name.startswith("lbl8r"):
+        if "pcs" in model_name:  # "lbl8r_cnt_pcs", "lbl8r_expr_pcs"
+            # 1. get the pcs representation
+            ad = prep_pcs_adata(data.adata, pca_key=PCA_KEY)
+            # 2. update the data with the latent representation
+            data.update(ad)
+            _get_model = get_pca_lbl8r
+        elif "scvi" in model_name:
+            vae_name = model_name.replace("lbl8r_scvi", "scvi")
+            vae, ad = get_trained_scvi(
+                data.adata,
+                labels_key=labels_key,
+                batch_key=None,
+                model_path=model_path,
+                retrain=retrain,
+                model_name=vae_name,
+                **training_kwargs,
+            )
+            # 1. get the latent representation
+            ad = prep_latent_z_adata(ad, vae=vae, labels_key=labels_key)
+            # 2. update the data with the latent representation
+            data.update(ad)
+
+    elif model_name.startswith("xgb"):
+        if "pcs" in model_name:  # "lbl8r_cnt_pcs", "lbl8r_expr_pcs"
+            # 1. get the pcs representation
+            ad = prep_pcs_adata(data.adata, pca_key=PCA_KEY)
+            # 2. update the data with the latent representation
+            data.update(ad)
+
+            _get_model = get_xgb
+        elif "scvi" in model_name:
+            # should have loaded embedding adata.  no prep nescessary
+            #  _prep = [get_trained_scvi, prep_latent_z_adata]
+            _get_model = get_xgb
+
+    # E2E models
+    elif model_name.startswith("raw_cnt") | model_name.startswith("scvi_expr_nb"):
+        _get_model = get_lbl8r
+
+    elif model_name.startswith("xgb_raw_cnt") | model_name.startswith("xgb_expr_nb"):
+        _get_model = get_xgb
 
     else:
         raise ValueError(f"unknown model_name {model_name}")
@@ -269,15 +301,69 @@ def get_model(
     # update data with ad
     data.update(ad)
 
+    # TODO: wrap the model in a Model class
     return model
 
 
+def prep_latent_data(data: Adata, vae: SCVI, labels_key: str = "cell_type") -> Adata:
+    """
+    Prep adata for scVI LBL8R model
+
+    Parameters
+    ----------
+    data : Adata
+        dataclass holder for Annotated data matrix.
+    model :
+        An classification model.
+    labels_key : str
+        Key for cell type labels. Default is `cell_type`.
+
+    Returns
+    -------
+    Adata
+        Annotated data matrix with latent variables as X
+
+    """
+
+    # 1. get the latent representation
+    ad = prep_latent_z_adata(ad, vae=vae, labels_key=labels_key)
+    # 2. update the data with the latent representation
+    data.update(ad)
+    return data
+
+
+def prep_pc_data(data: Adata, pca_key=PCA_KEY) -> Adata:
+    """
+    Prep adata for pcs LBL8R model
+
+    Parameters
+    ----------
+    data : Adata
+        dataclass holder for Annotated data matrix.
+    pca_key : str
+        Key for pca. Default is `X_pca`.
+    labels_key : str
+        Key for cell type labels. Default is `cell_type`.
+
+    Returns
+    -------
+    Adata
+        Annotated data matrix with latent variables as X
+
+    """
+    # 1. get the pcs representation
+    ad = prep_pcs_adata(data.adata, pca_key=pca_key)
+    # 2. update the data with the latent representation
+    data.update(ad)
+    return data
+
+
 def query_model(
-    adata: AnnData,
+    data: Adata,
     model: LBL8R | SCANVI | Booster,
     label_encoder: LabelEncoder | None = None,
     labels_key: str = "cell_type",
-) -> AnnData:
+) -> Adata:
     """
     Attach a classifier and prep adata for scVI LBL8R model
 
@@ -300,18 +386,18 @@ def query_model(
     """
 
     if isinstance(model, LBL8R):
-        _quiery_model = query_lbl8r
+        _query_model = query_lbl8r
     elif isinstance(model, SCANVI):
-        _quiery_model = query_scanvi
+        _query_model = query_scanvi
     elif isinstance(model, Booster):
-        _quiery_model = query_xgb
+        _query_model = query_xgb
 
     else:
         raise ValueError(f"model {model} is not a valid model")
 
-    ad = _quiery_model(adata, model, labels_key=labels_key)
+    ad = _query_model(data.adata, model, labels_key=labels_key)
 
     # update data with ad
     data.update(ad)
 
-    return model
+    return data

@@ -2,30 +2,13 @@
 
 import dataclasses
 import matplotlib.pyplot as plt
+from pathlib import Path
+import torch
 
 from ..model.utils._data import Adata
 from ..model.utils._Model import Model
 
-
-@dataclasses.dataclass
-class Figure:
-    """
-    Figure class for storing figures.
-    """
-
-    fig: plt.Figure
-    fig_path: str
-
-    def __init__(self, fig, fig_path):
-        self.fig = fig
-        self.fig_path = fig_path
-
-    def savefig(self, adata, fig_kwargs):
-        """
-        Save figure to disk.
-        """
-
-        self.fig.savefig(self.fig_path, bbox_inches="tight")
+from ..model.utils._plot import Figure
 
 
 @dataclasses.dataclass
@@ -34,9 +17,16 @@ class Artifact:
     Artifacts class for storing artifacts.
     """
 
-    model: Model
-    adata: Adata
-    fig: Figure
+    artifact: Model | Adata | Figure
+    path: str | Path
+    # type: str
+    name: str
+
+    def __init__(self, artifact, path, name):
+        self.artifact = artifact
+        self.path = path
+        # self.type = type
+        self.name = name
 
 
 @dataclasses.dataclass
@@ -45,7 +35,7 @@ class Artifacts:
     Artifacts class for storing artifacts.
     """
 
-    artifacts: Artifact
+    artifacts: list(Artifact)
 
     def __init__(self, artifacts):
         self.artifacts = artifacts

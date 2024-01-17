@@ -6,13 +6,47 @@ import pandas as pd
 import numpy as np
 
 from .._constants import *
+from .._constants import SCVI_LATENT_KEY_Z, SCVI_LATENT_KEY_MU_VAR
+
+
+def prep_latent_z_adata(
+    adata: AnnData,
+    vae: SCVI,
+    labels_key: str = "cell_type",
+) -> AnnData:
+    """
+    make an adata with VAE latent z embedding in adata.X.
+
+    Parameters
+    ----------
+    adata : AnnData
+        Annotated data matrix.
+    vae : SCVI
+        An scVI model.
+    labels_key : str
+        Key for pca loadings. Default is `cell_type`.
+
+    Returns
+    -------
+    AnnData
+        Annotated data matrix with latent variables as X
+
+    """
+
+    SCVI.setup_anndata(adata, labels_key=labels_key, batch_key=None)  # "dummy")
+
+    latent_ad = make_latent_adata(adata, scvi_model=vae, return_dist=False)
+    latent_ad.obsm[
+        SCVI_LATENT_KEY
+    ] = latent_ad.X  # copy to obsm for convenience (doubles size 🫤)
+    return latent_ad
 
 
 # TODO: add save and load flags so we can use the functions and NOT overwrite on accident
 def get_trained_scvi(
     adata: AnnData,
     labels_key: str = "cell_type",
-    batch_key: str | None = None,
+    # batch_key: str | None = None,
     model_path: Path = Path.cwd(),
     retrain: bool = False,
     model_name: str = "scvi",
@@ -27,14 +61,16 @@ def get_trained_scvi(
         Annotated data matrix.
     labels_key : str
         Key for cell type labels. Default is `cell_type`.
-    batch_key : str
-        Key for batch labels. Default is `None`.
     model_path : Path
         Path to save model. Default is `Path.cwd()`.
     retrain : bool
         Whether to retrain the model. Default is `False`.
     model_name : str
         Name of the model. Default is `SCVI`.
+    training_kwargs : dict
+        Keyword arguments for training. implicitly contains batch_key : str
+        Key for batch labels. Default is `None`.
+
 
     Returns
     -------
@@ -56,6 +92,8 @@ def get_trained_scvi(
     )
     size_factor_key = None  # library size
 
+    # this should work to extract batch_key for batch corrected scvi
+    batch_key = training_kwargs.pop("batch_key", None)
     SCVI.setup_anndata(
         adata,
         batch_key=batch_key,  # using this to prevent issues with categorical covariates
@@ -139,6 +177,7 @@ def get_trained_scanvi(
     batch_size = 512
 
     # n_labels = len(adata.obs[labels_key].cat.categories)
+    # this should work to extract batch_key for batch corrected scvi
     batch_key = training_kwargs.pop("batch_key", None)
 
     if vae is None:
@@ -203,6 +242,11 @@ def get_query_scvi(
         Path to save model. Default is `Path.cwd()`.
     retrain : bool
         Whether to retrain the model. Default is `False`.
+    model_name : str
+        Name of the model. Default is `SCVI_query`.
+    training_kwargs : dict
+        Keyword arguments for training.
+
 
     Returns
     -------
@@ -333,15 +377,21 @@ def query_scanvi(ad: AnnData, model: SCANVI, insert_key: str = "label"):
     return ad
 
 
-def make_latent_adata(scvi_model: SCVI, adata: AnnData, return_dist: bool = True):
+def make_latent_adata(
+    adata: AnnData, scvi_model: SCVI | None = None, return_dist: bool = True
+):
     """
+    make an `AnnData` object with the latent representation from an scvi model.  Use the SCVI_LATENT_KEY
+    to access the latent representation by default.  If `scvi_model` is not provided, then use the model to
+    generate the latent representation.  If `return_dist` is True, then return the distribution: i.e. both the
+    mean and the variance latents.
 
     Parameters
     ----------
-    scvi_model : SCVI
-        An scvi model.
     adata : AnnData
         Annotated data matrix.
+    scvi_model : SCVI
+        An scvi model.
     return_dist : bool
         Whether to return the mean or the distribution. Default is `True`.
 
@@ -352,19 +402,40 @@ def make_latent_adata(scvi_model: SCVI, adata: AnnData, return_dist: bool = True
 
     """
 
-    if return_dist:
-        qzm, qzv = scvi_model.get_latent_representation(
-            adata, give_mean=False, return_dist=return_dist
-        )
-        latent_adata = AnnData(np.concatenate([qzm, qzv], axis=1))
-        var_names = [f"zm_{i}" for i in range(qzm.shape[1])] + [
-            f"zv_{i}" for i in range(qzv.shape[1])
-        ]
-    else:
-        latent_adata = AnnData(
-            scvi_model.get_latent_representation(adata, give_mean=True)
-        )
-        var_names = [f"z_{i}" for i in range(latent_adata.shape[1])]
+    latent_key = SCVI_LATENT_KEY_Z if return_dist else SCVI_LATENT_KEY
+
+    # try and copy latent from obsm
+    if latent_key in adata.obsm.keys():
+        # create latent adata and var_names
+        latent_adata = AnnData(adata.obsm[latent_key])
+        if return_dist:
+            var_names = [f"zm_{i}" for i in range(latent_adata.shape[1] // 2)] + [
+                f"zv_{i}" for i in range(latent_adata.shape[1] // 2)
+            ]
+        else:
+            var_names = [f"z_{i}" for i in range(latent_adata.shape[1])]
+
+    else:  # get latent representations from the model
+        if scvi_model is not None:
+            if return_dist:
+                qzm, qzv = scvi_model.get_latent_representation(
+                    adata, give_mean=False, return_dist=return_dist
+                )
+                latent_adata = AnnData(np.concatenate([qzm, qzv], axis=1))
+                var_names = [f"zm_{i}" for i in range(qzm.shape[1])] + [
+                    f"zv_{i}" for i in range(qzv.shape[1])
+                ]
+            else:
+                latent_adata = AnnData(
+                    scvi_model.get_latent_representation(adata, give_mean=True)
+                )
+                var_names = [f"z_{i}" for i in range(latent_adata.shape[1])]
+
+        else:
+            ValueError(
+                f"need to provide a `scvi_model` or have adata.obsm[{latent_key}]"
+                " to get latent representation"
+            )
 
     latent_adata.obs_names = adata.obs_names.copy()
     latent_adata.obs = adata.obs.copy()
@@ -372,7 +443,6 @@ def make_latent_adata(scvi_model: SCVI, adata: AnnData, return_dist: bool = True
     latent_adata.obsm = adata.obsm.copy()
 
     latent_adata.uns = {}
-    print(latent_adata.shape)
 
     return latent_adata
 

@@ -5,7 +5,7 @@
 # )
 
 # from ._data import (
-#     prep_lbl8r_adata,
+#     prep_pcs_adata,
 #     add_predictions_to_adata,
 #     merge_into_obs,
 #     transfer_pcs,
@@ -32,7 +32,7 @@
 # __all__ = [
 #     "mde",
 #     "get_stats_table",
-#     "prep_lbl8r_adata",
+#     "prep_pcs_adata",
 #     "make_latent_adata",
 #     "make_pc_loading_adata",
 #     "make_scvi_normalized_adata",

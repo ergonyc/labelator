@@ -32,6 +32,35 @@ logic:  dataclass holds the list of models / names
 """
 
 
+@dataclasses.dataclass
+class Figure:
+    """
+    Figure class for storing figures.
+    """
+
+    fig: plt.Figure
+    path: str | Path
+    name: str
+    ext: "png" | "svg" | "pdf" = "png"
+
+    def __init__(self, fig, fig_path):
+        self.fig = fig
+        self.fig_path = fig_path
+
+    def savefig(self, adata, fig_kwargs):
+        """
+        Save figure to disk.
+        """
+
+        self.fig.savefig(self.fig_path, bbox_inches="tight")
+
+    def show(self):
+        """
+        Show figure.
+        """
+        self.fig.show()
+
+
 # -------------------------------------------------------------------------------
 # Helper functions
 # -------------------------------------------------------------------------------
@@ -78,6 +107,8 @@ def savefig_or_show(
         ValueError(
             f"WTF.. how did we get here save must be a Path or a str, not {type(save)}"
         )
+
+    Figure(fig, fig_path)
 
     if save:
         if not Path(fig_dir).exists():

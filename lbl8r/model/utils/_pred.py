@@ -44,30 +44,3 @@ def get_stats_table(
         preds_df["mop"] = probabilities["mop"]
 
     return preds_df
-
-
-# def make_latent_adata(vae, **get_latent_args):
-#     # TODO: make it accept adata as input
-#     #   also probably take the qzv.log() of the latent variables for nicer targets...
-#     return_dist = get_latent_args.pop("return_dist", True)
-
-#     if return_dist:
-#         qzm, qzv = vae.get_latent_representation(return_dist=return_dist,**get_latent_args)
-#         latent_adata = ad.AnnData(np.concatenate([qzm,qzv], axis=1))
-#         # latent_adata.obsm["X_latent_qzm"] = qzm
-#         # latent_adata.obsm["X_latent_qzv"] = qzv
-#         var_names = [f"zm_{i}" for i in range(qzm.shape[1])]+[f"zv_{i}" for i in range(qzv.shape[1])]
-#     else:
-#         latent_adata = ad.AnnData(vae.get_latent_representation(**get_latent_args))
-#         var_names = [f"z_{i}" for i in range(latent_adata.shape[1])]
-
-
-#     latent_adata.obs_names = vae.adata.obs_names.copy()
-#     latent_adata.obs = vae.adata.obs.copy()
-#     latent_adata.var_names = var_names
-#     return latent_adata
-
-
-#    adata = add_scanvi_predictions(
-#         adata, scanvi_query, insert_key=SCANVI_PREDICTIONS_KEY
-#     )

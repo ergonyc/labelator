@@ -4,6 +4,11 @@ from pathlib import Path
 
 ## adata keys
 SCVI_LATENT_KEY = "X_scVI"
+
+SCVI_LATENT_KEY_Z = SCVI_LATENT_KEY
+SCVI_LATENT_KEY_MU_VAR = "X_scVI_mu_var"
+
+
 SCANVI_LATENT_KEY = "X_scANVI"
 SCANVI_PREDICTIONS_KEY = "C_scANVI"
 PCA_KEY = "X_pca"

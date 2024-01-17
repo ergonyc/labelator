@@ -27,7 +27,7 @@ from scvi.utils import setup_anndata_dsp
 from scvi.utils._docstrings import devices_dsp
 
 from .module._classifier import Classifier
-from ._scvi import get_trained_scvi, make_latent_adata
+from ._scvi import get_trained_scvi
 
 from .utils._pred import get_stats_table
 from .utils._data import merge_into_obs, make_pc_loading_adata
@@ -39,26 +39,19 @@ logger = logging.getLogger(__name__)
 LABELS_KEY = "cell_type"
 
 
-def prep_lbl8r_adata(
+def prep_pcs_adata(
     adata: AnnData,
-    vae: SCVI | None = None,
-    pca_key: str | None = None,
-    labels_key: str = "cell_type",
+    pca_key: str = "X_pca",
 ) -> AnnData:
     """
-    make an adata with embeddings in adata.X.  It if `vae is not None`
-    it will use the `vae` model to make the latent representation.  Otherwise,
-    if pca_key is not None, it will use the `adata.obsm{pca_key)' slot in the adata.
-    If both are None, it will raise an error.
+    make an adata with PCs copied to adata.X.
 
     Parameters
     ----------
     adata : AnnData
         Annotated data matrix.
-    vae : SCVI
-        An scVI model. Default is `None`.
     pca_key : str
-        Key for pca loadings. Default is `None`.
+        Key for pca loadings. Default is `X_pca`.
 
     Returns
     -------
@@ -67,20 +60,8 @@ def prep_lbl8r_adata(
 
     """
 
-    if vae is None and pca_key is None:
-        raise ValueError("vae and pca_key cannot both be None")
-
-    if vae is not None:
-        # do i need an adata.copy() here?
-        SCVI.setup_anndata(adata, labels_key=labels_key, batch_key=None)  # "dummy")
-
-        latent_ad = make_latent_adata(vae, adata, return_dist=False)
-        latent_ad.obsm[SCVI_LATENT_KEY] = latent_ad.X  # copy to obsm for convenience
-        return latent_ad
-
-    if pca_key is not None:
-        loadings_ad = make_pc_loading_adata(adata, pca_key)
-        return loadings_ad
+    loadings_ad = make_pc_loading_adata(adata, pca_key)
+    return loadings_ad
 
 
 def get_stats_from_logits(logits: torch.Tensor, categories: np.ndarray) -> dict:
@@ -806,55 +787,6 @@ class LBL8R(BaseModelClass):
         return runner()
 
 
-def get_scvi_lbl8r(
-    adata: AnnData,
-    labels_key: str = "cell_type",
-    model_path: Path = ".",
-    retrain: bool = False,
-    model_name: str = "scvi_nobatch",
-    **training_kwargs,
-):
-    """
-    Get scVI model and latent representation for `LBL8R` model. Note that `batch_key=None`
-    Just a wrapper for `get_trained_scvi` with `batch_key=None`.
-
-    Parameters
-    ----------
-    adata : AnnData
-        Annotated data matrix.
-    labels_key : str
-        Key for cell type labels. Default is `cell_type`.
-    model_path : Path
-        Path to save model. Default is `Path.cwd()`.
-    retrain : bool
-        Whether to retrain the model. Default is `False`.
-    model_name : str
-        Name of the model. Default is `SCVI_nobatch`.
-    **training_kwargs : dict
-        Additional arguments to pass to `scvi.model.SCVI.train`.
-
-    Returns
-    -------
-    SCVI
-        scVI model.
-    AnnData
-        Annotated data matrix with latent variables.
-
-    """
-    # just call get_trained_scvi with batch_key=None
-    vae, adata = get_trained_scvi(
-        adata,
-        labels_key=labels_key,
-        batch_key=None,
-        model_path=model_path,
-        retrain=retrain,
-        model_name=model_name,
-        **training_kwargs,
-    )
-
-    return vae, adata
-
-
 def get_lbl8r(
     adata: AnnData,
     labels_key: str = "cell_type",
@@ -930,33 +862,6 @@ def get_lbl8r(
     return lat_lbl8r, adata
 
 
-# TODO: modularize things better so the pca/scvi versions call same code
-def get_pca_lbl8r(
-    adata: AnnData,
-    labels_key: str = "cell_type",
-    model_path: Path = ".",
-    retrain: bool = False,
-    model_name: str = "LBL8R_pca",
-    **training_kwargs,
-):
-    """
-    just a wrapper for get_lbl8r that defaults to modelname = LBL8R_pca
-    """
-    #
-    adata = prep_lbl8r_adata(adata, pca_key=PCA_KEY, labels_key=labels_key)
-
-    pca_lbl8r, adata = get_lbl8r(
-        adata,
-        labels_key=labels_key,
-        model_path=model_path,
-        retrain=retrain,
-        model_name=model_name,
-        **training_kwargs,
-    )
-
-    return pca_lbl8r, adata
-
-
 # TODO:  add a flag to return predictions only rather than updating the adata?
 def query_lbl8r(
     adata: AnnData,
@@ -990,6 +895,98 @@ def query_lbl8r(
     # )
     adata = merge_into_obs(adata, predictions)
     return adata
+
+
+def get_scvi_lbl8r(
+    adata: AnnData,
+    labels_key: str = "cell_type",
+    model_path: Path = ".",
+    retrain: bool = False,
+    model_name: str = "scvi_nobatch",
+    **training_kwargs,
+):
+    """
+    Get scVI model and latent representation for `LBL8R` model. Note that `batch_key=None`
+    Just a wrapper for `get_trained_scvi` with `batch_key=None`.
+
+    Parameters
+    ----------
+    adata : AnnData
+        Annotated data matrix.
+    labels_key : str
+        Key for cell type labels. Default is `cell_type`.
+    model_path : Path
+        Path to save model. Default is `Path.cwd()`.
+    retrain : bool
+        Whether to retrain the model. Default is `False`.
+    model_name : str
+        Name of the model. Default is `SCVI_nobatch`.
+    **training_kwargs : dict
+        Additional arguments to pass to `scvi.model.SCVI.train`.
+
+    Returns
+    -------
+    SCVI
+        scVI model.
+    AnnData
+        Annotated data matrix with latent variables.
+
+    """
+
+    # 0 . load or train an scvi vae
+    # just call get_trained_scvi with batch_key=None
+    vae, adata = get_trained_scvi(
+        adata,
+        labels_key=labels_key,
+        batch_key=None,
+        model_path=model_path,
+        retrain=retrain,
+        model_name=model_name,
+        **training_kwargs,
+    )
+
+    # 1. get the latent representation
+    latent_ad = prep_pcs_adata(adata, vae=vae, labels_key=labels_key)
+    # 2. get the lbl8r classifier
+    vae_lbl8r, latent_ad = get_lbl8r(
+        latent_ad,
+        labels_key=labels_key,
+        model_path=model_path,
+        retrain=retrain,
+        model_name=model_name,
+        **training_kwargs,
+    )
+
+    return vae_lbl8r, vae, latent_ad
+
+
+# TODO: modularize things better so the pca/scvi versions call same code
+def get_pca_lbl8r(
+    adata: AnnData,
+    labels_key: str = "cell_type",
+    model_path: Path = ".",
+    retrain: bool = False,
+    model_name: str = "LBL8R_pca",
+    **training_kwargs,
+):
+    """
+    just a wrapper for get_lbl8r that defaults to modelname = LBL8R_pca
+    """
+    #
+
+    # 1. get the latent representation
+    pcs_ad = prep_pcs_adata(adata, pca_key=PCA_KEY)
+    # 2. get the lbl8r classifier
+    pcs_lbl8r, pcs_ad = get_lbl8r(
+        pcs_ad,
+        labels_key=labels_key,
+        model_path=model_path,
+        retrain=retrain,
+        model_name=model_name,
+        **training_kwargs,
+    )
+
+    return pcs_lbl8r, pcs_ad
 
 
 # # this is just a generic classifier witn an AnnData input.  Shouldn't be named pca, since
