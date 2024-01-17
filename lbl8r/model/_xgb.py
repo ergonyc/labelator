@@ -1,12 +1,64 @@
+from xgboost import Booster
+from sklearn.preprocessing import LabelEncoder
+from sklearn.metrics import classification_report
+
 import xgboost as xgb
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report
 from pathlib import Path
 from anndata import AnnData
-from numpy import asarray, argmax, unique, array
+from numpy import unique, asarray, argmax
+
 from pandas import DataFrame
-from typing import Any
+
+from .utils._data import merge_into_obs
+
+
+def get_xgb(
+    adata: AnnData,
+    labels_key: str = "cell_type",
+    model_path: Path = ".",
+    retrain: bool = False,
+    model_name: str = "xgb",
+    **training_kwargs,
+) -> (Booster, AnnData, LabelEncoder):
+    """
+    Load or train an XGBoost model and return the model, label encoder, and adata with predictions
+
+    """
+    PRED_KEY = "pred"
+    # format model_path / model_name for xgboost
+    bst_path = (
+        model_path / model_name
+        if model_name.endswith(".json")
+        else model_path / f"{model_name}.json"
+    )
+
+    labels_key = labels_key
+    n_labels = len(adata.obs[labels_key].cat.categories)
+
+    X_train, y_train, label_encoder = get_xgb_data(adata, label_key=labels_key)
+    use_gpu = training_kwargs.pop("use_gpu", True)
+    if bst_path.exists() and not retrain:
+        # load trained model''
+        print(f"loading {bst_path}")
+        bst = load_xgboost(bst_path, use_gpu=use_gpu)
+    else:
+        bst = None
+
+    if bst is None:
+        print(f"training {model_name}")
+        # train
+        bst = train_xgboost(X_train, y_train)
+
+    if retrain or not bst_path.exists():
+        # save the reference model
+        bst.save_model(bst_path)
+        # HACK: reload to so that the training GPU memory is cleared
+        bst = load_xgboost(bst_path, use_gpu=use_gpu)
+        print("reloaded bst (memory cleared?)")
+
+    return bst, adata, label_encoder
 
 
 def get_xgb_data(adata, label_key="cell_type"):
@@ -96,7 +148,43 @@ def load_xgboost(model_path: Path | str, use_gpu: bool = False) -> xgb.Booster |
         return None
 
 
-def test_xgboost(
+# TODO:  query_xgb should be query_xgboost
+def query_xgb(
+    adata: AnnData,
+    bst: Booster,
+    label_encoder: LabelEncoder,
+) -> (AnnData, dict):
+    """
+    Test the XGBoost classifier on the test set
+
+    Parameters
+    ----------
+    adata : AnnData
+        Annotated data matrix.
+    labelator : Booster
+        An XGBoost classification model.
+    label_encoder : LabelEncoder
+        The label encoder.
+    labels_key : str
+        Key for cell type labels. Default is `cell_type`.
+
+    Returns
+    -------
+    AnnData
+        Annotated data matrix with latent variables as X
+
+    """
+
+    predictions, report = query_xgboost(bst, adata, label_encoder)
+    # loadings_ad = add_predictions_to_adata(
+    #     adata, predictions, insert_key=INSERT_KEY, pred_key=PRED_KEY
+    # )
+    adata = merge_into_obs(adata, predictions)
+
+    return adata, report
+
+
+def query_xgboost(
     bst: xgb.Booster,
     adata: AnnData,
     label_encoder: LabelEncoder,

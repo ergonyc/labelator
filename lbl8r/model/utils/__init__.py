@@ -28,13 +28,6 @@
 #     query_model,
 # )
 
-# from ._artifacts import (
-#     export_artifacts,
-#     export_models,
-#     export_ouput_adatas,
-#     export_figs,
-# )
-
 
 # __all__ = [
 #     "mde",

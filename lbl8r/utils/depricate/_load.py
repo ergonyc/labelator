@@ -1,26 +1,30 @@
 ## wrappers to load data
 import anndata as ad
-from scvi.model import SCVI, SCANVI
+
 from pathlib import Path
 
-from xgboost import Booster
-from sklearn.preprocessing import LabelEncoder
 
-from .models._lbl8r import LBL8R
-from .utils import (
-    make_latent_adata,
-    # add_predictions_to_adata,
-    # merge_into_obs,
-    # query_scanvi,
-    # plot_scvi_training,
-    # plot_scanvi_training,
-    # plot_lbl8r_training,
-    make_pc_loading_adata,
+from ...model.utils._data import (
+    Adata,
 )
 
-from .constants import *
-from .modules._xgb import train_xgboost, test_xgboost, load_xgboost, get_xgb_data
-from ._artifacts import Adata
+from lbl8r._constants import *
+from lbl8r.model import load_xgboost, get_xgb_data
+
+from ...model._lbl8r import (
+    LBL8R,
+    get_lbl8r,
+    get_trained_scvi,
+    query_lbl8r,
+)
+
+from ...model._scvi import (
+    get_trained_scvi,
+    get_trained_scanvi,
+    get_query_scvi,
+    get_query_scanvi,
+    query_scanvi,
+)
 
 """
 
