@@ -4,7 +4,7 @@ from pathlib import Path
 import anndata as ad
 
 # from scanpy.pp import pca
-from ..._constants import OUT, H5
+from ..._constants import OUT, H5, EMB, EXPR, CNT
 
 
 @dataclasses.dataclass
@@ -17,12 +17,14 @@ class Adata:
     name: str
     is_backed: bool = False
     _adata: ad.AnnData = dataclasses.field(default=None, init=False, repr=False)
+    _export: str | None = None
 
-    def __init__(self, adata_path: Path, is_backed: bool = False):
+    def __init__(self, adata_path: Path, is_backed: bool = False, out_name: str = None):
         self.path = adata_path.stem
         self.name = adata_path.name
         self.is_backed = is_backed
         self._adata_path = adata_path
+        self.out_name = out_name
 
     @property
     def adata(self):
@@ -37,20 +39,30 @@ class Adata:
         """
         Write adata to disk.
         """
-        if out_path.suffix != ".h5ad":
-            out_path = out_path.with_suffix(".h5ad")
+        if self._export is not None:
+            out_path = out_path / self.name.replace(H5, self._export + OUT + H5)
 
-        self.path = out_path.stem
-        self.name = out_path.name
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-
-        self.adata.write(out_path)
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            self.adata.write(out_path)
+        else:
+            raise ValueError("This model shouldn't export AnnData")
 
     def update(self, adata: ad.AnnData):
         """
         Update the adata object.
         """
         self._adata = adata
+
+    def set_out(self, model_name: str):
+        """
+        Set the output name.
+        """
+        if model_name.endswith(EMB):
+            self._export = EMB
+        elif model_name.endswith(EXPR):
+            self._export = EXPR
+        else:
+            self._export = None
 
 
 def export_ouput_adatas(adata, fname, out_data_path):
@@ -96,6 +108,7 @@ def add_predictions_to_adata(adata, predictions, insert_key="pred", pred_key="la
     return adata
 
 
+# TODO: rename train_ad to ref_ad, and test_ad to query_ad
 def transfer_pcs(train_ad: ad.AnnData, test_ad: ad.AnnData) -> ad.AnnData:
     """Transfer PCs from training data to get "loadings" (`X_pca`)
 

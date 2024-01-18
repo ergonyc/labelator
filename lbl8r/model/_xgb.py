@@ -55,7 +55,7 @@ def get_xgb(
         # save the reference model
         bst.save_model(bst_path)
         # HACK: reload to so that the training GPU memory is cleared
-        bst = load_xgboost(bst_path, use_gpu=use_gpu)
+        bst = load_xgboost(bst_path)
         print("reloaded bst (memory cleared?)")
 
     return bst, adata, label_encoder

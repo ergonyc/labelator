@@ -8,8 +8,10 @@ from lbl8r.labelator import (
     prep_pc_data,
     prep_latent_data,
     prep_expr_data,
-    get_model,
+    prep_model,
     query_model,
+    query_qscanvi,
+    prep_query_scanvi,
     create_artifacts,
     CELL_TYPE_KEY,
     VALID_MODEL_NAMES,
@@ -180,7 +182,7 @@ def cli(
         train_data = None
 
     if query := query_path is not None:
-        query_data = load_training_data(query_path)
+        query_data = load_query_data(query_path)
         # load model with query_data if training data is not provided
         if train_data is None:
             train_data = query_data
@@ -193,10 +195,10 @@ def cli(
             "Must provide either `data-path` or `query-path` or both"
         )
 
-    ## GET MODEL ###################################################################
+    ## PREP MODEL ###################################################################
     # TODO:  add additional training_kwargs to cli
     training_kwargs = dict(batch_key=batch_key)
-    model = get_model(
+    model, train_data = prep_model(
         train_data,  # Note this is actually query_data if train_data arg was None
         model_name=model_name,
         model_path=model_path,
@@ -224,14 +226,13 @@ def cli(
     ## QUERY MODEL ###################################################################
     # TODO:  add additional training_kwargs to cli
     if query:
-        # 1. prep query data
-
+        # 1. prep query data (normalize / get latents / transfer PCs (if normalized) )
         if model_name in (
             LBL8R_SCVI_EXPRESION_MODEL_NAME,
             XGB_SCVI_EXPRESION_MODEL_NAME,
         ):
             # SCVI expression models
-            query_data = prep_expr_data(query_data, model)
+            query_data = prep_expr_data(query_data, model, ref_data=train_data)
 
         elif model_name in (
             SCVI_LATENT_MODEL_NAME,
@@ -245,45 +246,52 @@ def cli(
             XGB_SCVI_EXPR_PC_MODEL_NAME,
         ):
             # PCS models
-            query_data = prep_pc_data(query_data, model)
-        # 2. query model
-        # if model_name in (
-        #     SCANVI_BATCH_EQUALIZED_MODEL_NAME,
-        #     SCANVI_MODEL_NAME,
-        # ):
-        #     # SCANVI models
-        #     query_data = prep_and_query_scanvi(query_data, model)
+            query_data = prep_pc_data(query_data, model, ref_data=train_data)
+
+        elif model_name in (
+            SCANVI_BATCH_EQUALIZED_MODEL_NAME,
+            SCANVI_MODEL_NAME,
+        ):
+            # SCANVI models
+            query_data, model, q_scanvi = prep_query_scanvi(
+                query_data,
+                model,
+                labels_key=labels_key,
+                retrain=retrain_model,
+            )
 
         query_data = query_model(query_data, model.model, model_name=model_name)
-        if isinstance(query_data, tuple):
-            assert len(query_data) == 3
-            assert model_name in (
-                SCANVI_BATCH_EQUALIZED_MODEL_NAME,
-                SCANVI_MODEL_NAME,
-            )
-
-            query_data, query_data, query_model = query_data
 
     ## CREATE ARTIFACTS ###################################################################
+    # TODO:  wrap in Models, Figures, and Adata in Artifacts class.
+    #       currently the models are saved as soon as they are trained, but the figures and adata are not saved until the end.
+    # TODO:  export results to tables.  artifacts are currently:  "figures" and "tables" (to be implimented)
 
-    if artifacts_path is not None:
-        # if model_name =
+    ## EXPORT ADATAs ###################################################################
+    if output_data_path is not None:
+        if train:
+            train_data.write(output_data_path / f"{model_name}_train.h5ad")
+        if query:
+            query_data.write(output_data_path / f"{model_name}_query.h5ad")
 
-        if model_name is None:
-            data_artifacts = [
-                train_data,
-                query_data,
-            ]
-            figure_artifacts = []
-        artifacts = [data_artifacts, figure_artifacts]
+    elif model_name == SCVI_LATENT_MODEL_NAME:
+        # setup auxilarry models artifacts
 
-        if make_plots:
-            create_artifacts(
-                visualization_path=visualization_path
-                if generate_visualizations
-                else None,
-                artifacts_path=artifacts_path if generate_artifacts else None,
-            )
+        # save Adatas
+
+        # train
+
+        # query
+
+        # extras
+
+        export_tables = False
+        if artifacts_path is not None:
+            if make_plots:
+                pass
+
+            if export_tables:
+                pass
 
 
 if __name__ == "__main__":

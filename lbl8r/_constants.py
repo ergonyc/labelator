@@ -25,7 +25,7 @@ XGBOOST = "_xgb"
 NOBATCH = "_nb"
 EMB = "_emb"
 MDE = "_mde"
-RAW = "_cnt"
+CNT = "_cnt"
 TRAIN = "_train"
 TEST = "_test"
 SPARSE = "_sparse"
@@ -92,7 +92,7 @@ __all__ = [
     "NOBATCH",
     "EMB",
     "MDE",
-    "RAW",
+    "CNT",
     "TRAIN",
     "TEST",
     "SPARSE",
@@ -122,8 +122,8 @@ MODEL_SAVE_DIR = "lbl8r_models"
 
 ## xylena data names
 XYLENA_ANNDATA = "brain_atlas_anndata.h5ad"
-XYLENA_TRAIN = XYLENA_ANNDATA.replace(H5, TRAIN + RAW + H5)
-XYLENA_TEST = XYLENA_ANNDATA.replace(H5, TEST + RAW + H5)
+XYLENA_TRAIN = XYLENA_ANNDATA.replace(H5, TRAIN + CNT + H5)
+XYLENA_TEST = XYLENA_ANNDATA.replace(H5, TEST + CNT + H5)
 
 XYLENA_TRAIN_SPARSE = XYLENA_TRAIN.replace(H5, SPARSE + H5)
 XYLENA_TEST_SPARSE = XYLENA_TEST.replace(H5, SPARSE + H5)

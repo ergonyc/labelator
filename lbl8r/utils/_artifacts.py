@@ -28,6 +28,9 @@ class Artifact:
         # self.type = type
         self.name = name
 
+    def export_artifact(self):
+        pass
+
 
 @dataclass
 class Artifacts:
@@ -46,7 +49,9 @@ class Artifacts:
         """
         for artifact in self.artifacts:
             if isinstance(artifact, Model):
-                torch.save(artifact.model.state_dict(), artifact.model_path)
+                model = artifact.model
+                model.export(artifact.model_path, artifact.name)
+
             elif isinstance(artifact, Adata):
                 artifact.adata.write(artifact.adata_path)
             elif isinstance(artifact, Figure):

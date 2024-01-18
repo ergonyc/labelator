@@ -20,12 +20,14 @@ class Model:
     Model class for storing models.
     """
 
-    model: SCVI | SCANVI | LBL8R
+    model: SCVI | SCANVI | LBL8R | Booster
     path: str
     name: str
     vae: SCVI | None = None
     labels_key: str | None = "cell_type"
     label_encoder: LabelEncoder | None = None
+    q_vae: SCVI | None = None
+    scanvi: SCANVI | None = None
 
     def __init__(
         self, model, path, name, vae=None, labels_key="cell_type", label_encoder=None
@@ -50,6 +52,15 @@ class Model:
     #         self.path.mkdir()
 
     #     self.adata.write(out_path)
+
+    # if isinstance(model, Booster):
+    # bst_path = (
+    #     model_path / model_name
+    #     if model_name.endswith(".json")
+    #     else model_path / f"{model_name}.json"
+    # )
+    #     # save the reference model
+    #     bst.save_model(bst_path)
 
 
 # @dataclasses.dataclass
@@ -79,7 +90,7 @@ class Model:
 #     exp_train_ad = make_scvi_normalized_adata(scvi_query, train_ad)
 
 #     # In[ ]:
-#     export_ouput_adata(exp_train_ad, train_filen.name.replace(RAW, EXPR), out_data_path)
+#     export_ouput_adata(exp_train_ad, train_filen.name.replace(CNT, EXPR), out_data_path)
 #     del exp_train_ad, train_ad
 
 #     test_ad = ad.read_h5ad(out_data_path / test_filen.name.replace(H5, OUT + H5))
@@ -88,4 +99,4 @@ class Model:
 #     # reset the cell_type_key before exporting
 #     test_ad.obs[cell_type_key] = test_ad.obs["ground_truth"]
 #     exp_test_ad = make_scvi_normalized_adata(scvi_query, test_ad)
-#     export_ouput_adata(exp_test_ad, test_filen.name.replace(RAW, EXPR), out_data_path)
+#     export_ouput_adata(exp_test_ad, test_filen.name.replace(CNT, EXPR), out_data_path)

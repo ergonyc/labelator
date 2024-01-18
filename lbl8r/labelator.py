@@ -61,6 +61,7 @@ from scvi.model import SCVI, SCANVI
 from pathlib import Path
 from xgboost import Booster
 from sklearn.preprocessing import LabelEncoder
+import scanpy as sc
 
 from .model._lbl8r import (
     LBL8R,
@@ -83,7 +84,7 @@ from .model._scvi import (
 )
 
 from .model._xgb import get_xgb, query_xgb
-from .model.utils._data import Adata
+from .model.utils._data import Adata, transfer_pcs
 from .model.utils._Model import Model
 from ._constants import *
 
@@ -229,7 +230,7 @@ def load_query_data(adata_path: str | Path) -> Adata:
     return Adata(adata_path)
 
 
-def get_model(
+def prep_model(
     data: Adata,
     model_name: str,
     model_path: Path | str,
@@ -240,7 +241,7 @@ def get_model(
     **training_kwargs,
 ) -> Model:
     """
-    Load a model from the model_path
+    Load a model from path or train and prep data
 
     Parameters
     ----------
@@ -300,6 +301,9 @@ def get_model(
         XGB_SCVI_EXPRESION_MODEL_NAME,
         XGB_SCVI_EXPR_PC_MODEL_NAME,
     ):
+        # 0. tag adata for artifact export
+        data.set_out(model_name)
+
         # need vae
         print(f"getting scvi:{(model_path/SCVI_LATENT_MODEL_NAME/SCVI_SUB_MODEL_NAME)}")
         vae, ad = get_trained_scvi(
@@ -329,6 +333,7 @@ def get_model(
                 )
                 # 2. update the data with the latent representation
                 data.update(ad)
+
                 model = Model(model, model_path, model_name, vae, labels_key)
                 return model
 
@@ -344,6 +349,7 @@ def get_model(
                 )
                 # 2. update the data with the latent representation
                 data.update(ad)
+
                 model = Model(model, model_path, model_name, vae, labels_key)
                 return model
 
@@ -457,7 +463,7 @@ def get_model(
 
     # TODO: wrap the model in a Model class
     model = Model(model, model_path, model_name, None, labels_key)
-    return model
+    return model, data
 
 
 def prep_latent_data(data: Adata, vae: SCVI, labels_key: str = "cell_type") -> Adata:
@@ -487,7 +493,7 @@ def prep_latent_data(data: Adata, vae: SCVI, labels_key: str = "cell_type") -> A
     return data
 
 
-def prep_expr_data(data: Adata, vae: SCVI) -> Adata:
+def prep_expr_data(data: Adata, vae: SCVI, ref_data: Adata | None = None) -> Adata:
     """
     Prep adata for scVI LBL8R model
 
@@ -495,10 +501,10 @@ def prep_expr_data(data: Adata, vae: SCVI) -> Adata:
     ----------
     data : Adata
         dataclass holder for Annotated data matrix.
-    model :
-        An classification model.
-    labels_key : str
-        Key for cell type labels. Default is `cell_type`.
+    vae :
+        An scvi model used for normalization.
+    ref_data : Adata
+        "training" data used for transferring pcs
 
     Returns
     -------
@@ -510,12 +516,22 @@ def prep_expr_data(data: Adata, vae: SCVI) -> Adata:
     # 1. get the normalized adata
     ad = make_scvi_normalized_adata(vae, data.adata)
 
-    # 2. update the data with the latent representation
+    # 2. update the data with pcs
+    if ref_data is None:
+        print("WARNING can't add PCs to normalized expression AnnData")
+    else:
+        ref = ref_data.adata
+        if ref_data.adata.varm.get("PCs") is None:
+            sc.pp.pca(ref)
+        ref_data.update(ref)
+        ad = transfer_pcs(ref, ad)
+
+    # 3. update the data with the latent representation & pcs
     data.update(ad)
     return data
 
 
-def prep_pc_data(data: Adata, pca_key=PCA_KEY) -> Adata:
+def prep_pc_data(data: Adata, pca_key=PCA_KEY, ref_data: Adata | None = None) -> Adata:
     """
     Prep adata for pcs LBL8R model
 
@@ -525,8 +541,8 @@ def prep_pc_data(data: Adata, pca_key=PCA_KEY) -> Adata:
         dataclass holder for Annotated data matrix.
     pca_key : str
         Key for pca. Default is `X_pca`.
-    labels_key : str
-        Key for cell type labels. Default is `cell_type`.
+    ref_data : Adata
+        "training" data used for transferring pcs
 
     Returns
     -------
@@ -534,8 +550,21 @@ def prep_pc_data(data: Adata, pca_key=PCA_KEY) -> Adata:
         Annotated data matrix with latent variables as X
 
     """
+
+    ad = data.adata
+    # 1. make sure we have pcs
+    if data.adata.varm.get("PCs") is None:
+        if ref_data is None:
+            print("WARNING we don't have PCs in AnnData or reference to transfer")
+        else:
+            ref = ref_data.adata
+            if ref.varm.get("PCs") is None:
+                sc.pp.pca(ref)
+                ref_data.update(ref)
+            ad = transfer_pcs(ref, ad)
+
     # 1. get the pcs representation
-    ad = prep_pcs_adata(data.adata, pca_key=pca_key)
+    ad = prep_pcs_adata(ad, pca_key=pca_key)
     # 2. update the data with the latent representation
     data.update(ad)
     return data
@@ -556,10 +585,8 @@ def query_model(
         Annotated data matrix.
     model : LBL8R | SCANVI | Booster
         An classification model.
-    label_encoder : LabelEncoder
-        The label encoder.
-    labels_key : str
-        Key for cell type labels. Default is `cell_type`.
+    insert_key: str
+        Key for inserting predictions. Default is `pred`.
     *kwargs :
         Keyword arguments for `get_query_scvi` and `get_query_scanvi`.
     Returns
@@ -569,57 +596,20 @@ def query_model(
 
     """
 
-    # if isinstance(model.model, SCANVI):
-    if model.name in (SCANVI_MODEL_NAME, SCANVI_BATCH_EQUALIZED_MODEL_NAME):
-        # need to load / train query models
-
-        # 1. get query_scvi (depricate?  needed for what?  latent conditioning?)
-        q_scvi = get_query_scvi(
-            data.adata,
-            model.vae,
-            labels_key=model.labels_key,
-            model_path=(model.path / model.name),
-            retrain=retrain,
-            model_name=QUERY_SCVI_SUB_MODEL_NAME,
-        )
-        # 2. get query_scanvi
-        q_scanvi = get_query_scanvi(
-            data.adata,
-            model.model,
-            labels_key=model.labels_key,
-            model_path=(model.path / model.name),
-            retrain=retrain,
-            model_name=QUERY_SCANVI_SUB_MODEL_NAME,
-        )
-        # 3. return model
-        ad = query_scanvi(data.adata, model.model, labels_key=model.labels_key)
-        # update data with ad
-        data.update(ad)
-
-        q_scvi = Model(
-            q_scvi, (model.path / model.name), QUERY_SCVI_SUB_MODEL_NAME, None
-        )
-        q_scanvi = Model(
-            q_scanvi, (model.path / model.name), QUERY_SCANVI_SUB_MODEL_NAME, None
-        )
-        return data, q_scvi, q_scanvi
-
-    # elif model.name in (SCANVI_MODEL_NAME, SCANVI_BATCH_EQUALIZED_MODEL_NAME):
-    # i think this can passively run... no training nescessary.  no model return
+    if isinstance(model.model, SCANVI):
+        ad = query_scanvi(data.adata, model.model, insert_key=model.labels_key)
 
     # "transfer learning" query models which need to be trained
 
     # no prep needed to query these models.
     elif isinstance(model.model, LBL8R):
-        _query_model = query_lbl8r
+        ad = query_lbl8r(data.adata, model.model, labels_key=model.labels_key)
 
     elif isinstance(model.model, Booster):
-        _query_model = query_xgb
+        ad = query_xgb(data.adata, model.model, label_encoder=model.label_encoder)
 
     else:
         raise ValueError(f"model {model} is not a valid model")
-
-    ad = _query_model(data.adata, model.model, labels_key=model.labels_key)
 
     # update data with ad
     data.update(ad)
@@ -627,10 +617,66 @@ def query_model(
     return data
 
 
+def prep_query_scanvi(
+    data: Adata,
+    model: Model,
+    labels_key: str = "cell_type",
+    retrain: bool = False,
+) -> (Adata, Model):
+    """
+    Prep adata for scVI LBL8R model
+
+    Parameters
+    ----------
+    data : Adata
+        dataclass holder for Annotated data matrix.
+    model :
+        An classification model.
+    labels_key : str
+        Key for cell type labels. Default is `cell_type`.
+    retrian : bool
+        Retrain the model. Default is `False`.
+
+    Returns
+    -------
+    Adata
+        updated data
+    Model
+        Model with .q_vae, and .scanvi models added and querey_scanvi model as .model
+    """
+
+    ad = data.adata
+    # 1. get query_scvi (depricate?  needed for what?  latent conditioning?)
+    q_scvi, ad = get_query_scvi(
+        ad,
+        model.vae,
+        labels_key=model.labels_key,
+        model_path=(model.path / model.name),
+        retrain=retrain,
+        model_name=QUERY_SCVI_SUB_MODEL_NAME,
+    )
+    # 2. get query_scanvi
+    q_scanvi, ad = get_query_scanvi(
+        ad,
+        model.model,
+        labels_key=model.labels_key,
+        model_path=(model.path / model.name),
+        retrain=retrain,
+        model_name=QUERY_SCANVI_SUB_MODEL_NAME,
+    )
+    # update data with ad
+    data.update(ad)
+
+    # 3. return model, pack all the models into the Model
+    model.scanvi = model.model
+    model.q_vae = q_scvi
+    model.model = q_scanvi
+
+    return data, model
+
+
 # depricated...
-def prep_and_query_scanvi(
-    data: Adata, model: Model, labels_key: str = "cell_type"
-) -> Adata:
+def query_qscanvi(data: Adata, model: Model, insert_key: str = "label") -> Adata:
     """
     Prep adata for scVI LBL8R model
 
@@ -649,12 +695,12 @@ def prep_and_query_scanvi(
         Annotated data matrix with latent variables as X
 
     """
-    q_scvi = get_query_scvi(data.adata, model, labels_key=labels_key)
 
-    q_scanvi = get_query_scanvi(data.adata, query_scvi, labels_key=labels_key)
+    ad = data.adata
 
-    # 1. get the latent representation
-    ad = prep_latent_z_adata(data.adata, vae=model.model, labels_key=model.labels_key)
-    # 2. update the data with the latent representation
+    # 3. return model
+    ad = query_scanvi(ad, model.model, insert_key=insert_key)
+    # update data with ad
     data.update(ad)
+
     return data
