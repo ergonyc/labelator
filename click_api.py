@@ -10,9 +10,22 @@ from lbl8r.labelator import (
     get_model,
     query_model,
     create_artifacts,
-    CELL_TYPE_KEY,
+    CELL_TYPE_KEY, VALID_MODEL_NAMES
 )
 
+
+def validate_model_name(ctx, param, value):
+
+    valid_name = [v for v in VALID_MODEL_NAMES if v in value]
+
+    if len(valid_name) < 1:
+        err_msg = VALID_MODEL_NAMES[0]+", ".join(VALID_MODEL_NAMES[1:-1])+", or "+VALID_MODEL_NAMES[-1]
+        raise click.BadParameter(
+            f"model_name must be one of {err_msg}"
+        )
+    elif len(valid_name) > 1:
+        print(f"WARNING:  model_name={value} could match to: {": ".join(valid_name)}")
+    return value
 
 @click.command()
 
@@ -24,7 +37,15 @@ from lbl8r.labelator import (
     help="Path to load/save the trained model.",
 )
 @click.option(
-    "--model-name", type=str, require=True, help="Name of the model to load/train."
+    "--model-name", 
+    type=str, 
+    callback=validate_model_name, 
+    require=True, 
+    help=("Name of the model to load/train. Must be one of: " + 
+                    VALID_MODEL_NAMES[0] + 
+                    ", ".join(VALID_MODEL_NAMES[1:-1]) + 
+                    ", or "+VALID_MODEL_NAMES[-1]
+                    ),
 )
 
 # data paths / names
@@ -119,6 +140,8 @@ def cli(
     artifacts_path,
     make_plots,
     retrain_model,
+    labels_key,
+    batch_key,
 ):
     """
     Command line interface for model processing pipeline.
@@ -127,41 +150,57 @@ def cli(
     # setup
     torch.set_float32_matmul_precision("medium")
 
-    # load data
+    ## LOAD DATA ###################################################################
     if train := data_path is not None:
         train_data = load_training_data(data_path)
+    else: 
+        if retrain_model:
+            raise click.UsageError(
+                "Must provide training data (`data-path`) to retrain model"
+            )
+        train_data = None
 
     if query := query_path is not None:
         query_data = load_training_data(query_path)
+        # load model with query_data if training data is not provided
+        if train_data is None:
+            train_data = query_data
+
+    else: query_data = None
 
     if not (train | query):
         raise click.UsageError(
             "Must provide either `data-path` or `query-path` or both"
         )
 
-    data = load_and_prep(data_path)
-    if train_model:
-        model = get_model(data, model_name, "train", save_model_path)
-    else:
-        model = get_model(None, model_name, "load", load_model_path)
 
-    ## GET   ###################################################################
+    ## GET MODEL ###################################################################
+    # TODO:  add additional training_kwargs to cli
+    training_kwargs = dict(batch_key=batch_key)
     model = get_model(
-        train_data,
+        train_data,  # Note this is actually query_data if train_data arg was None
         model_name=model_name,
         model_path=model_path,
-        labels_key=cell_type_key,
+        labels_key=labels_key,
         retrain=retrain_model,
         **training_kwargs,
     )
 
+    ## GET MODEL ###################################################################
+    # TODO:  add additional training_kwargs to cli
     if query:
-        query_data = load_and_prep(query_data_path)
-        query_results = query_model(query_data, model)
-        with open(output_path, "w") as file:
-            file.write(str(query_results))
+        query_data = query_model(query_data, model)
 
-    if artifacts:
+
+    if artifacts_path is not None:
+
+        if model_name is in ""
+        artifacts = [data_artifacts, figure_artifacts]
+
+        if make_plots:
+            
+            
+
         create_artifacts(
             visualization_path=visualization_path if generate_visualizations else None,
             artifacts_path=artifacts_path if generate_artifacts else None,

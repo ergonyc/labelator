@@ -91,39 +91,66 @@ PRED_KEY = "label"
 INSERT_KEY = "pred"
 # Model = SCVI | SCANVI | LBL8R | Booster
 
+# SCANVI/SCVI model names
+SCVI_SUB_MODEL_NAME = "scvi"
+SCANVI_SUB_MODEL_NAME = "scanvi"
+QUERY_SCVI_SUB_MODEL_NAME = "query_scvi"
+QUERY_SCANVI_SUB_MODEL_NAME = "query_scanvi"
+LBL8R_SCVI_SUB_MODEL_NAME = "scvi_emb"
 
-def setup_paths(model_params, data_path, config_path):
-    """
-    Create the paths for models and artifacts
-    """
+# LBL8R model names
+SCVI_LATENT_MODEL_NAME = "lbl8r_scvi_emb"
+RAW_PC_MODEL_NAME = "lbl8r_raw_cnt_pcs"
+SCVI_EXPR_PC_MODEL_NAME = "lbl8r_scvi_expr_pcs"
 
-    # create the paths
-    model_path = Path(model_params["model_path"])
-    model_path.mkdir(exist_ok=True)
+# LBL8R XGBoost model names
+XGB_SCVI_LATENT_MODEL_NAME = "xgb_scvi_emb"
+XGB_RAW_PC_MODEL_NAME = "xgb_raw_cnt_pcs"
+XGB_SCVI_EXPR_PC_MODEL_NAME = "xgb_scvi_expr_pcs"
 
-    # create the data paths
-    data_path = Path(data_path)
-    data_path.mkdir(exist_ok=True)
+# E2E model names
+# lbl8r
+LBL8R_SCVI_EXPRESION_MODEL_NAME = "lbl8r_scvi_expr"
+LBL8R_RAW_COUNT_MODEL_NAME = "lbl8r_raw_cnt"
+# scanvi
+SCANVI_BATCH_EQUALIZED_MODEL_NAME = "scanvi_batch_equal"
+SCANVI_MODEL_NAME = "scanvi"
+# e2e XGBoost model names
+XGB_SCVI_EXPRESION_MODEL_NAME = "xgb_scvi_expr"
+XGB_RAW_COUNT_MODEL_NAME = "xgb_raw_cnt"
 
-    # create the config paths
-    config_path = Path(config_path)
-    config_path.mkdir(exist_ok=True)
-
-    # create the paths for the artifacts
-
-    # create the paths for the models
-
-    # create the paths for the data
-
-    # create the paths for the config
-
-
-# def load_and_prep(data_path):
+# def setup_paths(model_params, data_path, config_path):
 #     """
-#     Load and prep the data
+#     Create the paths for models and artifacts
 #     """
 
-#     # prep
+#     # create the paths
+#     model_path = Path(model_params["model_path"])
+#     model_path.mkdir(exist_ok=True)
+
+#     # create the data paths
+#     data_path = Path(data_path)
+#     data_path.mkdir(exist_ok=True)
+
+#     # create the config paths
+#     config_path = Path(config_path)
+#     config_path.mkdir(exist_ok=True)
+
+#     # create the paths for the artifacts
+
+#     # create the paths for the models
+
+#     # create the paths for the data
+
+#     # create the paths for the config
+
+
+# # def load_and_prep(data_path):
+# #     """
+# #     Load and prep the data
+# #     """
+
+# #     # prep
 
 #     load_adata(data_path)
 
@@ -230,7 +257,67 @@ def get_model(
     if not model_path.exists():
         raise ValueError(f"{model_path} does not exist")
 
-    # SCVI/SCANVI models ( "" or "_nobatch")
+    if model_name in (SCANVI_MODEL_NAME, SCANVI_BATCH_EQUALIZED_MODEL_NAME):
+        # load teh scvi model, scanvi_model, (qnd query models?)
+        vae_name = model_name.replace("lbl8r_scvi", "scvi")
+        print(f"scanvi getting {(model_path/vae_name)}")
+        vae, ad = get_trained_scvi(
+            data.adata,
+            labels_key=labels_key,
+            batch_key=None,
+            model_path=model_path,
+            retrain=retrain,
+            model_name=vae_name,
+            **training_kwargs,
+        )
+        # add vae=vae to training_kwargs
+        training_kwargs["vae"] = vae
+
+        _get_model = get_trained_scanvi
+
+
+        # other e2e models
+    elif model_name in (LBL8R_RAW_COUNT_MODEL_NAME,LBL8R_SCVI_EXPRESION_MODEL_NAME) :
+        _get_model = get_lbl8r
+
+
+        # other e2e models
+    elif model_name in (XGB_RAW_COUNT_MODEL_NAME, XGB_SCVI_EXPRESION_MODEL_NAME):
+        _get_model = get_xgb
+
+
+
+
+    elif model_name in (SCVI_LATENT_MODEL_NAME, SCVI_EXPR_PC_MODEL_NAME):
+            # need vae & scvi_emb model
+
+
+
+    elif model_name == XGB_SCVI_EXPR_PC_MODEL_NAME:
+
+
+        # 1. get the pcs representation
+        ad = prep_pcs_adata(data.adata, pca_key=PCA_KEY)
+        # 2. update the data with the latent representation
+        data.update(ad)
+        # LBL8R models
+
+
+    elif model_name == XGB_SCVI_LATENT_MODEL_NAME:
+
+
+    elif model_name == XGB_RAW_COUNT_MODEL_NAME
+
+        _get_model = get_xgb
+
+                # 1. get the pcs representation
+        ad = prep_pcs_adata(data.adata, pca_key=PCA_KEY)
+        # 2. update the data with the latent representation
+        data.update(ad)
+        _get_model = get_pca_lbl8r
+
+
+
     if model_name.startswith("scvi"):
         _get_model = get_trained_scvi
 
