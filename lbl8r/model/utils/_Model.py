@@ -23,28 +23,33 @@ class Model:
     model: SCVI | SCANVI | LBL8R
     path: str
     name: str
+    vae: SCVI | None = None
+    labels_key: str | None = "cell_type"
+    label_encoder: LabelEncoder | None = None
 
-    def export(self, out_path: Path):
-        """
-        Write adata to disk.
-        """
-        if out_path.suffix != ".h5ad":
-            out_path = out_path.with_suffix(".h5ad")
+    def __init__(
+        self, model, path, name, vae=None, labels_key="cell_type", label_encoder=None
+    ):
+        self.model = model
+        self.path = path
+        self.name = name
+        self.vae = vae
+        self.labels_key = labels_key
+        self.label_encoder = label_encoder
 
-        self.path = out_path.stem
-        self.name = out_path.name
-        if not self.path.exists():
-            self.path.mkdir()
+    # def export(self, out_path: Path):
+    #     """
+    #     Write adata to disk.
+    #     """
+    #     if out_path.suffix != ".h5ad":
+    #         out_path = out_path.with_suffix(".h5ad")
 
-        self.adata.write(out_path)
+    #     self.path = out_path.stem
+    #     self.name = out_path.name
+    #     if not self.path.exists():
+    #         self.path.mkdir()
 
-
-def export_models(models, model_path):
-    """
-    Export model to disk.
-    """
-    for model in models:
-        torch.save(model.state_dict(), model_path)
+    #     self.adata.write(out_path)
 
 
 # @dataclasses.dataclass

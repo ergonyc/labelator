@@ -793,10 +793,6 @@ def get_lbl8r(
     model_path: Path = ".",
     retrain: bool = False,
     model_name: str = "lbl8r",
-    plot_training: bool = False,
-    save: bool | Path | str = False,
-    show: bool = True,
-    fig_dir: Path | str | None = None,
     **training_kwargs,
 ):
     """
@@ -897,8 +893,7 @@ def query_lbl8r(
     return adata
 
 
-
-# depricated... 
+# depricated...
 def get_scvi_lbl8r(
     adata: AnnData,
     labels_key: str = "cell_type",
@@ -962,7 +957,7 @@ def get_scvi_lbl8r(
     return vae_lbl8r, vae, latent_ad
 
 
-# depricated... 
+# depricated...
 def get_pca_lbl8r(
     adata: AnnData,
     labels_key: str = "cell_type",

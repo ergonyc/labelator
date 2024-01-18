@@ -7,25 +7,42 @@ from lbl8r.labelator import (
     load_query_data,
     prep_pc_data,
     prep_latent_data,
+    prep_expr_data,
     get_model,
     query_model,
     create_artifacts,
-    CELL_TYPE_KEY, VALID_MODEL_NAMES
+    CELL_TYPE_KEY,
+    VALID_MODEL_NAMES,
+    # SCANVI MODELS
+    SCANVI_BATCH_EQUALIZED_MODEL_NAME,
+    SCANVI_MODEL_NAME,
+    # SCVI expression models
+    LBL8R_SCVI_EXPRESION_MODEL_NAME,
+    XGB_SCVI_EXPRESION_MODEL_NAME,
+    # SCVI embedding models
+    SCVI_LATENT_MODEL_NAME,
+    XGB_SCVI_LATENT_MODEL_NAME,
+    # PCS models
+    SCVI_EXPR_PC_MODEL_NAME,
+    XGB_SCVI_EXPR_PC_MODEL_NAME,
 )
 
 
 def validate_model_name(ctx, param, value):
-
     valid_name = [v for v in VALID_MODEL_NAMES if v in value]
 
     if len(valid_name) < 1:
-        err_msg = VALID_MODEL_NAMES[0]+", ".join(VALID_MODEL_NAMES[1:-1])+", or "+VALID_MODEL_NAMES[-1]
-        raise click.BadParameter(
-            f"model_name must be one of {err_msg}"
+        err_msg = (
+            VALID_MODEL_NAMES[0]
+            + ", ".join(VALID_MODEL_NAMES[1:-1])
+            + ", or "
+            + VALID_MODEL_NAMES[-1]
         )
+        raise click.BadParameter(f"model_name must be one of {err_msg}")
     elif len(valid_name) > 1:
-        print(f"WARNING:  model_name={value} could match to: {": ".join(valid_name)}")
+        print(f"WARNING:  model_name={value} could match to: {': '.join(valid_name)}")
     return value
+
 
 @click.command()
 
@@ -37,15 +54,17 @@ def validate_model_name(ctx, param, value):
     help="Path to load/save the trained model.",
 )
 @click.option(
-    "--model-name", 
-    type=str, 
-    callback=validate_model_name, 
-    require=True, 
-    help=("Name of the model to load/train. Must be one of: " + 
-                    VALID_MODEL_NAMES[0] + 
-                    ", ".join(VALID_MODEL_NAMES[1:-1]) + 
-                    ", or "+VALID_MODEL_NAMES[-1]
-                    ),
+    "--model-name",
+    type=str,
+    callback=validate_model_name,
+    require=True,
+    help=(
+        "Name of the model to load/train. Must be one of: "
+        + VALID_MODEL_NAMES[0]
+        + ", ".join(VALID_MODEL_NAMES[1:-1])
+        + ", or "
+        + VALID_MODEL_NAMES[-1]
+    ),
 )
 
 # data paths / names
@@ -153,7 +172,7 @@ def cli(
     ## LOAD DATA ###################################################################
     if train := data_path is not None:
         train_data = load_training_data(data_path)
-    else: 
+    else:
         if retrain_model:
             raise click.UsageError(
                 "Must provide training data (`data-path`) to retrain model"
@@ -166,13 +185,13 @@ def cli(
         if train_data is None:
             train_data = query_data
 
-    else: query_data = None
+    else:
+        query_data = None
 
     if not (train | query):
         raise click.UsageError(
             "Must provide either `data-path` or `query-path` or both"
         )
-
 
     ## GET MODEL ###################################################################
     # TODO:  add additional training_kwargs to cli
@@ -186,27 +205,85 @@ def cli(
         **training_kwargs,
     )
 
-    ## GET MODEL ###################################################################
+    # # unpack the vae if it is a tuple (scanvi or scvi model or derivatives)
+    # if isinstance(model, tuple):
+    #     assert model_name in (
+    #         SCANVI_BATCH_EQUALIZED_MODEL_NAME,
+    #         SCANVI_MODEL_NAME,
+    #         LBL8R_SCVI_EXPRESION_MODEL_NAME,
+    #         XGB_SCVI_EXPRESION_MODEL_NAME,
+    #         SCVI_LATENT_MODEL_NAME,
+    #         XGB_SCVI_LATENT_MODEL_NAME,
+    #         SCVI_EXPR_PC_MODEL_NAME,
+    #         XGB_SCVI_EXPR_PC_MODEL_NAME,
+    #     )
+    #     model, vae = model
+    # else:
+    #     vae = None
+
+    ## QUERY MODEL ###################################################################
     # TODO:  add additional training_kwargs to cli
     if query:
+        # 1. prep query data
 
+        if model_name in (
+            LBL8R_SCVI_EXPRESION_MODEL_NAME,
+            XGB_SCVI_EXPRESION_MODEL_NAME,
+        ):
+            # SCVI expression models
+            query_data = prep_expr_data(query_data, model)
 
-        query_data = query_model(query_data, model)
+        elif model_name in (
+            SCVI_LATENT_MODEL_NAME,
+            XGB_SCVI_LATENT_MODEL_NAME,
+        ):
+            # SCVI embedding models
+            query_data = prep_latent_data(query_data, model)
 
+        elif model_name in (
+            SCVI_EXPR_PC_MODEL_NAME,
+            XGB_SCVI_EXPR_PC_MODEL_NAME,
+        ):
+            # PCS models
+            query_data = prep_pc_data(query_data, model)
+        # 2. query model
+        # if model_name in (
+        #     SCANVI_BATCH_EQUALIZED_MODEL_NAME,
+        #     SCANVI_MODEL_NAME,
+        # ):
+        #     # SCANVI models
+        #     query_data = prep_and_query_scanvi(query_data, model)
+
+        query_data = query_model(query_data, model.model, model_name=model_name)
+        if isinstance(query_data, tuple):
+            assert len(query_data) == 3
+            assert model_name in (
+                SCANVI_BATCH_EQUALIZED_MODEL_NAME,
+                SCANVI_MODEL_NAME,
+            )
+
+            query_data, query_data, query_model = query_data
+
+    ## CREATE ARTIFACTS ###################################################################
 
     if artifacts_path is not None:
+        # if model_name =
 
-        if model_name is in ""
+        if model_name is None:
+            data_artifacts = [
+                train_data,
+                query_data,
+            ]
+            figure_artifacts = []
         artifacts = [data_artifacts, figure_artifacts]
 
         if make_plots:
-            
-            
-
-        create_artifacts(
-            visualization_path=visualization_path if generate_visualizations else None,
-            artifacts_path=artifacts_path if generate_artifacts else None,
-        )
+            create_artifacts(
+                visualization_path=visualization_path
+                if generate_visualizations
+                else None,
+                artifacts_path=artifacts_path if generate_artifacts else None,
+            )
 
 
 if __name__ == "__main__":
