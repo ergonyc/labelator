@@ -897,6 +897,8 @@ def query_lbl8r(
     return adata
 
 
+
+# depricated... 
 def get_scvi_lbl8r(
     adata: AnnData,
     labels_key: str = "cell_type",
@@ -960,7 +962,7 @@ def get_scvi_lbl8r(
     return vae_lbl8r, vae, latent_ad
 
 
-# TODO: modularize things better so the pca/scvi versions call same code
+# depricated... 
 def get_pca_lbl8r(
     adata: AnnData,
     labels_key: str = "cell_type",

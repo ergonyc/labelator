@@ -257,6 +257,8 @@ def get_model(
     if not model_path.exists():
         raise ValueError(f"{model_path} does not exist")
 
+    ret_models = []
+    # SCANVI E2E MODELS
     if model_name in (SCANVI_MODEL_NAME, SCANVI_BATCH_EQUALIZED_MODEL_NAME):
         # load teh scvi model, scanvi_model, (qnd query models?)
         vae_name = model_name.replace("lbl8r_scvi", "scvi")
@@ -272,49 +274,102 @@ def get_model(
         )
         # add vae=vae to training_kwargs
         training_kwargs["vae"] = vae
-
+        ret_models.append(vae)
         _get_model = get_trained_scanvi
 
-
-        # other e2e models
+    # other e2e models
     elif model_name in (LBL8R_RAW_COUNT_MODEL_NAME,LBL8R_SCVI_EXPRESION_MODEL_NAME) :
+        # assume path for expression data variant already gets the right data
         _get_model = get_lbl8r
 
-
-        # other e2e models
     elif model_name in (XGB_RAW_COUNT_MODEL_NAME, XGB_SCVI_EXPRESION_MODEL_NAME):
+        # assume path for expression data variant already gets the right data
         _get_model = get_xgb
 
+    # LBL8R Models
+    elif model_name == SCVI_LATENT_MODEL_NAME:
+        # need vae & scvi_emb model
+        vae_name = model_name.replace("lbl8r_scvi", "scvi")
+        print(f"getting {(model_path/vae_name)}")
+        vae, ad = get_trained_scvi(
+            data.adata,
+            labels_key=labels_key,
+            batch_key=None,
+            model_path=model_path,
+            retrain=retrain,
+            model_name=vae_name,
+            **training_kwargs,
+        )
+        # 1. get the latent representation
+        ad = prep_latent_z_adata(ad, vae=vae, labels_key=labels_key)
+        print(f"made latent ad")
 
+        # 2. update the data with the latent representation
+        data.update(ad)
+        print(f"getting {(model_path/model_name)}")
+        _get_model = get_lbl8r
 
+        # # get_pca_lbl8r implicitly creates the latent ad... but 
+        # _get_model = get_scvi_lbl8r
 
-    elif model_name in (SCVI_LATENT_MODEL_NAME, SCVI_EXPR_PC_MODEL_NAME):
-            # need vae & scvi_emb model
-
-
-
-    elif model_name == XGB_SCVI_EXPR_PC_MODEL_NAME:
-
-
+    elif model_name in (XGB_RAW_PC_MODEL_NAME, XGB_SCVI_EXPR_PC_MODEL_NAME):
+        # assume full expr data already loaded
         # 1. get the pcs representation
         ad = prep_pcs_adata(data.adata, pca_key=PCA_KEY)
         # 2. update the data with the latent representation
         data.update(ad)
-        # LBL8R models
+        
+    elif model_name == SCVI_LATENT_MODEL_NAME:
+        vae_name = SCVI_SUB_MODEL_NAME
+        # get latent
+        print(f"getting {(model_path/vae_name)}")
+        vae, ad = get_trained_scvi(
+            data.adata,
+            labels_key=labels_key,
+            batch_key=None,
+            model_path=model_path,
+            retrain=retrain,
+            model_name=vae_name,
+            **training_kwargs,
+        )
+        # 1. get the latent representation
+        ad = prep_latent_z_adata(ad, vae=vae, labels_key=labels_key)
+        print(f"made latent ad")
+        # 2. update the data with the latent representation
+        data.update(ad)
+
+        _get_model = get_lbl8r
 
 
-    elif model_name == XGB_SCVI_LATENT_MODEL_NAME:
-
-
-    elif model_name == XGB_RAW_COUNT_MODEL_NAME
-
-        _get_model = get_xgb
-
-                # 1. get the pcs representation
+    # XGB LBL8RS
+    elif model_name in  (XGB_RAW_PC_MODEL_NAME, XGB_SCVI_EXPR_PC_MODEL_NAME):
+        # assume full expr data already loaded
+        # 1. get the pcs representation
         ad = prep_pcs_adata(data.adata, pca_key=PCA_KEY)
         # 2. update the data with the latent representation
         data.update(ad)
-        _get_model = get_pca_lbl8r
+
+        _get_model = get_xgb
+
+    elif model_name == XGB_SCVI_LATENT_MODEL_NAME:
+        vae_name = SCVI_SUB_MODEL_NAME
+        # get latent
+        print(f"getting {(model_path/vae_name)}")
+        vae, ad = get_trained_scvi(
+            data.adata,
+            labels_key=labels_key,
+            batch_key=None,
+            model_path=model_path,
+            retrain=retrain,
+            model_name=vae_name,
+            **training_kwargs,
+        )
+        # 1. get the latent representation
+        ad = prep_latent_z_adata(ad, vae=vae, labels_key=labels_key)
+        # 2. update the data with the latent representation
+        data.update(ad)
+
+        _get_model = get_xgb
 
 
 
@@ -323,8 +378,9 @@ def get_model(
 
     elif model_name.startswith("scanvi"):
         # load the scvi model
-        vae_name = model_name.replace("lbl8r_scvi", "scvi")
-        print(f"scanvi getting {(model_path/vae_name)}")
+        vae_name = SCVI_SUB_MODEL_NAME
+        # get latent
+        print(f"getting {(model_path/vae_name)}")
         vae, ad = get_trained_scvi(
             data.adata,
             labels_key=labels_key,
@@ -339,37 +395,6 @@ def get_model(
 
         _get_model = get_trained_scanvi
 
-    elif model_name.startswith("query_scvi"):
-        # load the scvi model
-        vae_name = model_name.replace("lbl8r_scvi", "scvi")
-        print(f"query_scvi getting {(model_path/vae_name)}")
-        vae, ad = get_trained_scvi(
-            data.adata,
-            labels_key=labels_key,
-            batch_key=None,
-            model_path=model_path,
-            retrain=retrain,
-            model_name=vae_name,
-            **training_kwargs,
-        )
-        # add vae=vae to training_kwargs
-        training_kwargs["vae"] = vae
-
-        _get_model = get_query_scvi
-
-    elif model_name.startswith("query_scanvi"):
-        # load the scvi model
-        scanvi_name = model_name.replace("lbl8r_scvi", "scvi")
-        print(f"query_scanvi getting {(model_path/vae_name)}")
-        scanvi_model, ad = get_trained_scanvi(
-            data.adata,
-            labels_key=labels_key,
-            batch_key=None,
-            model_path=model_path,
-            retrain=retrain,
-            model_name=scanvi_name,
-            **training_kwargs,
-        )
         # add vae=vae to training_kwargs
         training_kwargs["scanvi_model"] = scanvi_model
 
@@ -523,10 +548,51 @@ def query_model(
 
     """
 
+    if isinstance(model, SCANVI):
+        # need to load / train query models
+
+        # 1. get query_scvi (depricate?  needed for what?  latent conditioning?)
+
+        # 2. get query_scanvi
+
+        # 3. return model
+        _query_model = query_scanvi
+    # "transfer learning" query models which need to be trained
+    elif model_name.startswith("query_scvi"):
+        # load the scvi model
+        vae_name = model_name.replace("lbl8r_scvi", "scvi")
+        print(f"query_scvi getting {(model_path/vae_name)}")
+        vae, ad = get_trained_scvi(
+            data.adata,
+            labels_key=labels_key,
+            batch_key=None,
+            model_path=model_path,
+            retrain=retrain,
+            model_name=vae_name,
+            **training_kwargs,
+        )
+        # add vae=vae to training_kwargs
+        training_kwargs["vae"] = vae
+
+        _get_model = get_query_scvi
+
+    elif model_name.startswith("query_scanvi"):
+        # load the scvi model
+        scanvi_name = model_name.replace("lbl8r_scvi", "scvi")
+        print(f"query_scanvi getting {(model_path/vae_name)}")
+        scanvi_model, ad = get_trained_scanvi(
+            data.adata,
+            labels_key=labels_key,
+            batch_key=None,
+            model_path=model_path,
+            retrain=retrain,
+            model_name=scanvi_name,
+            **training_kwargs,
+        )
+
     if isinstance(model, LBL8R):
         _query_model = query_lbl8r
-    elif isinstance(model, SCANVI):
-        _query_model = query_scanvi
+
     elif isinstance(model, Booster):
         _query_model = query_xgb
 

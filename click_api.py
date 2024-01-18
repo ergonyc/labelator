@@ -189,6 +189,8 @@ def cli(
     ## GET MODEL ###################################################################
     # TODO:  add additional training_kwargs to cli
     if query:
+
+
         query_data = query_model(query_data, model)
 
 
