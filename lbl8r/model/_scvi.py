@@ -5,6 +5,8 @@ from pathlib import Path
 import pandas as pd
 import numpy as np
 
+from .utils._data import merge_into_obs
+
 from .._constants import *
 from .._constants import SCVI_LATENT_KEY_Z, SCVI_LATENT_KEY_MU_VAR
 
@@ -345,7 +347,7 @@ def get_query_scanvi(
     return scanvi_query, adata
 
 
-def query_scanvi(ad: AnnData, model: SCANVI, insert_key: str = "label"):
+def query_scanvi(ad: AnnData, model: SCANVI):
     """
     Get the "soft" and label predictions from a SCANVI model,
     and then add into the ad.obs
@@ -362,20 +364,12 @@ def query_scanvi(ad: AnnData, model: SCANVI, insert_key: str = "label"):
         AnnData object with the predictions added
 
     """
-
+    insert_key = "label"
     predictions = model.predict(ad, soft=True)
     predictions[insert_key] = model.predict(ad, soft=False)
 
-    obs = ad.obs
+    ad = merge_into_obs(ad, predictions)
 
-    # TODO: call merge_into_obs
-    if set(predictions.columns) & set(obs.columns):
-        ValueError("Predictions and obs have overlapping columns")
-        return ad
-
-    obs = pd.merge(obs, predictions, left_index=True, right_index=True, how="left")
-
-    ad.obs = obs
     return ad
 
 

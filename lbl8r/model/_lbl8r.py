@@ -862,7 +862,6 @@ def get_lbl8r(
 def query_lbl8r(
     adata: AnnData,
     labelator: LBL8R,
-    labels_key: str = "cell_type",
 ) -> AnnData:
     """
     Attach a classifier and prep adata for scVI LBL8R model
