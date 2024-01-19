@@ -28,11 +28,10 @@ def get_xgb(
     """
     PRED_KEY = "pred"
     # format model_path / model_name for xgboost
-    bst_path = (
-        model_path / model_name
-        if model_name.endswith(".json")
-        else model_path / f"{model_name}.json"
-    )
+    if model_name.endswith(".json"):
+        bst_path = model_path / model_name
+    else:
+        bst_path = model_path / model_name / "xgb.json"
 
     labels_key = labels_key
     n_labels = len(adata.obs[labels_key].cat.categories)
@@ -127,23 +126,26 @@ def train_xgboost(X, y, num_round=50, **training_kwargs) -> xgb.Booster:
     return bst
 
 
-def load_xgboost(model_path: Path | str) -> xgb.Booster | None:
+def load_xgboost(bst_path: Path | str) -> xgb.Booster | None:
     """
     Load an XGBoost classifier model from a file.
 
-    Parameters:
-    model_path (str): The file path to the saved XGBoost model.
-    use_gpu (bool): Flag to indicate whether to use GPU for model loading and prediction.
+    Parameters
+    ----------
+    bst_path : Path | str
+        The file path to the saved XGBoost model. i.e. 'path/to/xgb.json'
 
-    Returns:
-    model: The loaded XGBoost classifier model, or None if loading fails.
+    Returns
+    -------
+    model: Booster
+        The loaded XGBoost classifier model, or None if loading fails.
     """
 
     # Check if the file exists
-    model_path = Path(model_path) if isinstance(model_path, str) else model_path
+    bst_path = Path(bst_path) if isinstance(bst_path, str) else bst_path
 
-    if not model_path.exists():
-        print(f"Error: The file '{model_path}' does not exist.")
+    if not bst_path.exists():
+        print(f"Error: The file '{bst_path}' does not exist.")
         return None
 
     # Set the global configuration for XGBoost
@@ -154,7 +156,7 @@ def load_xgboost(model_path: Path | str) -> xgb.Booster | None:
         # else:
         #     model = xgb.XGBClassifier(predictor="cpu_predictor")
         model = xgb.Booster()
-        model.load_model(model_path)
+        model.load_model(bst_path)
 
         return model
     except Exception as e:
