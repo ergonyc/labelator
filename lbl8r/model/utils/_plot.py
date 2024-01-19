@@ -15,6 +15,8 @@ from scvi.model.base import BaseModelClass as SCVIModel
 from ._mde import mde
 
 from ..._constants import *
+from ._data import Adata
+from ._Model import Model
 
 """
 logic:  dataclass holds the list of models / names
@@ -51,7 +53,6 @@ class Figure:
             Path(self.path).mkdir(parents=True)
 
         filename = f"{self.path}/{self.name}.{self.ext}"
-        print(f"saving figure to file {filename}")
         self.fig.savefig(filename, bbox_inches="tight")
 
         # self.fig.savefig(self.fig_path, bbox_inches="tight")
@@ -66,6 +67,7 @@ class Figure:
 # -------------------------------------------------------------------------------
 # Helper functions
 # -------------------------------------------------------------------------------
+# TODO:  simplify the logic here... savefig_or_show / prep_save_dir is toooo complicated
 def savefig_or_show(
     show: bool | None = None,
     save: bool | str = False,
@@ -89,10 +91,6 @@ def savefig_or_show(
     if fig_dir is None:
         fig_dir = "."
 
-    if isinstance(save, Path):
-        fig_dir += save.root
-        filen = save.name
-
     elif isinstance(save, str):
         # check whether `save` contains a figure extension
         filen = save
@@ -103,37 +101,14 @@ def savefig_or_show(
                     ext = try_ext[1:]
                     filen = filen.replace(try_ext, "")
                     break
-        plt.suptitle(save)
         save = True
     else:
         ValueError(
             f"WTF.. how did we get here save must be a Path or a str, not {type(save)}"
         )
-
     fig = Figure(plt.gcf(), fig_dir, filen, ext)
+    fig.fig.suptitle(f"{fig_dir.stem}/{filen}")
     return fig
-
-
-def prep_save_dir(save, fig_dir, f_prefix):
-    """
-    force save to be a string and handle fig_dir
-    """
-    if isinstance(save, str):
-        print(f"found {save}")
-    elif isinstance(save, Path):
-        if fig_dir is None:
-            fig_dir = save.parent
-        save = save.name
-    elif save:
-        save = f"{f_prefix}"
-        print(f"converted `save` to `{save}`")
-
-        if isinstance(fig_dir, Path):
-            fig_dir = str(fig_dir)
-            print(f"{fig_dir=}")
-    else:
-        fig_dir = None
-    return save, fig_dir
 
 
 # def plot_all(
@@ -219,23 +194,24 @@ def plot_embedding(adata: AnnData, basis: str = "X_mde", color: list = None, **k
 
     """
     # default kwargs
-    device = kwargs.pop("device", "cpu")
+    device = kwargs.pop("device", None)
+    # TODO: depricate the scvi_model kwarg and scvi expression on the fly
     scvi_model = kwargs.pop("scvi_model", None)
 
-    if "X_pca" not in adata.obsm.keys() and basis != "X_scVI":
+    if "X_pca" not in adata.obsm_keys() and basis != "X_scVI":
         print("Computing PCA")
         sc.pp.pca(adata)
 
-    if basis == "X_mde" and "X_mde" not in adata.obsm.keys():
+    if basis == "X_mde" and "X_mde" not in adata.obsm_keys():
         adata.obsm["X_mde"] = mde(adata.obsm["X_pca"], device=device)
 
-    if basis == "X_umap" and "X_umap" not in adata.obsm.keys():
+    if basis == "X_umap" and "X_umap" not in adata.obsm_keys():
         print("getting neighbor graph")
         sc.pp.neighbors(adata)
         print("getting umap")
         sc.tl.umap(adata)
 
-    if basis in ["X_scVI", "X_scVI_mde"] and "X_scVI" not in adata.obsm.keys():
+    if basis in ["X_scVI", "X_scVI_mde"] and "X_scVI" not in adata.obsm_keys():
         if scvi_model is None:
             raise ValueError("Must pass scvi_model to plot scVI embedding")
         print("getting scvi embedding")
@@ -244,102 +220,32 @@ def plot_embedding(adata: AnnData, basis: str = "X_mde", color: list = None, **k
         X_scVI = scvi_model.get_latent_representation(adata)
         adata.obsm["X_scVI"] = X_scVI  # [:, :2]
 
-    if basis == "X_scVI_mde" and "X_scVI_mde" not in adata.obsm.keys():
+    if basis == "X_scVI_mde" and "X_scVI_mde" not in adata.obsm_keys():
         adata.obsm["X_scVI_mde"] = mde(adata.obsm["X_scVI"], device=device)
 
     # force defaults
     frameon = kwargs.pop("frameon", False)
     wspace = kwargs.pop("wspace", 0.35)
     save = kwargs.pop("save", False)
-    show = kwargs.pop("show", True)
+    show = kwargs.pop("show", False)
     fig_dir = kwargs.pop("fig_dir", None)
 
     # process fig_dir / save
     if isinstance(save, bool):
-        save = "embeddings.png"
-    elif isinstance(save, Path):
-        if fig_dir is None:
-            fig_dir = save.parent
-
-    if fig_dir is not None:
-        print(fig_dir)
-        # HACK: flatten path
-        fig_dir = str(fig_dir).replace("/", "_")
-        save = f"{fig_dir}_{save}"
-        if not Path(fig_dir).exists():
-            Path(fig_dir).mkdir(parents=True)
+        save = f"embeddings"
+    else:
+        save = f"{save}_embeddings"
 
     kwargs.update(
         {
             "frameon": frameon,
             "wspace": wspace,
-            # "show": show,
-            # "save": save,
             "return_fig": True,
         }
     )
-    # TODO: simpify... remove show/save?
+
     fig = sc.pl.embedding(adata, basis=basis, color=color, **kwargs)
     fig = Figure(fig, fig_dir, save)
-    return fig
-
-
-def _plot_predictions(
-    adata: AnnData,
-    pred_key: str = "pred",
-    cell_type_key: str = "cell_type",
-    model_name: str = "LBL8R",
-    title_str: str = "",
-    save: bool | Path | str = False,
-    show: bool = True,
-    fig_dir: Path | str | None = None,
-):
-    """Plot confusion matrix of predictions.
-
-    Parameters
-    ----------
-    adata : AnnData
-        Annotated data matrix.
-    pred_key : str
-        Key in `adata.obs` where predictions are stored. Default is `pred`.
-    cell_type_key : str
-        Key in `adata.obs` where cell types are stored. Default is `cell_type`.
-    model_name : str
-        Name of model. Default is `LBL8R`.
-    title_str : str
-        Additional string to add to title. Default is `""`.
-    fig_dir :
-
-    Returns
-    -------
-    None
-
-    """
-
-    df = adata.obs.groupby([pred_key, cell_type_key]).size().unstack(fill_value=0)
-    norm_df = df / df.sum(axis=0)
-
-    plt.figure(figsize=(8, 8))
-    _ = plt.pcolor(norm_df)
-    _ = plt.xticks(np.arange(0.5, len(df.columns), 1), df.columns, rotation=90)
-    _ = plt.yticks(np.arange(0.5, len(df.index), 1), df.index)
-    plt.xlabel(f"Predicted ({pred_key})")
-    plt.ylabel(f"Observed ({cell_type_key})")
-    plt.title(
-        f"{title_str} accuracy: {np.mean(adata.obs[pred_key] == adata.obs[cell_type_key]):.3f}\n{model_name}"
-    )
-    plt.colorbar()
-
-    if isinstance(save, str):
-        pass
-        # save = f"{model_name}_predictions.png"
-    elif isinstance(save, Path):
-        if fig_dir is None:
-            fig_dir = save.parent
-    elif save:
-        save = f"{model_name}_predictions.png"
-
-    fig = savefig_or_show(show, save, fig_dir)
     return fig
 
 
@@ -349,7 +255,7 @@ def plot_predictions(
     cell_type_key: str = "cell_type",
     model_name: str = "LBL8R",
     title_str: str = "",
-    save: bool | Path | str = False,
+    save: bool | str = False,
     show: bool = True,
     fig_dir: Path | str | None = None,
 ):
@@ -397,27 +303,21 @@ def plot_predictions(
         square=True,
         cbar_kws=dict(shrink=0.4, aspect=12),
     )
-    title_str = (
-        f"{title_str}: {acc=:3f}:  {prec=:3f}: {rec=:3f}: {f1=:3f}:({model_name})"
-    )
+    title_str = f"{title_str}: {acc=:3f}:  {prec=:3f}: {rec=:3f}: {f1=:3f})"
 
     ax.set_title(title_str.split(":"))
 
     if isinstance(save, str):
-        pass
-        # save = f"{model_name}_predictions.png"
-    elif isinstance(save, Path):
-        if fig_dir is None:
-            fig_dir = save.parent
+        save = f"predictions_{save}.png"
     elif save:
-        save = f"{model_name}_predictions.png"
+        save = f"predictions.png"
     fig = savefig_or_show(show, save, fig_dir)
     return fig
 
 
 def plot_lbl8r_training(
     model_history: dict,
-    save: bool | Path | str = False,
+    save: bool | str = False,
     show: bool = True,
     fig_dir: Path | str | None = None,
 ):
@@ -434,7 +334,8 @@ def plot_lbl8r_training(
 
     """
 
-    save, fig_dir = prep_save_dir(save, fig_dir, "lbl8r_")
+    if isinstance(save, bool):
+        save = ""
 
     train_loss = model_history["train_loss_epoch"][1:]
     validation_loss = model_history["validation_loss"]
@@ -447,7 +348,7 @@ def plot_lbl8r_training(
 
 def plot_scvi_training(
     model_history: dict,
-    save: bool | Path | str = False,
+    save: bool | str = False,
     show: bool = True,
     fig_dir: Path | str | None = None,
 ):
@@ -464,14 +365,16 @@ def plot_scvi_training(
 
     """
 
+    if isinstance(save, bool):
+        save = "scvi_"
+
     figs = []
-    save, fig_dir = prep_save_dir(save, fig_dir, "scvi_")
 
     train_elbo = model_history["elbo_train"][1:]
     val_elbo = model_history["elbo_validation"]
     ax = train_elbo.plot()
     val_elbo.plot(ax=ax)
-    save_ = save + "elbo" + ".png"
+    save_ = save + "elbo.png"
     fg = savefig_or_show(show, save_, fig_dir)
     figs.append(fg)
 
@@ -479,7 +382,7 @@ def plot_scvi_training(
     val_kll = model_history["kl_local_validation"]
     ax = train_kll.plot()
     val_kll.plot(ax=ax)
-    save_ = save + "kl_div" + ".png"
+    save_ = save + "kl_div.png"
     fg = savefig_or_show(show, save_, fig_dir)
     figs.append(fg)
 
@@ -487,7 +390,7 @@ def plot_scvi_training(
     val_loss = model_history["reconstruction_loss_validation"]
     ax = train_loss.plot()
     val_loss.plot(ax=ax)
-    save_ = save + "reconstruction_loss" + ".png"
+    save_ = save + "reconstruction_loss.png"
     fg = savefig_or_show(show, save_, fig_dir)
     figs.append(fg)
     return figs
@@ -495,7 +398,7 @@ def plot_scvi_training(
 
 def plot_scanvi_training(
     model_history: dict,
-    save: bool | Path | str = False,
+    save: bool | str = False,
     show: bool = True,
     fig_dir: Path | str | None = None,
 ):
@@ -511,22 +414,110 @@ def plot_scanvi_training(
     None
 
     """
-    save, fig_dir = prep_save_dir(save, fig_dir, "scanvi_")
+    if isinstance(save, bool):
+        save = "scanvi_"
 
     figs = plot_scvi_training(model_history, save=save, show=show, fig_dir=fig_dir)
     figs.append(fg)
 
     train_class = model_history["train_classification_loss"][1:]
     _ = train_class.plot()
-    save_ = save + "reconstruction_loss" + ".png"
+    save_ = save + "reconstruction_loss.png"
     fg = savefig_or_show(show, save_, fig_dir)
     figs.append(fg)
 
     train_f1 = model_history["train_f1_score"][1:]
     _ = train_f1.plot()
-    save_ = save + "f1" + ".png"
-    savefig_or_show(show, save_, fig_dir)
+    save_ = save + "f1.png"
     fg = savefig_or_show(show, save_, fig_dir)
     figs.append(fg)
+
+    return figs
+
+
+def make_plots(
+    data: Adata,
+    model: Model,
+    train_or_query: str,
+    labels_key: str,
+    path: Path | str | None = None,
+) -> list[Figure]:
+    """
+    make all the plots
+
+    Parameters
+    ----------
+    data : Adata
+        Annotated data matrix.
+    model : Model
+        Model object.
+    test_or_query : str
+        Whether we are testing or querying.
+    labels_key : str
+        Key in `adata.obs` where cell types are stored. Default is `cell_type`.
+
+    Returns
+    -------
+    list[Figure]
+        List of figures.
+    """
+
+    if gen_plots := data is not None:
+        ad = data.adata
+    else:
+        print(f"WARNING!!! not data provided, only generating training plots")
+
+    fig_dir = path / "figs" / model.name
+    title_str = f"{train_or_query.upper()}-{model.name}"
+
+    basis = SCVI_MDE_KEY if model.name.endswith(EMB) else MDE_KEY
+
+    fig_kwargs = dict(fig_dir=fig_dir, save=train_or_query, show=False)
+    figs = []
+
+    if gen_plots:
+        # PLOT embeddings ###############################################################
+        fg = plot_predictions(
+            ad,
+            pred_key="pred",
+            cell_type_key=labels_key,
+            model_name=model.name,
+            title_str=title_str,
+            **fig_kwargs,
+        )
+        figs.append(fg)
+        # PLOT embeddings ###############################################################
+        fg = plot_embedding(
+            ad,
+            basis=basis,
+            color=[labels_key, "batch"],
+            **fig_kwargs,
+        )
+        fg.fig.suptitle(f"{title_str} :: {basis}")
+        figs.append(fg)
+        # update with the embedding
+        data.update(ad)
+
+    # PLOT TRAINING ###############################################################
+    if model.name.startswith("lbl8r_") and train_or_query == "train":
+        fg = plot_lbl8r_training(model.model.history, **fig_kwargs)
+        figs.append(fg)
+
+    elif model.name.startswith("scanvi"):
+        if train_or_query == "train":
+            # plot scvi, scanvi, qscvi, and qscanvi (model)
+            fg = plot_scvi_training(model.vae.history, **fig_kwargs)
+            figs.append(fg)
+            fg = plot_scanvi_training(model.scanvi.history, **fig_kwargs)
+            figs.append(fg)
+        else:
+            fg = plot_scvi_training(
+                model.q_vae.history, fig_dir=fig_dir, save="query_scvi_", show=False
+            )
+            figs.append(fg)
+            fg = plot_scvi_training(
+                model.model.history, fig_dir=fig_dir, save="query_scanvi_", show=False
+            )
+            figs.append(fg)
 
     return figs

@@ -1,18 +1,15 @@
 import click
 import torch
+from pathlib import Path
 
 from lbl8r.labelator import (
-    setup_paths,
     load_training_data,
     load_query_data,
-    prep_pc_data,
-    prep_latent_data,
-    prep_expr_data,
     prep_model,
     query_model,
-    query_qscanvi,
-    prep_query_scanvi,
-    create_artifacts,
+    prep_query_model,
+    archive_plots,
+    archive_data,
     CELL_TYPE_KEY,
     VALID_MODEL_NAMES,
     # SCANVI MODELS
@@ -51,18 +48,19 @@ def validate_model_name(ctx, param, value):
 # model paths / names
 @click.option(
     "--model-path",
-    type=click.Path(exists=False),
-    require=True,
+    type=click.Path(exists=False, path_type=Path),
+    required=True,
     help="Path to load/save the trained model.",
 )
 @click.option(
     "--model-name",
     type=str,
     callback=validate_model_name,
-    require=True,
+    required=True,
     help=(
         "Name of the model to load/train. Must be one of: "
         + VALID_MODEL_NAMES[0]
+        + " "
         + ", ".join(VALID_MODEL_NAMES[1:-1])
         + ", or "
         + VALID_MODEL_NAMES[-1]
@@ -72,15 +70,15 @@ def validate_model_name(ctx, param, value):
 # data paths / names
 @click.option(
     "--data-path",
-    type=click.Path(exists=True),
+    type=click.Path(exists=True, path_type=Path),
     default=None,
     show_default=True,
     required=False,
-    help="Full path to the training dataset. Will skip to `query` if not provided.",
+    help="Full path to the training data. Will skip to `query` if not provided.",
 )
 @click.option(
     "--query-path",
-    type=click.Path(exists=True),
+    type=click.Path(exists=True, path_type=Path),
     default=None,
     show_default=True,
     required=False,
@@ -91,7 +89,7 @@ def validate_model_name(ctx, param, value):
 # artifacts (figures, data outputs, etc)
 @click.option(
     "--output-data-path",
-    type=click.Path(exists=True),
+    type=click.Path(writable=True, file_okay=False, dir_okay=True, path_type=Path),
     default=None,
     show_default=True,
     required=False,
@@ -99,7 +97,7 @@ def validate_model_name(ctx, param, value):
 )
 @click.option(
     "--artifacts-path",
-    type == click.Path(exists=True),
+    type=click.Path(writable=True, file_okay=False, dir_okay=True, path_type=Path),
     default=None,
     show_default=True,
     required=False,
@@ -109,7 +107,7 @@ def validate_model_name(ctx, param, value):
         """,
 )
 @click.option(
-    "--make-plots",
+    "--gen-plots/--no-plots",
     is_flag=True,
     default=True,
     show_default=True,
@@ -121,9 +119,6 @@ def validate_model_name(ctx, param, value):
 @click.option(
     "--retrain-model",
     is_flag=True,
-    default=False,
-    show_default=True,
-    required=False,
     help="Flag to force re-training the model. Default will attempt to load model from file",
 )
 ## set labels_key, batch_key,
@@ -159,7 +154,7 @@ def cli(
     model_name,
     output_data_path,
     artifacts_path,
-    make_plots,
+    gen_plots,
     retrain_model,
     labels_key,
     batch_key,
@@ -196,8 +191,11 @@ def cli(
         )
 
     ## PREP MODEL ###################################################################
+    # gets model and preps Adata
     # TODO:  add additional training_kwargs to cli
     training_kwargs = dict(batch_key=batch_key)
+    print(f"prep_model: {'🛠️ '*25}")
+
     model, train_data = prep_model(
         train_data,  # Note this is actually query_data if train_data arg was None
         model_name=model_name,
@@ -206,96 +204,56 @@ def cli(
         retrain=retrain_model,
         **training_kwargs,
     )
-
-    # # unpack the vae if it is a tuple (scanvi or scvi model or derivatives)
-    # if isinstance(model, tuple):
-    #     assert model_name in (
-    #         SCANVI_BATCH_EQUALIZED_MODEL_NAME,
-    #         SCANVI_MODEL_NAME,
-    #         LBL8R_SCVI_EXPRESION_MODEL_NAME,
-    #         XGB_SCVI_EXPRESION_MODEL_NAME,
-    #         SCVI_LATENT_MODEL_NAME,
-    #         XGB_SCVI_LATENT_MODEL_NAME,
-    #         SCVI_EXPR_PC_MODEL_NAME,
-    #         XGB_SCVI_EXPR_PC_MODEL_NAME,
-    #     )
-    #     model, vae = model
-    # else:
-    #     vae = None
-
-    ## QUERY MODEL ###################################################################
+    # In[ ]
+    ## QUERY MODELs ###################################################################
     # TODO:  add additional training_kwargs to cli
     if query:
-        # 1. prep query data (normalize / get latents / transfer PCs (if normalized) )
-        if model_name in (
-            LBL8R_SCVI_EXPRESION_MODEL_NAME,
-            XGB_SCVI_EXPRESION_MODEL_NAME,
-        ):
-            # SCVI expression models
-            query_data = prep_expr_data(query_data, model, ref_data=train_data)
+        print(f"prep query: {'💅 '*25}")
+        query_data, model = prep_query_model(
+            query_data,
+            model,
+            model_name,
+            train_data,
+            labels_key=labels_key,
+            retrain=retrain_model,
+        )
 
-        elif model_name in (
-            SCVI_LATENT_MODEL_NAME,
-            XGB_SCVI_LATENT_MODEL_NAME,
-        ):
-            # SCVI embedding models
-            query_data = prep_latent_data(query_data, model)
+        print(f"query_model: {'🔮 '*25}")
+        query_data = query_model(query_data, model)
+    # In[ ]
+    if train:
+        print(f"train_model: {'🏋️ '*25}")
+        train_data = query_model(train_data, model)
 
-        elif model_name in (
-            SCVI_EXPR_PC_MODEL_NAME,
-            XGB_SCVI_EXPR_PC_MODEL_NAME,
-        ):
-            # PCS models
-            query_data = prep_pc_data(query_data, model, ref_data=train_data)
-
-        elif model_name in (
-            SCANVI_BATCH_EQUALIZED_MODEL_NAME,
-            SCANVI_MODEL_NAME,
-        ):
-            # SCANVI models
-            query_data, model, q_scanvi = prep_query_scanvi(
-                query_data,
-                model,
-                labels_key=labels_key,
-                retrain=retrain_model,
-            )
-
-        query_data = query_model(query_data, model.model, model_name=model_name)
-
+    # In[ ]
     ## CREATE ARTIFACTS ###################################################################
     # TODO:  wrap in Models, Figures, and Adata in Artifacts class.
     #       currently the models are saved as soon as they are trained, but the figures and adata are not saved until the end.
     # TODO:  export results to tables.  artifacts are currently:  "figures" and "tables" (to be implimented)
 
-    ## EXPORT ADATAs ###################################################################
-    if output_data_path is not None:
-        if train:
-            train_data.write(output_data_path / f"{model_name}_train.h5ad")
-        if query:
-            query_data.write(output_data_path / f"{model_name}_query.h5ad")
-
-    elif model_name == SCVI_LATENT_MODEL_NAME:
-        # setup auxilarry models artifacts
-
-        # save Adatas
-
+    if gen_plots:
         # train
+        print(f"archive train plots: {'📈 '*25}")
 
+        archive_plots(
+            train_data, model, "train", labels_key=labels_key, path=artifacts_path
+        )
         # query
+        print(f"archive test plots: {'📊 '*25}")
 
-        # extras
+        archive_plots(
+            query_data, model, "query", labels_key=labels_key, path=artifacts_path
+        )
 
-        export_tables = False
-        if artifacts_path is not None:
-            if make_plots:
-                pass
+    # In[ ]
+    ## EXPORT ADATAs ###################################################################
+    print(f"archive adata: {'💾 '*25}")
 
-            if export_tables:
-                pass
+    if train_data is not None:  # just in case we are only "querying" or "getting"
+        archive_data(train_data, output_data_path)
+    if query_data is not None:
+        archive_data(query_data, output_data_path)
 
 
 if __name__ == "__main__":
     cli()
-
-
-# python myscript.py --setup --data-path /path/to/data --model --model-name MyModel --train-model --query --query-data-path /path/to/query/data --output-path /path/to/output --artifacts --generate-visualizations --visualization-path /path/to/visualizations

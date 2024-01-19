@@ -58,17 +58,3 @@ class Artifacts:
                 artifact.fig.savefig(artifact.fig_path, bbox_inches="tight")
             else:
                 raise ValueError(f"Artifact {artifact} not recognized.")
-
-
-def export_artifacts(artifacts: Artifacts):
-    """
-    Export artifacts to disk.
-    """
-    pass
-
-
-def export_figs(fig, fname, fig_dir):
-    """
-    Export figure to disk.
-    """
-    fig.savefig(fig_dir / fname, bbox_inches="tight")

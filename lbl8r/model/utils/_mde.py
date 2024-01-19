@@ -6,6 +6,9 @@ import torch
 from scipy.sparse import spmatrix
 import pymde
 
+# TODO: depricate looks like we can depricate this in place of scvi.model.utils.mde
+#  this just hacks in support for mps devices
+
 
 def mde(
     data: Union[np.ndarray, pd.DataFrame, spmatrix, torch.Tensor],
@@ -59,11 +62,7 @@ def mde(
     if isinstance(data, pd.DataFrame):
         data = data.values
 
-    if device == "cuda":
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-    elif device == "mps":
-        device = "mps" if torch.backends.mps.is_available() else "cpu"
-    elif device is None:
+    if device is None:
         device = (
             "cuda"
             if torch.cuda.is_available()
@@ -71,6 +70,10 @@ def mde(
             if torch.backends.mps.is_available()
             else "cpu"
         )
+    elif device == "cuda":
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+    elif device == "mps":
+        device = "mps" if torch.backends.mps.is_available() else "cpu"
     else:
         device = "cpu"
 

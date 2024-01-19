@@ -38,7 +38,9 @@ def prep_latent_z_adata(
     latent_ad = make_latent_adata(adata, scvi_model=vae, return_dist=False)
     latent_ad.obsm[
         SCVI_LATENT_KEY
-    ] = latent_ad.X  # copy to obsm for convenience (doubles size 🫤)
+    ] = (
+        latent_ad.X
+    )  # copy to obsm for convenience (doubles size 🫤 but useful for plot_embedding)
     return latent_ad
 
 
@@ -405,7 +407,7 @@ def make_latent_adata(
     latent_key = SCVI_LATENT_KEY_Z if return_dist else SCVI_LATENT_KEY
 
     # try and copy latent from obsm
-    if latent_key in adata.obsm.keys():
+    if latent_key in adata.obsm_keys():
         # create latent adata and var_names
         latent_adata = AnnData(adata.obsm[latent_key])
         if return_dist:
@@ -496,16 +498,16 @@ def make_scvi_normalized_adata(
     # if val is not None:
     #     exp_adata.obsm[f"_{key}"] = val
 
-    if "X_pca" in exp_adata.obsm.keys():
+    if "X_pca" in exp_adata.obsm_keys():
         X_pca = exp_adata.obsm.pop("X_pca")
         exp_adata.obsm["_X_pca"] = X_pca
 
-    if "PCs" in exp_adata.varm.keys():
+    if "PCs" in exp_adata.varm_keys():
         PCs = exp_adata.varm.pop("PCs")
         print("adding raw PCs to exp_adata")
         exp_adata.varm["_PCs"] = PCs
 
-    if "pca" in exp_adata.uns.keys():
+    if "pca" in exp_adata.uns_keys():
         pca_dict = exp_adata.uns.pop("pca")
         exp_adata.uns["_pca"] = pca_dict
         _ = exp_adata.uns.pop("_scvi_uuid", None)

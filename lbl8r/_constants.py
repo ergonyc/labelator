@@ -18,17 +18,19 @@ CELL_TYPE_KEY = "cell_type"
 
 ## export name parts
 EXPR = "_expr"
-OUT = "_out"
-H5 = ".h5ad"
 PCS = "_pcs"
 XGBOOST = "_xgb"
-NOBATCH = "_nb"
 EMB = "_emb"
-MDE = "_mde"
 CNT = "_cnt"
+
+VAE = "_scvi"
+VAE_EMB = VAE + EMB
+OUT = "_out"
+H5 = ".h5ad"
 TRAIN = "_train"
 TEST = "_test"
 SPARSE = "_sparse"
+MDE = "_mde"
 
 # SCANVI/SCVI model names
 SCVI_SUB_MODEL_NAME = "scvi"
@@ -52,7 +54,7 @@ XGB_SCVI_EXPR_PC_MODEL_NAME = "xgb_scvi_expr_pcs"
 LBL8R_SCVI_EXPRESION_MODEL_NAME = "lbl8r_scvi_expr"
 LBL8R_RAW_COUNT_MODEL_NAME = "lbl8r_raw_cnt"
 # scanvi
-SCANVI_BATCH_EQUALIZED_MODEL_NAME = "scanvi_batch_equal"
+SCANVI_BATCH_EQUALIZED_MODEL_NAME = "scanvi_batch_eq"
 SCANVI_MODEL_NAME = "scanvi"
 # e2e XGBoost model names
 XGB_SCVI_EXPRESION_MODEL_NAME = "xgb_scvi_expr"
@@ -89,13 +91,14 @@ __all__ = [
     "H5",
     "PCS",
     "XGBOOST",
-    "NOBATCH",
     "EMB",
     "MDE",
     "CNT",
     "TRAIN",
     "TEST",
     "SPARSE",
+    "VAE",
+    "VAE_EMB",
     "SCVI_SUB_MODEL_NAME",
     "SCANVI_SUB_MODEL_NAME",
     "QUERY_SCVI_SUB_MODEL_NAME",

@@ -588,7 +588,7 @@ def get_lbl8r(
     retrain: bool = False,
     model_name: str = "lbl8r",
     plot_training: bool = False,
-    save: bool | Path | str = False,
+    save: bool | str = False,
     show: bool = True,
     fig_dir: Path | str | None = None,
     **training_kwargs,

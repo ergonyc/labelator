@@ -4,7 +4,7 @@ from pathlib import Path
 import anndata as ad
 
 # from scanpy.pp import pca
-from ..._constants import OUT, H5, EMB, EXPR, CNT
+from ..._constants import OUT, H5, EMB, EXPR, CNT, PCS, VAE
 
 
 @dataclasses.dataclass
@@ -17,14 +17,14 @@ class Adata:
     name: str
     is_backed: bool = False
     _adata: ad.AnnData = dataclasses.field(default=None, init=False, repr=False)
-    _export: str | None = None
+    _out_suffix: str | None = None
+    _subdir: str | None = None
 
-    def __init__(self, adata_path: Path, is_backed: bool = False, out_name: str = None):
+    def __init__(self, adata_path: Path, is_backed: bool = False):
         self.path = adata_path.stem
         self.name = adata_path.name
         self.is_backed = is_backed
         self._adata_path = adata_path
-        self.out_name = out_name
 
     @property
     def adata(self):
@@ -39,13 +39,20 @@ class Adata:
         """
         Write adata to disk.
         """
-        if self._export is not None:
-            out_path = out_path / self.name.replace(H5, self._export + OUT + H5)
+
+        if self._subdir is not None:
+            out_path = out_path / self._subdir
+        else:
+            print(f"writing {self.name} output directly to out_path")
+
+        if self._out_suffix is not None:
+            out_path = out_path / self.name.replace(H5, self._out_suffix + OUT + H5)
 
             out_path.parent.mkdir(parents=True, exist_ok=True)
             self.adata.write(out_path)
+            print(f"wrote: {out_path}")
         else:
-            raise ValueError("This model shouldn't export AnnData")
+            print("This model doesn't need to export AnnData")
 
     def update(self, adata: ad.AnnData):
         """
@@ -53,23 +60,44 @@ class Adata:
         """
         self._adata = adata
 
-    def set_out(self, model_name: str):
+    def set_output(self, model_name: str):
         """
-        Set the output name.
+        Set the output name suffix and subdir based on model_name
         """
-        if model_name.endswith(EMB):
-            self._export = EMB
-        elif model_name.endswith(EXPR):
-            self._export = EXPR
+
+        # set path_subdir based on model_name
+        if model_name.startswith("scvi"):
+            self._subdir = "LBL8R" + VAE
+        elif model_name == "scanvi":
+            self._subdir = "SCANVI"
+        elif model_name.startswith("scanvi_"):
+            self._subdir = "SCANV_batch_eq"
+        elif model_name.startswith("xgb"):
+            self._subdir = "XGB"
+        elif model_name.startswith("lbl8r"):
+            # got to LBL8R_pcs, or LBL8R (e2e)
+            if model_name.endswith("_pcs"):
+                self._subdir = "LBL8R" + PCS
+            else:
+                self._subdir = "LBL8R"
         else:
-            self._export = None
+            self._subdir = "ERROR"
 
-
-def export_ouput_adatas(adata, fname, out_data_path):
-    """
-    Export adata to disk.
-    """
-    adata.write(out_data_path / fname)
+        # set suffix based on model_name
+        if model_name.endswith(EMB):
+            self._out_suffix = EMB
+        elif model_name.endswith(EXPR):
+            self._out_suffix = EXPR
+        elif model_name.endswith(EXPR + PCS):
+            self._out_suffix = EXPR
+        elif model_name.endswith(CNT + PCS):
+            self._out_suffix = PCS
+        elif model_name.startswith("scanvi"):
+            self._out_suffix = "_scanvi"
+        elif model_name.endswith("raw_cnt"):
+            self._out_suffix = ""
+        else:
+            self._out_suffix = ""  # eventually we will disable the other outputs
 
 
 def add_predictions_to_adata(adata, predictions, insert_key="pred", pred_key="label"):
@@ -108,15 +136,14 @@ def add_predictions_to_adata(adata, predictions, insert_key="pred", pred_key="la
     return adata
 
 
-# TODO: rename train_ad to ref_ad, and test_ad to query_ad
-def transfer_pcs(train_ad: ad.AnnData, test_ad: ad.AnnData) -> ad.AnnData:
+def transfer_pcs(ref_ad: ad.AnnData, query_ad: ad.AnnData) -> ad.AnnData:
     """Transfer PCs from training data to get "loadings" (`X_pca`)
 
     Parameters
     ----------
-    train_ad
+    ref_ad
         AnnData object for training with PCs in varm["PCs"]
-    test_ad
+    query_ad
         AnnData object with "test" data in X
 
     Returns
@@ -124,29 +151,38 @@ def transfer_pcs(train_ad: ad.AnnData, test_ad: ad.AnnData) -> ad.AnnData:
     AnnData
         AnnData object with PCs in varm["PCs"] and "loadings" in obsm["X_pca"]
     """
+    # copy the old variables if they exist (i.e. raw count pcs)
+    if "X_pca" in query_ad.obsm_keys():
+        X_pca = query_ad.obsm.pop("X_pca")
+        query_ad.obsm["_X_pca"] = X_pca
 
-    if "X_pca" in test_ad.obsm.keys():
-        X_pca = test_ad.obsm.pop("X_pca")
-        test_ad.obsm["_X_pca"] = X_pca
+    if "PCs" in query_ad.varm_keys():
+        PCs = query_ad.varm.pop("PCs")
+        print("saving raw PCs to query_ad.uns['_PCs']")
+        query_ad.uns["_PCs"] = PCs
 
-    if "PCs" in test_ad.varm.keys():
-        PCs = test_ad.varm.pop("PCs")
-        print("saving raw PCs to test_ad")
-        test_ad.varm["_PCs"] = PCs
+    if "pca" in query_ad.uns_keys():
+        pca_dict = query_ad.uns.pop("pca")
+        query_ad.uns["_pca"] = pca_dict
+        _ = query_ad.uns.pop("_scvi_uuid", None)
+        _ = query_ad.uns.pop("_scvi_manager_uuid", None)
 
-    if "pca" in test_ad.uns.keys():
-        pca_dict = test_ad.uns.pop("pca")
-        test_ad.uns["_pca"] = pca_dict
-        _ = test_ad.uns.pop("_scvi_uuid", None)
-        _ = test_ad.uns.pop("_scvi_manager_uuid", None)
+    # transfer PCs from ref_ad to query_ad
+    if "PCs" in ref_ad.varm_keys():
+        print("transfering PCs from ref_ad to query_ad")
+        query_ad.varm["PCs"] = ref_ad.varm["PCs"].copy()
+    elif "PCs" in ref_ad.uns_keys():
+        print("transfering PCs from ref_ad to query_ad")
+        query_ad.varm["PCs"] = ref_ad.uns["PCs"].copy()
+    else:
+        raise ValueError("No PCs found in ref_ad")
 
-    test_ad.varm["PCs"] = train_ad.varm["PCs"].copy()
     # compute loadings
-    test_ad.obsm["X_pca"] = test_ad.X @ test_ad.varm["PCs"]
+    query_ad.obsm["X_pca"] = query_ad.X @ query_ad.varm["PCs"]
     # update the uns dictionary. there migth be a reason/way to compute this relative to ad_out
-    # test_ad.uns.update(train_ad.uns.copy())
+    # query_ad.uns.update(ref_ad.uns.copy())
 
-    return test_ad
+    return query_ad
 
 
 def merge_into_obs(adata, source_table, insert_keys=None, prefix=None):
@@ -260,12 +296,13 @@ def make_pc_loading_adata(adata: ad.AnnData, pca_key: str = "X_pca"):
         Annotated data matrix with PCA loadings.
 
     """
-    if pca_key in adata.obsm.keys():
+    if pca_key in adata.obsm_keys():
         # already have the loadings...
         loading_adata = ad.AnnData(adata.obsm[pca_key])
     else:  #
         ValueError("Need to get PCA loadings first")
-        print("doing nothing")
+        print(f"doing nothing: {pca_key} not in {adata.obsm_keys()}")
+
         return adata
 
     var_names = [f"pc_{i}" for i in range(loading_adata.shape[1])]
@@ -277,6 +314,6 @@ def make_pc_loading_adata(adata: ad.AnnData, pca_key: str = "X_pca"):
     loading_adata.uns = adata.uns.copy()
     _ = loading_adata.uns.pop("_scvi_uuid", None)
     _ = loading_adata.uns.pop("_scvi_manager_uuid", None)
-
-    print(loading_adata.shape)
+    # hold the PCS from varm in uns for transferring to query
+    loading_adata.uns["PCs"] = adata.varm["PCs"].copy()
     return loading_adata

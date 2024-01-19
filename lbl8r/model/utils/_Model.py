@@ -25,18 +25,28 @@ class Model:
     name: str
     vae: SCVI | None = None
     labels_key: str | None = "cell_type"
+    insert_key: str | None = "label"
     label_encoder: LabelEncoder | None = None
     q_vae: SCVI | None = None
     scanvi: SCANVI | None = None
 
     def __init__(
-        self, model, path, name, vae=None, labels_key="cell_type", label_encoder=None
+        self,
+        model,
+        path,
+        name,
+        vae=None,
+        labels_key="cell_type",
+        insert_key="label",
+        label_encoder=None,
     ):
         self.model = model
         self.path = path
         self.name = name
         self.vae = vae
+        # TODO: shoudl the keys be in the Adata or Model dataclass?
         self.labels_key = labels_key
+        self.insert_key = insert_key
         self.label_encoder = label_encoder
 
     # def export(self, out_path: Path):
