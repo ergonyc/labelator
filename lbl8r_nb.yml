@@ -17,9 +17,10 @@ dependencies:
 - ipywidgets
 - notebook
 - xgboost
+- click
 - pip
 - pip:
-  - scvi-tools==1.1.0rc1
+  - scvi-tools==1.1.0rc2
   - scanpy
   - anndata
   - numpy
