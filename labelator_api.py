@@ -12,18 +12,6 @@ from lbl8r.labelator import (
     archive_data,
     CELL_TYPE_KEY,
     VALID_MODEL_NAMES,
-    # SCANVI MODELS
-    SCANVI_BATCH_EQUALIZED_MODEL_NAME,
-    SCANVI_MODEL_NAME,
-    # SCVI expression models
-    LBL8R_SCVI_EXPRESION_MODEL_NAME,
-    XGB_SCVI_EXPRESION_MODEL_NAME,
-    # SCVI embedding models
-    SCVI_LATENT_MODEL_NAME,
-    XGB_SCVI_LATENT_MODEL_NAME,
-    # PCS models
-    SCVI_EXPR_PC_MODEL_NAME,
-    XGB_SCVI_EXPR_PC_MODEL_NAME,
 )
 
 

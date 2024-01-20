@@ -712,37 +712,6 @@ def prep_query_scanvi(
     return data, model
 
 
-# # depricated...
-# def query_qscanvi(data: Adata, model: Model, insert_key: str = "label") -> Adata:
-#     """
-#     Prep adata for scVI LBL8R model
-
-#     Parameters
-#     ----------
-#     data : Adata
-#         dataclass holder for Annotated data matrix.
-#     model :
-#         An classification model.
-#     labels_key : str
-#         Key for cell type labels. Default is `cell_type`.
-
-#     Returns
-#     -------
-#     Adata
-#         Annotated data matrix with latent variables as X
-
-#     """
-
-#     ad = data.adata
-
-#     # 3. return model
-#     ad = query_scanvi(ad, model.model, insert_key=insert_key)
-#     # update data with ad
-#     data.update(ad)
-
-#     return data
-
-
 def prep_query_model(
     query_data: Adata,
     model: Model,
