@@ -417,11 +417,12 @@ def plot_scanvi_training(
     if isinstance(save, bool):
         save = "scanvi_"
 
-    figs = plot_scvi_training(model_history, save=save, show=show, fig_dir=fig_dir)
-    figs.append(fg)
+    # figs = plot_scvi_training(model_history, save=save, show=show, fig_dir=fig_dir)
+    # figs.append(fg)
+    figs = []
 
     train_class = model_history["train_classification_loss"][1:]
-    _ = train_class.plot()
+    _ = train_class.plot()  # is dumping the return teh right thing to do?
     save_ = save + "reconstruction_loss.png"
     fg = savefig_or_show(show, save_, fig_dir)
     figs.append(fg)
@@ -515,7 +516,7 @@ def make_plots(
                 model.q_vae.history, fig_dir=fig_dir, save="query_scvi_", show=False
             )
             figs.append(fg)
-            fg = plot_scvi_training(
+            fg = plot_scanvi_training(
                 model.model.history, fig_dir=fig_dir, save="query_scanvi_", show=False
             )
             figs.append(fg)

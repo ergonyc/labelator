@@ -272,7 +272,7 @@ def prep_model(
         if model_name in (SCVI_LATENT_MODEL_NAME, XGB_SCVI_LATENT_MODEL_NAME):
             # 1. make the make_latent_adata
             ad = prep_latent_z_adata(ad, vae, labels_key=labels_key)
-
+            # try to load a pre-trained model. ... check if it exists?
             if model_name == SCVI_LATENT_MODEL_NAME:
                 print(
                     f"getting scvi lbl8r 2: {(model_path/model_name/LBL8R_SCVI_SUB_MODEL_NAME)}"
@@ -298,7 +298,6 @@ def prep_model(
                 return model, data
 
             elif model_name == XGB_SCVI_LATENT_MODEL_NAME:
-                print(f"getting scvi xgb 3 {(model_path/model_name)}")
                 model, ad, label_encoder = get_xgb(
                     ad,
                     labels_key=labels_key,
@@ -326,6 +325,7 @@ def prep_model(
             SCVI_EXPR_PC_MODEL_NAME,
             XGB_SCVI_EXPR_PC_MODEL_NAME,
         ):
+            # TODO:  load this data rather than compute it... saves 45s
             # 1. make scvi_expression data
             ad = make_scvi_normalized_adata(vae, ad)
             # 2. update the data with pcs
@@ -334,7 +334,6 @@ def prep_model(
             # ad.obsm["X_scVI"] = vae.get_latent_representation(ad)
 
             if model_name == LBL8R_SCVI_EXPRESION_MODEL_NAME:
-                print(f"getting scvi expr  {(model_path/model_name)}")
                 model, ad = get_lbl8r(
                     ad,
                     labels_key=labels_key,
