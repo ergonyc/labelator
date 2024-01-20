@@ -12,8 +12,10 @@ from numpy import unique, asarray, argmax
 from pandas import DataFrame
 
 from .utils._data import merge_into_obs
+from .utils._timing import Timing
 
 
+@Timing(prefix="model_name")
 def get_xgb(
     adata: AnnData,
     labels_key: str = "cell_type",
@@ -51,6 +53,7 @@ def get_xgb(
         bst = train_xgboost(X_train, y_train, **training_kwargs)
 
     if retrain or not bst_path.exists():
+        bst_path.parent.mkdir(exist_ok=True, parents=True)
         # save the reference model
         bst.save_model(bst_path)
         # HACK: reload to so that the training GPU memory is cleared

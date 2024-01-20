@@ -31,10 +31,12 @@ from ._scvi import get_trained_scvi
 
 from .utils._pred import get_stats_table
 from .utils._data import merge_into_obs, make_pc_loading_adata
+from .utils._timing import Timing
 
 from .._constants import SCVI_LATENT_KEY, PCA_KEY
 
-logger = logging.getLogger(__name__)
+# TODO: enable logging
+# logger = logging.getLogger(__name__)
 
 LABELS_KEY = "cell_type"
 
@@ -787,6 +789,7 @@ class LBL8R(BaseModelClass):
         return runner()
 
 
+@Timing(prefix="model_name")
 def get_lbl8r(
     adata: AnnData,
     labels_key: str = "cell_type",

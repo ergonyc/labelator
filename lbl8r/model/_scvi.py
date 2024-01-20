@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 
 from .utils._data import merge_into_obs
-
+from .utils._timing import Timing
 from .._constants import *
 from .._constants import SCVI_LATENT_KEY_Z, SCVI_LATENT_KEY_MU_VAR
 
@@ -47,6 +47,7 @@ def prep_latent_z_adata(
 
 
 # TODO: add save and load flags so we can use the functions and NOT overwrite on accident
+@Timing(prefix="model_name")
 def get_trained_scvi(
     adata: AnnData,
     labels_key: str = "cell_type",
@@ -139,6 +140,7 @@ def get_trained_scvi(
     return vae, adata
 
 
+@Timing(prefix="model_name")
 def get_trained_scanvi(
     adata: AnnData,
     vae: SCVI | None = None,
@@ -219,6 +221,7 @@ def get_trained_scanvi(
     return scanvi_model, adata
 
 
+@Timing(prefix="model_name")
 def get_query_scvi(
     adata: AnnData,
     vae: SCVI,
@@ -286,6 +289,7 @@ def get_query_scvi(
     return scvi_query, adata
 
 
+@Timing(prefix="model_name")
 def get_query_scanvi(
     adata: AnnData,
     scanvi_model: SCANVI,
