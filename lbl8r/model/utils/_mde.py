@@ -6,10 +6,14 @@ import torch
 from scipy.sparse import spmatrix
 import pymde
 
+from ._device import get_usable_device
+from ._timing import Timing
+
 # TODO: depricate looks like we can depricate this in place of scvi.model.utils.mde
 #  this just hacks in support for mps devices
 
 
+@Timing(prefix="mde")
 def mde(
     data: Union[np.ndarray, pd.DataFrame, spmatrix, torch.Tensor],
     device: Optional[Literal["cpu", "cuda", "mps"]] = None,
@@ -62,20 +66,7 @@ def mde(
     if isinstance(data, pd.DataFrame):
         data = data.values
 
-    if device is None:
-        device = (
-            "cuda"
-            if torch.cuda.is_available()
-            else "mps"
-            if torch.backends.mps.is_available()
-            else "cpu"
-        )
-    elif device == "cuda":
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-    elif device == "mps":
-        device = "mps" if torch.backends.mps.is_available() else "cpu"
-    else:
-        device = "cpu"
+    device = get_usable_device(device)
 
     print(f"perfoming mde on {device}")
     _kwargs = {
@@ -86,9 +77,9 @@ def mde(
         "device": device,
         "n_neighbors": 15,
     }
-    _kwargs.update(kwargs)
+    kwargs.update(_kwargs)
 
-    emb = pymde.preserve_neighbors(data, **_kwargs).embed(verbose=_kwargs["verbose"])
+    emb = pymde.preserve_neighbors(data, **kwargs).embed(verbose=kwargs["verbose"])
 
     # force return cpu numpy array
     if isinstance(emb, torch.Tensor):
