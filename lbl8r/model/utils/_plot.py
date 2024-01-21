@@ -148,7 +148,7 @@ def savefig_or_show(
 #             **emb_kwargs,
 #             **fig_kwargs,
 #         )
-#         figs.append(fg)
+#         figs.extend(fg)
 
 #     if "predictions" in plots:
 #         fg = plot_predictions(
@@ -156,7 +156,7 @@ def savefig_or_show(
 #             **pred_kwargs,
 #             **fig_kwargs,
 #         )
-#         figs.append(fg)
+#         figs.extend(fg)
 
 #     if "training" in plots:
 #         if model.__class__.__name__ == "LBL8R":
@@ -170,7 +170,7 @@ def savefig_or_show(
 #             fg = plot_scvi_training(model.history, **fig_kwargs)
 #         else:  # xgb?
 #             pass
-#         figs.append(fg)
+#         figs.extend(fg)
 #     return figs
 
 
@@ -343,7 +343,7 @@ def plot_lbl8r_training(
     validation_loss.plot(ax=ax)
     save_ = save + "train_loss" + ".png"
     fig = savefig_or_show(show, save_, fig_dir)
-    return fig
+    return [fig]
 
 
 def plot_scvi_training(
@@ -417,9 +417,8 @@ def plot_scanvi_training(
     if isinstance(save, bool):
         save = "scanvi_"
 
-    # figs = plot_scvi_training(model_history, save=save, show=show, fig_dir=fig_dir)
-    # figs.append(fg)
-    figs = []
+    figs = plot_scvi_training(model_history, save=save, show=show, fig_dir=fig_dir)
+    # figs = []
 
     train_class = model_history["train_classification_loss"][1:]
     _ = train_class.plot()  # is dumping the return teh right thing to do?
@@ -502,23 +501,23 @@ def make_plots(
     # PLOT TRAINING ###############################################################
     if model.name.startswith("lbl8r_") and train_or_query == "train":
         fg = plot_lbl8r_training(model.model.history, **fig_kwargs)
-        figs.append(fg)
+        figs.extend(fg)  # training returns a list of figures
 
     elif model.name.startswith("scanvi"):
         if train_or_query == "train":
             # plot scvi, scanvi, qscvi, and qscanvi (model)
             fg = plot_scvi_training(model.vae.history, **fig_kwargs)
-            figs.append(fg)
+            figs.extend(fg)
             fg = plot_scanvi_training(model.scanvi.history, **fig_kwargs)
-            figs.append(fg)
+            figs.extend(fg)
         else:
             fg = plot_scvi_training(
                 model.q_vae.history, fig_dir=fig_dir, save="query_scvi_", show=False
             )
-            figs.append(fg)
-            fg = plot_scanvi_training(
+            figs.extend(fg)
+            fg = plot_scvi_training(
                 model.model.history, fig_dir=fig_dir, save="query_scanvi_", show=False
             )
-            figs.append(fg)
+            figs.extend(fg)
 
     return figs

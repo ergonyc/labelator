@@ -13,6 +13,7 @@ from pandas import DataFrame
 
 from .utils._data import merge_into_obs
 from .utils._timing import Timing
+from .utils._device import get_usable_device
 
 
 @Timing(prefix="model_name")
@@ -85,11 +86,13 @@ def train_xgboost(X, y, num_round=50, **training_kwargs) -> xgb.Booster:
     dvalid = xgb.DMatrix(X_valid, label=y_valid)
     n_cats = len(unique(y))
 
-    use_gpu = training_kwargs.pop("use_gpu", False)
+    device = training_kwargs.pop("device", None)
+
+    device = get_usable_device(device)
+
     max_depth = training_kwargs.pop("max_depth", 7)
     objective = training_kwargs.pop("objective", "multi:softprob")
     eta = training_kwargs.pop("eta", 0.3)
-    device = "cuda" if use_gpu else None
 
     params = dict(
         max_depth=max_depth,
