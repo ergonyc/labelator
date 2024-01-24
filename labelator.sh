@@ -56,8 +56,7 @@ run_model() {
 lbl8r_model_names=("lbl8r_scvi_emb" "lbl8r_raw_cnt_pcs" "lbl8r_scvi_expr_pcs" "xgb_raw_cnt_pcs" "xgb_scvi_expr_pcs" "xgb_scvi_emb")
 e2e_model_names=("lbl8r_raw_cnt" "lbl8r_scvi_expr" "scanvi_batch_eq" "scanvi" "xgb_raw_cnt" "xgb_scvi_expr")
 
-
 # Call the function with LBL8R and E2E model names
-run_model lbl8r_model_names[@] "models/LBL8R/" "data/scdata/xylena/LBL8R/"
+# run_model lbl8r_model_names[@] "models/LBL8R/" "data/scdata/xylena/LBL8R/"
 run_model e2e_model_names[@] "models/LBL8R/" "data/scdata/xylena/LBL8R/"
 
