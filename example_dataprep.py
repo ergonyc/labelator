@@ -1,7 +1,5 @@
 #!/usr/bin/env python
 # coding: utf-8
-#!/usr/bin/env python
-# coding: utf-8
 
 ### set up train and test AnnData objects for LBL8R
 
@@ -58,16 +56,19 @@ e.g. something like this
 """
 
 if False:
-
     samples = pd.read_csv("samples.csv")
     path_to_samples = Path("path/to/samples")
-    file_names = path_to_samples / samples['sample_name'].str.cat('.h5ad')
+    file_names = path_to_samples / samples["sample_name"].str.cat(".h5ad")
 
-    adatas = {sample_name:scanpy.read_h5ad(path_to_samples / samples['sample_name'].str.cat('.h5ad')) for sample_name in samples['sample_name']}}
+    adatas = {
+        sample_name: scanpy.read_h5ad(
+            path_to_samples / samples["sample_name"].str.cat(".h5ad")
+        )
+        for sample_name in samples["sample_name"]
+    }
 
     adata = anndata.concat(
-        merge='same', uns_merge='same', index_unique='_',
-        adatas=adatas
+        merge="same", uns_merge="same", index_unique="_", adatas=adatas
     )
 
 
@@ -159,7 +160,7 @@ train_ad.write_h5ad(train_filen)
 test_ad = ad.read_h5ad(raw_test_filen)
 
 # In[ ]: # now we need to copy the PCs to the test set and compute loadings.
-test_ad = transfer_pcs(train_ad, test_ad)
+test_ad = transfer_pcs(test_ad, train_ad)
 # In[ ]:
 test_ad.write_h5ad(test_filen)
 

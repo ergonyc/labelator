@@ -6,7 +6,7 @@ from pathlib import Path
 import torch
 
 from ..model.utils._data import Adata
-from ..model.utils._Model import Model
+from ..model.utils._lazy_model import LazyModel
 
 from ..model.utils._plot import Figure
 
@@ -17,7 +17,7 @@ class Artifact:
     Artifacts class for storing artifacts.
     """
 
-    artifact: Model | Adata | Figure
+    artifact: LazyModel | Adata | Figure
     path: str | Path
     # type: str
     name: str
@@ -48,7 +48,7 @@ class Artifacts:
         Export artifacts to disk.
         """
         for artifact in self.artifacts:
-            if isinstance(artifact, Model):
+            if isinstance(artifact, LazyModel):
                 model = artifact.model
                 model.export(artifact.model_path, artifact.name)
 

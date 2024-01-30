@@ -166,10 +166,6 @@ def cli(
 
     if query := query_path is not None:
         query_data = load_query_data(query_path)
-        # load model with query_data if training data is not provided
-        if train_data is None:
-            train_data = query_data
-
     else:
         query_data = None
 
@@ -184,6 +180,7 @@ def cli(
     training_kwargs = dict(batch_key=batch_key)
     print(f"prep_model: {'🛠️ '*25}")
 
+    # WARNING:  BUG.  if train_data is None preping with query data hack won't work for PCs
     model, train_data = prep_model(
         train_data,  # Note this is actually query_data if train_data arg was None
         model_name=model_name,
@@ -197,6 +194,8 @@ def cli(
     # TODO:  add additional training_kwargs to cli
     if query:
         print(f"prep query: {'💅 '*25}")
+        # prep query model actually preps data unless its a scANVI model...
+        #
         query_data, model = prep_query_model(
             query_data,
             model,
@@ -206,13 +205,18 @@ def cli(
             retrain=retrain_model,
         )
 
-        print(f"query_model: {'🔮 '*25}")
-        query_data = query_model(query_data, model)
     # In[ ]
     if train:
+        # prep_train_data
+        #    - check if train_data was prepped (i.e. model was trained in prep_model)
+        #    - if not, prep_train_data
         print(f"train_model: {'🏋️ '*25}")
         train_data = query_model(train_data, model)
 
+    if query:
+        print(f"query_model: {'🔮 '*25}")
+
+        query_data = query_model(query_data, model)
     # In[ ]
     ## CREATE ARTIFACTS ###################################################################
     # TODO:  wrap in Models, Figures, and Adata in Artifacts class.

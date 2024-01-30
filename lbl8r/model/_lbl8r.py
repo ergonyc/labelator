@@ -150,6 +150,7 @@ def _validate_scvi_model(scvi_model: SCVI, restrict_to_batch: str):
         )
 
 
+# depricated
 class scviLBL8R(BaseModelClass):
     """Cell type classification in scRNA-seq
 
@@ -543,7 +544,7 @@ class scviLBL8R(BaseModelClass):
         cls.register_manager(adata_manager)
 
 
-# TODO:  add from_embedding to LBL8R to automatically create the input_type
+#
 class LBL8R(BaseModelClass):
     """.
 
@@ -571,6 +572,9 @@ class LBL8R(BaseModelClass):
         super().__init__(adata)
 
         self.n_labels = n_labels
+
+        # TODO: make this module either an XGB or Classifier...  so we are just changing the classifier type...
+        #  will require making a shim for loading data so low priority
         self.module = Classifier(
             n_input=self.summary_stats.n_vars,
             n_labels=self.n_labels,
@@ -579,23 +583,11 @@ class LBL8R(BaseModelClass):
         )
 
         self._model_summary_string = (
-            "LBL8R model" if input_type is None else f"{input_type} LBL8R model"
+            "LBL8R classifier model"
+            if input_type is None
+            else f"{input_type} LBL8R classifier model"
         )
         self.init_params_ = self._get_init_params(locals())
-
-    # def get_loadings(self) -> pd.DataFrame:
-    #     """Extract per-gene weights in the linear decoder.
-
-    #     Shape is genes by `n_latent`. UNTESTED
-
-    #     """
-    #     cols = [f"Z_{i}" for i in range(self.n_latent)]
-    #     var_names = self.adata.var_names
-    #     loadings = pd.DataFrame(
-    #         self.module.get_loadings(), index=var_names, columns=cols
-    #     )
-
-    #     return loadings
 
     @classmethod
     @setup_anndata_dsp.dedent
@@ -786,7 +778,7 @@ class LBL8R(BaseModelClass):
             devices=devices,
             **kwargs,
         )
-        return runner()
+        return runner()  # execute the runner and return results
 
 
 @Timing(prefix="model_name")
@@ -797,7 +789,7 @@ def get_lbl8r(
     retrain: bool = False,
     model_name: str = "lbl8r",
     **training_kwargs,
-):
+) -> tuple[LBL8R, AnnData]:
     """
     Get the LBL8R model for single-cell data.
 
@@ -838,7 +830,7 @@ def get_lbl8r(
     lbl8r_epochs = 200
     batch_size = 512
 
-    # not sure I need this step
+    # TODO: test. not sure I need this step
     LBL8R.setup_anndata(adata, labels_key=labels_key)
 
     # 1. load/train model

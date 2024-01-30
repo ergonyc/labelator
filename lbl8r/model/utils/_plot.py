@@ -16,7 +16,7 @@ from ._mde import mde
 
 from ..._constants import *
 from ._data import Adata
-from ._Model import Model
+from ._lazy_model import LazyModel
 
 """
 logic:  dataclass holds the list of models / names
@@ -45,7 +45,7 @@ class Figure:
         self.name = name
         self.ext = ext
 
-    def savefig(self):
+    def savefig(self, show: bool = False):
         """
         Save figure to disk.
         """
@@ -54,14 +54,17 @@ class Figure:
 
         filename = f"{self.path}/{self.name}.{self.ext}"
         self.fig.savefig(filename, bbox_inches="tight")
-
+        self.show(False)  # clear figure
         # self.fig.savefig(self.fig_path, bbox_inches="tight")
 
-    def show(self):
+    def show(self, show: bool = True):
         """
         Show figure.
         """
-        self.fig.show()
+        if show:
+            self.fig.show()
+        # else:
+        #     self.fig.close()
 
 
 # -------------------------------------------------------------------------------
@@ -437,7 +440,7 @@ def plot_scanvi_training(
 
 def make_plots(
     data: Adata,
-    model: Model,
+    model: LazyModel,
     train_or_query: str,
     labels_key: str,
     path: Path | str | None = None,
@@ -449,8 +452,8 @@ def make_plots(
     ----------
     data : Adata
         Annotated data matrix.
-    model : Model
-        Model object.
+    model : LazyModel
+        LazyModel object.
     test_or_query : str
         Whether we are testing or querying.
     labels_key : str

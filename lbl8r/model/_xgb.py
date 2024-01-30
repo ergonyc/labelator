@@ -8,12 +8,269 @@ from sklearn.model_selection import train_test_split
 from pathlib import Path
 from anndata import AnnData
 from numpy import unique, asarray, argmax
-
+import pickle
 from pandas import DataFrame
 
 from .utils._data import merge_into_obs
 from .utils._timing import Timing
 from .utils._device import get_usable_device
+from .utils._le import dump_label_encoder, load_label_encoder
+
+
+class XGB:
+    """
+    XGBoost model class for storing models + metadata.
+    """
+
+    def __init__(
+        self,
+        adata: AnnData | None = None,
+        n_labels: int | None = None,
+        input_type: str | None = None,
+        **kwargs,
+    ):
+        self.n_labels = n_labels
+
+        self._module: xgb.Booster | None = None
+        self._label_encoder = None
+        self._path: Path | str | None = None
+        self._name: str | None = None
+        self.adata: AnnData | None = adata
+        self.X = None
+        self.y = None
+
+        self.n_labels = n_labels
+        self.module = xgb.Booster()
+
+        self._model_summary_string = (
+            "XGB classifier model"
+            if input_type is None
+            else f"{input_type} XGB classifier model"
+        )
+        # self.init_params_ = self._get_init_params(locals())
+
+    @property
+    def name(self):
+        return self._name
+
+    @name.setter
+    def name(self, name: str):
+        if not "xgb" in name:
+            print(f"Error:  {name} is not an XGBoost model.")
+        else:
+            self._name = name
+
+    @property
+    def label_encoder(self):
+        if self._label_encoder is None and self.path is not None:
+            self._label_encoder = load_label_encoder(self.path.parent)
+
+        return self._label_encoder
+
+    @label_encoder.setter
+    def label_encoder(self, label_encoder: LabelEncoder):
+        self._label_encoder = label_encoder
+
+    # make module lazy ? not sure about this logic
+    @property
+    def module(self):
+        if self._module is None:
+            if self.path is not None:
+                self._module = load_xgboost(self.path)
+            else:
+                print("Error:  No path set.")
+
+        return self._module
+
+    @module.setter
+    def module(self, module: Booster):
+        self._module = module
+
+    @property
+    def path(self):
+        return self._path
+
+    @path.setter
+    def path(self, path: Path):
+        # check if there's a model in the path
+        # also set _trained to True if there is
+        # or set _trained to False if there isn't
+        if path is not None:
+            if path.exists():
+                if path.is_file():
+                    self._path = path
+                else:
+                    self._path = path / "xgb.json"
+                self.name = path.parent.name
+            else:
+                path.mkdir(exist_ok=True, parents=True)
+                self._path = path / "xgb.json"
+                self.name = path.parent.name
+
+    # wrapper for instantiating model from disk.
+    def load(self, path: Path | str):
+        """
+        Load an XGBoost classifier model from a file.
+
+        Parameters
+        ----------
+        path : Path | str
+            The file path to the saved XGBoost model. i.e. 'path/to/xgb.json'
+
+        Returns
+        -------
+        model: Booster
+            The loaded XGBoost classifier model, or None if loading fails.
+        """
+
+        # Check if the file exists
+        path = Path(path) if isinstance(path, str) else path
+
+        if not path.exists():
+            print(f"Error: The file '{path}' does not exist.")
+            return None
+
+        self.path = path
+
+        print(f"loading xgb model from: {self.path}")
+        # Set the global configuration for XGBoost
+        try:
+            self.label_encoder = load_label_encoder(self.path.parent)
+
+            model = xgb.Booster()
+            model.load_model(self.path)
+
+            # self.label_encoder = LabelEncoder().load(path.parent / "label_encoder.pkl")
+
+            self._module = model
+
+            return self
+
+        except Exception as e:
+            # Handle exceptions that occur during model loading
+            print(f"Failed to load the model: {e}")
+            return None
+
+    def prep_adata(self, adata: AnnData | None = None, label_key: str = "cell_type"):
+        """
+        consider adding a "pre-processing" step to normalize the data
+        """
+        if adata is None:
+            adata = self.adata
+
+        X = adata.X
+        y = adata.obs[label_key]
+        if self.label_encoder is None:
+            label_encoder = LabelEncoder()
+            label_encoder = label_encoder.fit(y)
+            self.label_encoder = label_encoder
+
+        y = self.label_encoder.transform(y)
+
+        return X, y
+
+    def train(
+        self,
+        labels_key: str = "cell_type",
+        **training_kwargs,
+    ) -> (Booster, AnnData, LabelEncoder):
+        """
+        make a booster model and train it
+
+
+        """
+
+        PRED_KEY = "pred"
+        # format path / model_name for xgboost
+
+        labels_key = labels_key
+        n_labels = len(self.adata.obs[labels_key].cat.categories)
+
+        X_train, y_train = self.prep_adata(label_key=labels_key)
+
+        print(f"training {self.name}")
+        # train
+        self.module = train_xgboost(X_train, y_train, **training_kwargs)
+
+        return self
+
+    def predict(self, adata: AnnData, label_key: str = "cell_type"):
+        """ """
+
+        X_test = adata.X
+        le = self.label_encoder
+        y_test = le.transform(adata.obs[label_key])
+        index = adata.obs.index
+        dtest = xgb.DMatrix(X_test, label=y_test)
+
+        classes = self.label_encoder.classes_
+        # Predict the probabilities for each class on the test set
+        preds = self.module.predict(dtest)
+
+        # Convert the predictions into class labels
+        best_preds = asarray([argmax(line) for line in preds])
+
+        # TODO: deal with this report properly...
+        # Evaluate the model on the test set
+        report = classification_report(
+            y_test, best_preds, target_names=classes, output_dict=True
+        )
+
+        # Convert predictions to DataFrame
+        preds_df = DataFrame(preds, columns=classes, index=index)
+
+        # Convert the predictions into class labels
+        # there's a pandas argmax way thats cleaner
+        best_preds = asarray([argmax(line) for line in preds])
+        # Add actual and predicted labels to DataFrame
+        preds_df["label"] = self.label_encoder.inverse_transform(best_preds)
+
+        # # Evaluate the model on the test set
+        # print(classification_report(y_test, best_preds, target_names=classes))
+
+        return preds_df  # , report
+
+    def save(self, save_path: Path | str | None = None):
+        """ """
+        if save_path is None:
+            save_path = self.path
+        else:
+            self.path = save_path
+        print(f"Saving the model to '{self.path}'.")
+
+        # save the reference model
+        self.module.save_model(self.path)
+        # self.label_encoder.save(self.path.parent / "label_encoder.pkl")
+        # Save the LabelEncoder to a file
+        with open(self.path.parent / "label_encoder.pkl", "wb") as f:
+            pickle.dump(self.label_encoder, f)
+        print(f"Saved the model to '{self.path}'.")
+
+
+@Timing(prefix="model_name")
+def get_xgb2(
+    adata: AnnData,
+    labels_key: str = "cell_type",
+    model_path: Path = ".",
+    retrain: bool = False,
+    model_name: str = "xgb",
+    **training_kwargs,
+) -> tuple[XGB, AnnData]:
+    n_labels = len(adata.obs[labels_key].cat.categories)
+
+    # 1. load/train model
+    if model_path.exists() and not retrain:
+        bst = XGB()
+        bst.load(model_path / model_name)
+    else:
+        bst = XGB(adata, n_labels=n_labels)
+        bst.train(**training_kwargs)
+
+    if retrain or not model_path.exists():
+        # save the reference model
+        bst.save(model_path / model_name)
+
+    return bst, adata
 
 
 @Timing(prefix="model_name")
@@ -31,12 +288,8 @@ def get_xgb(
     """
     PRED_KEY = "pred"
     # format model_path / model_name for xgboost
-    if model_name.endswith(".json"):
-        bst_path = model_path / model_name
-    else:
-        bst_path = model_path / model_name / "xgb.json"
+    bst_path = model_path / model_name
 
-    labels_key = labels_key
     n_labels = len(adata.obs[labels_key].cat.categories)
 
     X_train, y_train, label_encoder = get_xgb_data(adata, label_key=labels_key)
@@ -44,7 +297,7 @@ def get_xgb(
     if bst_path.exists() and not retrain:
         # load trained model''
         print(f"loading {bst_path}")
-        bst = load_xgboost(bst_path)
+        bst, le = load_xgboost(bst_path)
     else:
         bst = None
 
@@ -54,26 +307,12 @@ def get_xgb(
         bst = train_xgboost(X_train, y_train, **training_kwargs)
 
     if retrain or not bst_path.exists():
-        bst_path.parent.mkdir(exist_ok=True, parents=True)
-        # save the reference model
-        bst.save_model(bst_path)
+        save_xgboost(bst, bst_path, label_encoder)
         # HACK: reload to so that the training GPU memory is cleared
-        bst = load_xgboost(bst_path)
+        bst, _ = load_xgboost(bst_path)
         print("reloaded bst (memory cleared?)")
 
     return bst, adata, label_encoder
-
-
-def get_xgb_data(adata, label_key="cell_type"):
-    """
-    consider adding a "pre-processing" step to normalize the data
-    """
-    X = adata.X
-    y = adata.obs[label_key]
-    label_encoder = LabelEncoder()
-    label_encoder = label_encoder.fit(y)
-    y = label_encoder.transform(y)
-    return X, y, label_encoder
 
 
 def train_xgboost(X, y, num_round=50, **training_kwargs) -> xgb.Booster:
@@ -132,6 +371,39 @@ def train_xgboost(X, y, num_round=50, **training_kwargs) -> xgb.Booster:
     return bst
 
 
+def save_xgboost(bst: Booster, bst_path: Path, label_encoder: LabelEncoder):
+    """
+    Save an XGBoost classifier model to a file.
+
+    Parameters
+    ----------
+    bst : Booster
+        The XGBoost classifier model.
+    bst_path : Path
+        The file path to save the XGBoost model. i.e. 'path/to/xgb.json'
+    """
+    if not bst_path.is_file():
+        bst_path = bst_path / "xgb.json"
+
+    bst_path.parent.mkdir(exist_ok=True, parents=True)
+    # save the reference model
+    bst.save_model(bst_path)
+    label_encoder.save(bst_path.parent / "label_encoder.pkl")
+    print(f"Saved the model to '{bst_path}'.")
+
+
+def get_xgb_data(adata, label_key="cell_type"):
+    """
+    consider adding a "pre-processing" step to normalize the data
+    """
+    X = adata.X
+    y = adata.obs[label_key]
+    label_encoder = LabelEncoder()
+    label_encoder = label_encoder.fit(y)
+    y = label_encoder.transform(y)
+    return X, y, label_encoder
+
+
 def load_xgboost(bst_path: Path | str) -> xgb.Booster | None:
     """
     Load an XGBoost classifier model from a file.
@@ -150,6 +422,9 @@ def load_xgboost(bst_path: Path | str) -> xgb.Booster | None:
     # Check if the file exists
     bst_path = Path(bst_path) if isinstance(bst_path, str) else bst_path
 
+    if not bst_path.is_file():
+        bst_path = bst_path / "xgb.json"
+
     if not bst_path.exists():
         print(f"Error: The file '{bst_path}' does not exist.")
         return None
@@ -164,18 +439,19 @@ def load_xgboost(bst_path: Path | str) -> xgb.Booster | None:
         model = xgb.Booster()
         model.load_model(bst_path)
 
-        return model
+        label_encoder = LabelEncoder().load(bst_path.parent / "label_encoder.pkl")
+        return model, label_encoder
+
     except Exception as e:
         # Handle exceptions that occur during model loading
         print(f"Failed to load the model: {e}")
-        return None
+        return None, None
 
 
 # TODO:  query_xgb should be query_xgboost
 def query_xgb(
     adata: AnnData,
-    bst: Booster,
-    label_encoder: LabelEncoder,
+    bst: XGB,
 ) -> (AnnData, dict):
     """
     Test the XGBoost classifier on the test set
@@ -197,14 +473,11 @@ def query_xgb(
         Annotated data matrix with latent variables as X
 
     """
-
-    predictions, report = query_xgboost(bst, adata, label_encoder)
-    # loadings_ad = add_predictions_to_adata(
-    #     adata, predictions, insert_key=INSERT_KEY, pred_key=PRED_KEY
-    # )
+    predictions = bst.predict(adata, label_key="cell_type")
+    # predictions, report = query_xgboost(bst, adata, label_encoder)
     adata = merge_into_obs(adata, predictions)
 
-    return adata, report
+    return adata
 
 
 def query_xgboost(
