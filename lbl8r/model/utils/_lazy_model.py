@@ -116,6 +116,7 @@ class ModelSet:
     labels_key: str | None = "cell_type"
     _prepped: bool = False
     _pcs: ndarray | None = None
+    _default: str | None = None
 
     def __init__(
         self,
@@ -140,7 +141,7 @@ class ModelSet:
 
     def add_model(self, mods: dict[str, LazyModel]):
         for name, model in mods.items():
-            if name in self.mods.keys():
+            if name in self.model.keys():
                 raise ValueError(f"Model name {name} already exists in model group")
             self.model[name] = model
         # self.model.update(mods)
@@ -162,3 +163,13 @@ class ModelSet:
     @pcs.setter
     def pcs(self, pcs: ndarray):
         self._pcs = pcs
+
+    @property
+    def default(self):
+        return self._default
+
+    @default.setter
+    def default(self, model_name: str):
+        if model_name not in self.model.keys():
+            raise ValueError(f"model_name must be one of: {self.model.keys()}")
+        self._default = model_name

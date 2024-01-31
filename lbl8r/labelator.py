@@ -305,10 +305,12 @@ def train_model(
         vae = LazyModel(vae_path, vae)
         # vae = SCVI.load(vae_path.as_posix())
         scanvi_path = model_path / model_name / SCANVI_SUB_MODEL_NAME
-        scanvi_model = LazyModel(scanvi_path, scanvi_model)
+        scanvi_model = LazyModel(scanvi_path, model)
         models = {SCVI_SUB_MODEL_NAME: vae, SCANVI_SUB_MODEL_NAME: scanvi_model}
 
         model = ModelSet(models, (model_path / model_name), labels_key)
+        model.default = SCANVI_SUB_MODEL_NAME
+
         return model, data
 
     elif model_name in (
@@ -339,7 +341,7 @@ def train_model(
         # SCVI LBL8R LazyModel
         if model_name in (SCVI_LATENT_MODEL_NAME, XGB_SCVI_LATENT_MODEL_NAME):
             # 1. make the make_latent_adata
-            ad = prep_latent_z_adata(ad, vae, labels_key=labels_key)
+            ad = prep_latent_z_adata(ad, vae.model, labels_key=labels_key)
 
         elif model_name in (
             SCVI_EXPRESION_MODEL_NAME,
@@ -349,7 +351,7 @@ def train_model(
         ):
             # TODO:  load this data rather than compute it... saves 45s
             # 1. make scvi_expression data
-            ad = make_scvi_normalized_adata(vae, ad)
+            ad = make_scvi_normalized_adata(vae.model, ad)
             # 2. update the data with pcs
             sc.pp.pca(ad)
             # 3. update the data with the latent representation
@@ -369,8 +371,8 @@ def train_model(
 
     else:
         # RAW model no update to adata
-
-        raise ValueError(f"unknown model_name {model_name}")
+        # raise ValueError(f"unknown model_name {model_name}")
+        print(f"{model_name} must not need any data prep")
 
     if model_name.endswith("_xgb"):
         get_model = get_xgb2
@@ -393,6 +395,7 @@ def train_model(
 
     models.update({model_name: model})
     model = ModelSet(models, model_path / model_name, labels_key)
+    model.default = model_name
 
     return model, data
 
@@ -502,7 +505,7 @@ def prep_pc_data(data: Adata, pca_key=PCA_KEY, ref_data: Adata | None = None) ->
 
 def query_model(
     data: Adata,
-    model: LazyModel,
+    model_set: ModelSet,
 ) -> Adata:
     """
     Attach a classifier and prep adata for scVI LBL8R model
@@ -511,8 +514,8 @@ def query_model(
     ----------
     adata : AnnData
         Annotated data matrix.
-    model : LBL8R | SCANVI | Booster
-        An classification model.
+    model_set : ModelSet
+        A ModelSet of model parts for a classification model.
 
     Returns
     -------
@@ -521,12 +524,16 @@ def query_model(
 
     """
 
+    model = model_set.model[model_set.default]
+
+    # model.load_model()  # load the lazy model otherwise need to use model.type below to delay loading
+    print(f"query_model: {model.model}")
     if isinstance(model.model, SCANVI):
         # "transfer learning" query models which need to be trained
         ad = query_scanvi(data.adata, model.model)
 
         # fix the labels_key with "ground_truth"
-        ad.obs[model.labels_key] = ad.obs["ground_truth"].to_list()
+        ad.obs[model_set.labels_key] = ad.obs["ground_truth"].to_list()
 
     # no prep needed to query these models.
     elif isinstance(model.model, LBL8R):
@@ -535,7 +542,7 @@ def query_model(
         ad = query_xgb(data.adata, model.model)
         # TODO: do something with the report...
     else:
-        raise ValueError(f"model {model} is not a valid model")
+        raise ValueError(f"model {model.model} is not a valid model")
 
     # update data with ad
     data.update(ad)
@@ -581,7 +588,7 @@ def prep_query_scanvi(
     # 1. get query_scvi (depricate?  needed for what?  latent conditioning?)
     q_scvi, ad = get_query_scvi(
         ad,
-        model_set[SCVI_SUB_MODEL_NAME],
+        model_set.model[SCVI_SUB_MODEL_NAME].model,
         labels_key=labels_key,
         model_path=model_set.path,
         retrain=retrain,
@@ -590,7 +597,7 @@ def prep_query_scanvi(
     # 2. get query_scanvi
     q_scanvi, ad = get_query_scanvi(
         ad,
-        model_set[SCANVI_SUB_MODEL_NAME],
+        model_set.model[SCANVI_SUB_MODEL_NAME].model,
         labels_key=labels_key,
         model_path=model_set.path,
         retrain=retrain,
@@ -611,7 +618,9 @@ def prep_query_scanvi(
     models = {QUERY_SCVI_SUB_MODEL_NAME: q_scvi, QUERY_SCANVI_SUB_MODEL_NAME: q_scanvi}
 
     # 4 pack into the model set
-    model_set.update(models)
+    model_set.add_model(models)
+    model_set.default = QUERY_SCANVI_SUB_MODEL_NAME
+
     return data, model_set
 
 
@@ -624,7 +633,7 @@ def prep_query_model(
     ref_data: Adata | None = None,
     labels_key: str = "cell_type",
     retrain: bool = False,
-):
+) -> (ModelSet, Adata):
     """
     Prep Adata and ModelSet for inference
 
@@ -641,6 +650,8 @@ def prep_query_model(
 
     Returns
     -------
+    ModelSet
+        A ModelSet with the query models added
     Adata
         Annotated data matrix with latent variables as X
 
@@ -668,7 +679,7 @@ def prep_query_model(
         # SCVI expression models
         pcs = model_set.pcs
         query_data = prep_expr_data(
-            query_data, model_set.model[SCVI_SUB_MODEL_NAME], ref_data=ref_data
+            query_data, model_set.model[SCVI_SUB_MODEL_NAME].model, ref_data=ref_data
         )
         if model_name in (
             SCVI_EXPR_PC_MODEL_NAME,
@@ -682,7 +693,9 @@ def prep_query_model(
     ):
         # SCVI embedding models
         query_data = prep_latent_data(
-            query_data, model_set.model[SCVI_SUB_MODEL_NAME], labels_key=labels_key
+            query_data,
+            model_set.model[SCVI_SUB_MODEL_NAME].model,
+            labels_key=labels_key,
         )
 
     elif model_name in (
@@ -700,16 +713,15 @@ def prep_query_model(
         query_data, model_set = prep_query_scanvi(
             query_data,
             model_set,
-            labels_key=labels_key,
             retrain=retrain,
         )
 
-    return query_data, model_set
+    return model_set, query_data
 
 
 def archive_plots(
     data: Adata,
-    model: LazyModel,
+    model_set: ModelSet,
     train_or_query: str,
     labels_key: str,
     path: Path | str | None = None,
@@ -717,6 +729,7 @@ def archive_plots(
     """
     Archive the plots
     """
+    model = model_set.model[model_set.default]
     figs = make_plots(data, model, train_or_query, labels_key=labels_key, path=path)
 
     ## save plots..

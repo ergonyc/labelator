@@ -10,15 +10,26 @@ run_model() {
     do
     
 
-        echo " 🚀 🚀 🚀 🚀 🚀 🚀 🚀 🚀 🚀 🚀 🚀 🚀 🚀 🚀 🚀 🚀 🚀 🚀 🚀 🚀 🚀 🚀 🚀 "
-        echo "🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 "
+        # echo "🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 "
+
         echo "########################################################################"
-        echo "Running model: $model_name"
-        echo "########################################################################"
-        echo "⏬⏬⏬⏬⏬⏬⏬⏬⏬⏬⏬⏬⏬⏬⏬⏬⏬⏬⏬⏬"
+        echo "🚀 🚀 🚀 🚀 Running model: $model_name 🚀 🚀 🚀 🚀 🚀 🚀 🚀 🚀"
+        echo "## ⏬ ⏬ ⏬ ⏬ ⏬ ⏬ ⏬ ⏬ ⏬ ⏬ ⏬ ⏬ ⏬ ⏬ ⏬ ⏬ ⏬ ⏬ ⏬ ⏬"
 
         # Start timing
         start_time=$(date +%s)
+
+
+
+        # python -m labelator_api \
+        #     --query-path data/scdata/xylena/brain_atlas_anndata_test_cnt.h5ad \
+        #     --model-path $model_path \
+        #     --model-name $model_name \
+        #     --output-data-path $output_data_path \
+        #     --artifacts-path artifacts/ \
+        #     --gen-plots \
+        #     # --retrain-model
+
 
         python -m labelator_api \
             --data-path data/scdata/xylena/brain_atlas_anndata_train_cnt.h5ad \
@@ -27,36 +38,37 @@ run_model() {
             --model-name $model_name \
             --output-data-path $output_data_path \
             --artifacts-path artifacts/ \
-            --gen-plots \
+            --gen-plots 
             # --retrain-model
 
         # Check if the Python call was successful
         
         if [ $? -ne 0 ]; then
             echo "🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 "
-            echo "Error: Model $model_name failed to run."
+            echo "🚨 🚨 🚨 🚨 🚨 Error: Model $model_name failed to run. 🚨 🚨 🚨 🚨 🚨"
             echo "🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 "
         fi
 
         # End timing
         end_time=$(date +%s)
 
-        echo "⏫⏫⏫⏫⏫⏫⏫⏫⏫⏫⏫⏫⏫⏫⏫⏫⏫⏫⏫⏫"
-        echo "########################################################################"
-        echo "#### Model $model_name completed in $((end_time - start_time)) seconds."
-        echo "########################################################################"
-        echo "🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 "
-        echo "                                                                        "
+        echo "##### ⏫⏫⏫⏫⏫⏫⏫⏫⏫⏫  #############"
+        echo "#  🏁 🏁 🏁  Model $model_name completed in $((end_time - start_time)) seconds. 🏁 🏁 🏁 "
+        echo "## 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 "
+
 
 
     done
 }
 
-# Define the array of LBL8R and E2E model names
-lbl8r_model_names=("lbl8r_scvi_emb" "lbl8r_raw_cnt_pcs" "lbl8r_scvi_expr_pcs" "xgb_raw_cnt_pcs" "xgb_scvi_expr_pcs" "xgb_scvi_emb")
-e2e_model_names=("lbl8r_raw_cnt" "lbl8r_scvi_expr" "scanvi_batch_eq" "scanvi" "xgb_raw_cnt" "xgb_scvi_expr")
+# Define the array of model names
+# repr_model_names=("scvi_emb" "scvi_expr" "scvi_expr_pcs" "scvi_emb_xgb" "scvi_expr_xgb" "scvi_expr_pcs_xgb")
+# repr_model_names=("scvi_expr_xgb")
+count_model_names=("pcs_lbl8r" "raw_lbl8r" "raw_xgb" "pcs_xgb" )
+transfer_model_names=("scanvi_batch_eq" "scanvi" )
 
-# Call the function with LBL8R and E2E model names
-# run_model lbl8r_model_names[@] "models/LBL8R/" "data/scdata/xylena/LBL8R/"
-run_model e2e_model_names[@] "models/LBL8R/" "data/scdata/xylena/LBL8R/"
+# Call the function 
+# run_model repr_model_names[@] "models/REPR/scvi" "data/scdata/xylena/LABELATOR/"
+# run_model count_model_names[@] "models/CNT/" "data/scdata/xylena/LABELATOR/"
+run_model transfer_model_names[@] "models/TRANSFER/" "data/scdata/xylena/LABELATOR/"
 

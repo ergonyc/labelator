@@ -195,19 +195,22 @@ def transfer_pcs(
 
     # transfer PCs from ref_ad to query_ad
     if pcs is not None:
-        query_ad.varm["PCs"] = pcs
+        query_ad.uns["PCs"] = pcs
     elif ref_ad is not None:
         if "PCs" in ref_ad.varm_keys():
             print("transfering PCs from ref_ad to query_ad")
-            query_ad.varm["PCs"] = ref_ad.varm["PCs"].copy()
+            query_ad.uns["PCs"] = ref_ad.varm["PCs"].copy()
         elif "PCs" in ref_ad.uns_keys():
             print("transfering PCs from ref_ad to query_ad")
-            query_ad.varm["PCs"] = ref_ad.uns["PCs"].copy()
+            query_ad.uns["PCs"] = ref_ad.uns["PCs"].copy()
         else:
             raise ValueError("No PCs found in ref_ad")
+    else:
+        raise ValueError("No PCs available")
 
     # compute loadings
-    query_ad.obsm["X_pca"] = query_ad.X @ query_ad.varm["PCs"]
+    # TODO: check shape of X and PCs for compatibility
+    query_ad.obsm["X_pca"] = query_ad.X @ query_ad.uns["PCs"]
     # update the uns dictionary. there migth be a reason/way to compute this relative to ad_out
     # query_ad.uns.update(ref_ad.uns.copy())
 

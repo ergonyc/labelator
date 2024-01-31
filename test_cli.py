@@ -12,7 +12,6 @@ from lbl8r.labelator import (
     archive_plots,
     archive_data,
     CELL_TYPE_KEY,
-
 )
 
 #
@@ -24,12 +23,15 @@ from lbl8r.labelator import (
 data_path = Path("data/scdata/xylena/brain_atlas_anndata_train_cnt.h5ad")
 query_path = Path("data/scdata/xylena/brain_atlas_anndata_test_cnt.h5ad")
 model_path = Path("models/CNT/")
-# model_path = Path("models/REPR/scvi/")
+model_path = Path("models/REPR/scvi/")
+model_path = Path("models/TRANSFER/")
 
-model_name = "pcs_lbl8r"
-model_name = "scvi_emb_xgb"
-model_name = "pcs_xgb"
-output_data_path = Path("data/scdata/xylena/LBL8R/")
+# model_name = "raw_lbl8r"
+# model_name = "scvi_emb_xgb"
+# model_name = "pcs_xgb"
+model_name = "scanvi_batch_eq"
+
+output_data_path = Path("data/scdata/xylena/LABELATOR/")
 artifacts_path = Path("artifacts/")
 gen_plots = True
 retrain_model = False
@@ -51,6 +53,9 @@ Command line interface for model processing pipeline.
 # setup
 torch.set_float32_matmul_precision("medium")
 
+print(
+        f"{data_path=}:: {query_path=}:: {model_path=}:: {model_name=}:: {output_data_path=}:: {artifacts_path=}:: {gen_plots=}:: {retrain_model=}:: {labels_key=}:: {batch_key=}"
+    )
 ## LOAD DATA ###################################################################
 if train := data_path is not None:
     train_data = load_training_data(data_path)
@@ -79,7 +84,7 @@ if not (train | query):
 training_kwargs = dict(batch_key=batch_key)
 print(f"prep_model: {'🛠️ '*25}")
 
-model, train_data = prep_model(
+model_set, train_data = prep_model(
     train_data,  # Note this is actually query_data if train_data arg was None
     model_name=model_name,
     model_path=model_path,
@@ -92,9 +97,9 @@ model, train_data = prep_model(
 # TODO:  add additional training_kwargs to cli
 if query:
     print(f"prep query: {'💅 '*25}")
-    query_data, model = prep_query_model(
+    model_set, query_data = prep_query_model(
         query_data,
-        model,
+        model_set,
         model_name,
         train_data,
         labels_key=labels_key,
@@ -104,16 +109,16 @@ if query:
 
 # In[ ]
 if train:
-    # prep_train_data  
+    # prep_train_data
     #    - check if train_data was prepped (i.e. model was trained in prep_model)
     #    - if not, prep_train_data
     print(f"train_model: {'🏋️ '*25}")
-    train_data = query_model(train_data, model.model[model_name])
+    train_data = query_model(train_data, model_set)
 
 if query:
     print(f"query_model: {'🔮 '*25}")
 
-    query_data = query_model(query_data, model.model[model_name])
+    query_data = query_model(query_data, model_set)
 # In[ ]
 ## CREATE ARTIFACTS ###################################################################
 # TODO:  wrap in Models, Figures, and Adata in Artifacts class.
@@ -124,15 +129,22 @@ if gen_plots:
     # train
     print(f"archive train plots: {'📈 '*25}")
     archive_plots(
-        train_data, model.model[model_name], "train", labels_key=labels_key, path=artifacts_path
+        train_data,
+        model_set,
+        "train",
+        labels_key=labels_key,
+        path=artifacts_path,
     )
 
     # query
     print(f"archive test plots: {'📊 '*25}")
     archive_plots(
-        query_data, model.model[model_name], "query", labels_key=labels_key, path=artifacts_path
+        query_data,
+        model_set,
+        "query",
+        labels_key=labels_key,
+        path=artifacts_path,
     )
-
 # In[ ]
 ## EXPORT ADATAs ###################################################################
 print(f"archive adata: {'💾 '*25}")

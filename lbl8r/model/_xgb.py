@@ -10,6 +10,7 @@ from anndata import AnnData
 from numpy import unique, asarray, argmax
 import pickle
 from pandas import DataFrame
+import numpy as np
 
 from .utils._data import merge_into_obs
 from .utils._timing import Timing
@@ -196,16 +197,35 @@ class XGB:
 
     def predict(self, adata: AnnData, label_key: str = "cell_type"):
         """ """
+        # TODO: add a total size check and iteratively predict if its too large
 
         X_test = adata.X
         le = self.label_encoder
         y_test = le.transform(adata.obs[label_key])
         index = adata.obs.index
+
+        # num_samples = X_test.shape[0]
+        # chunk_size = 10000  # Define a chunk size that fits in your memory
+        # its = 0
+        # preds = []
+        # # HACK: this is a hack to deal with large datasets. should do at once if possible
+        # for i in range(0, num_samples, chunk_size):
+        #     # Read a chunk of data
+        #     X_chunk = X_test[i : i + chunk_size, :]
+        #     y_chunk = y_test[i : i + chunk_size]
+
+        #     dtest = xgb.DMatrix(X_chunk, label=y_chunk)
+        #     preds.append(self.module.predict(dtest))
+
+        #     its += 1
+        # preds = np.vstack(preds)
+        # print(f" ending chunk size = {X_chunk.shape} in {its=} iterations")
+
         dtest = xgb.DMatrix(X_test, label=y_test)
+        preds = self.module.predict(dtest)
 
         classes = self.label_encoder.classes_
         # Predict the probabilities for each class on the test set
-        preds = self.module.predict(dtest)
 
         # Convert the predictions into class labels
         best_preds = asarray([argmax(line) for line in preds])
@@ -368,6 +388,68 @@ def train_xgboost(X, y, num_round=50, **training_kwargs) -> xgb.Booster:
         early_stopping_rounds=10,
         verbose_eval=10,
     )
+    return bst
+
+
+def train_xgboost2(
+    X, y, num_round: int = 50, chunk_size: int = 10000, **training_kwargs
+) -> xgb.Booster:
+    """
+    wrapper to split validation set and train xgboost and train model
+    """
+
+    num_samples = X.shape[0]
+
+    n_cats = len(unique(y))
+    device = training_kwargs.pop("device", None)
+
+    device = get_usable_device(device)
+
+    max_depth = training_kwargs.pop("max_depth", 7)
+    objective = training_kwargs.pop("objective", "multi:softprob")
+    eta = training_kwargs.pop("eta", 0.3)
+
+    params = dict(
+        max_depth=max_depth,
+        objective=objective,
+        num_class=n_cats,
+        eta=eta,
+        device=device,
+    )
+
+    # overlap the chunks?
+    for i in range(0, num_samples, chunk_size // 2):
+        # Read a chunk of data
+        # X_chunk = f['features'][i:i + chunk_size]
+        # y_chunk = f['labels'][i:i + chunk_size]
+
+        X_train, X_valid, y_train, y_valid = train_test_split(
+            X[i : i + chunk_size, :], y[i : i + chunk_size], test_size=0.15
+        )
+        dtrain = xgb.DMatrix(X_train, label=y_train)
+        dvalid = xgb.DMatrix(X_valid, label=y_valid)
+
+        if i == 0:
+            bst = xgb.train(
+                params,
+                dtrain,
+                num_round,
+                evals=[(dvalid, "valid")],
+                early_stopping_rounds=10,
+                verbose_eval=10,
+            )
+        # Otherwise, continue training with the existing model
+        else:
+            bst = xgb.train(
+                params,
+                dtrain,
+                num_round,
+                evals=[(dvalid, "valid")],
+                early_stopping_rounds=10,
+                verbose_eval=10,
+                xgb_model=bst,
+            )
+
     return bst
 
 

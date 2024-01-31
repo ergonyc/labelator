@@ -285,6 +285,12 @@ def plot_predictions(
     """
 
     df = adata.obs
+
+    # HACK:  this is nasty... but it should work.
+    # Keep the first 'pred' and all other columns
+    df = df.loc[:, ~df.columns.duplicated()].copy()
+    # TODO: fix the problem upstream...
+
     # Calculate precision, recall, and F1-score
     prec = precision_score(df[cell_type_key], df[pred_key], average="macro")
     rec = recall_score(df[cell_type_key], df[pred_key], average="macro")
@@ -506,18 +512,20 @@ def make_plots(
         fg = plot_lbl8r_training(model.model.history, **fig_kwargs)
         figs.extend(fg)  # training returns a list of figures
 
+    # BUG: we need to select the sub-models differently now. Need to either pass tehe model_set or call this repeatedly...
     elif model.name.startswith("scanvi"):
         if train_or_query == "train":
-            # plot scvi, scanvi, qscvi, and qscanvi (model)
-            fg = plot_scvi_training(model.vae.history, **fig_kwargs)
-            figs.extend(fg)
-            fg = plot_scanvi_training(model.scanvi.history, **fig_kwargs)
-            figs.extend(fg)
+            # # plot scvi, scanvi, qscvi, and qscanvi (model)
+            # fg = plot_scvi_training(model.vae.history, **fig_kwargs)
+            # figs.extend(fg)
+            # fg = plot_scanvi_training(model.scanvi.history, **fig_kwargs)
+            # figs.extend(fg)
+            pass
         else:
-            fg = plot_scvi_training(
-                model.q_vae.history, fig_dir=fig_dir, save="query_scvi_", show=False
-            )
-            figs.extend(fg)
+            # fg = plot_scvi_training(
+            #     model.q_vae.history, fig_dir=fig_dir, save="query_scvi_", show=False
+            # )
+            # figs.extend(fg)
             fg = plot_scvi_training(
                 model.model.history, fig_dir=fig_dir, save="query_scanvi_", show=False
             )
