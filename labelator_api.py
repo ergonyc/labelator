@@ -150,7 +150,6 @@ def cli(
     """
     Command line interface for model processing pipeline.
     """
-
     # setup
     torch.set_float32_matmul_precision("medium")
 
@@ -166,10 +165,6 @@ def cli(
 
     if query := query_path is not None:
         query_data = load_query_data(query_path)
-        # load model with query_data if training data is not provided
-        if train_data is None:
-            train_data = query_data
-
     else:
         query_data = None
 
@@ -184,7 +179,8 @@ def cli(
     training_kwargs = dict(batch_key=batch_key)
     print(f"prep_model: {'🛠️ '*25}")
 
-    model, train_data = prep_model(
+    # WARNING:  BUG.  if train_data is None preping with query data hack won't work for PCs
+    model_set, train_data = prep_model(
         train_data,  # Note this is actually query_data if train_data arg was None
         model_name=model_name,
         model_path=model_path,
@@ -197,22 +193,29 @@ def cli(
     # TODO:  add additional training_kwargs to cli
     if query:
         print(f"prep query: {'💅 '*25}")
-        query_data, model = prep_query_model(
+        # prep query model actually preps data unless its a scANVI model...
+        #
+        model_set, query_data = prep_query_model(
             query_data,
-            model,
+            model_set,
             model_name,
             train_data,
             labels_key=labels_key,
             retrain=retrain_model,
         )
 
-        print(f"query_model: {'🔮 '*25}")
-        query_data = query_model(query_data, model)
     # In[ ]
     if train:
+        # prep_train_data
+        #    - check if train_data was prepped (i.e. model was trained in prep_model)
+        #    - if not, prep_train_data
         print(f"train_model: {'🏋️ '*25}")
-        train_data = query_model(train_data, model)
+        train_data = query_model(train_data, model_set)
 
+    if query:
+        print(f"query_model: {'🔮 '*25}")
+
+        query_data = query_model(query_data, model_set)
     # In[ ]
     ## CREATE ARTIFACTS ###################################################################
     # TODO:  wrap in Models, Figures, and Adata in Artifacts class.
@@ -222,15 +225,22 @@ def cli(
     if gen_plots:
         # train
         print(f"archive train plots: {'📈 '*25}")
-
         archive_plots(
-            train_data, model, "train", labels_key=labels_key, path=artifacts_path
+            train_data,
+            model_set,
+            "train",
+            labels_key=labels_key,
+            path=artifacts_path,
         )
+
         # query
         print(f"archive test plots: {'📊 '*25}")
-
         archive_plots(
-            query_data, model, "query", labels_key=labels_key, path=artifacts_path
+            query_data,
+            model_set,
+            "query",
+            labels_key=labels_key,
+            path=artifacts_path,
         )
 
     # In[ ]

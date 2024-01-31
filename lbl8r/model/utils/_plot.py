@@ -16,7 +16,7 @@ from ._mde import mde
 
 from ..._constants import *
 from ._data import Adata
-from ._Model import Model
+from ._lazy_model import LazyModel
 
 """
 logic:  dataclass holds the list of models / names
@@ -45,7 +45,7 @@ class Figure:
         self.name = name
         self.ext = ext
 
-    def savefig(self):
+    def savefig(self, show: bool = False):
         """
         Save figure to disk.
         """
@@ -54,14 +54,17 @@ class Figure:
 
         filename = f"{self.path}/{self.name}.{self.ext}"
         self.fig.savefig(filename, bbox_inches="tight")
-
+        self.show(False)  # clear figure
         # self.fig.savefig(self.fig_path, bbox_inches="tight")
 
-    def show(self):
+    def show(self, show: bool = True):
         """
         Show figure.
         """
-        self.fig.show()
+        if show:
+            self.fig.show()
+        # else:
+        #     self.fig.close()
 
 
 # -------------------------------------------------------------------------------
@@ -282,6 +285,12 @@ def plot_predictions(
     """
 
     df = adata.obs
+
+    # HACK:  this is nasty... but it should work.
+    # Keep the first 'pred' and all other columns
+    df = df.loc[:, ~df.columns.duplicated()].copy()
+    # TODO: fix the problem upstream...
+
     # Calculate precision, recall, and F1-score
     prec = precision_score(df[cell_type_key], df[pred_key], average="macro")
     rec = recall_score(df[cell_type_key], df[pred_key], average="macro")
@@ -437,7 +446,7 @@ def plot_scanvi_training(
 
 def make_plots(
     data: Adata,
-    model: Model,
+    model: LazyModel,
     train_or_query: str,
     labels_key: str,
     path: Path | str | None = None,
@@ -449,8 +458,8 @@ def make_plots(
     ----------
     data : Adata
         Annotated data matrix.
-    model : Model
-        Model object.
+    model : LazyModel
+        LazyModel object.
     test_or_query : str
         Whether we are testing or querying.
     labels_key : str
@@ -503,18 +512,20 @@ def make_plots(
         fg = plot_lbl8r_training(model.model.history, **fig_kwargs)
         figs.extend(fg)  # training returns a list of figures
 
+    # BUG: we need to select the sub-models differently now. Need to either pass tehe model_set or call this repeatedly...
     elif model.name.startswith("scanvi"):
         if train_or_query == "train":
-            # plot scvi, scanvi, qscvi, and qscanvi (model)
-            fg = plot_scvi_training(model.vae.history, **fig_kwargs)
-            figs.extend(fg)
-            fg = plot_scanvi_training(model.scanvi.history, **fig_kwargs)
-            figs.extend(fg)
+            # # plot scvi, scanvi, qscvi, and qscanvi (model)
+            # fg = plot_scvi_training(model.vae.history, **fig_kwargs)
+            # figs.extend(fg)
+            # fg = plot_scanvi_training(model.scanvi.history, **fig_kwargs)
+            # figs.extend(fg)
+            pass
         else:
-            fg = plot_scvi_training(
-                model.q_vae.history, fig_dir=fig_dir, save="query_scvi_", show=False
-            )
-            figs.extend(fg)
+            # fg = plot_scvi_training(
+            #     model.q_vae.history, fig_dir=fig_dir, save="query_scvi_", show=False
+            # )
+            # figs.extend(fg)
             fg = plot_scvi_training(
                 model.model.history, fig_dir=fig_dir, save="query_scanvi_", show=False
             )

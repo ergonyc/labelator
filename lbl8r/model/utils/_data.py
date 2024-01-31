@@ -2,6 +2,7 @@ import dataclasses
 import pandas as pd
 from pathlib import Path
 import anndata as ad
+from numpy import ndarray
 
 # from scanpy.pp import pca
 from ..._constants import OUT, H5, EMB, EXPR, CNT, PCS, VAE
@@ -17,23 +18,43 @@ class Adata:
     name: str
     is_backed: bool = False
     _adata: ad.AnnData = dataclasses.field(default=None, init=False, repr=False)
-    _out_suffix: str | None = None
-    _subdir: str | None = None
+    _out_suffix: str = dataclasses.field(default=None, init=False, repr=False)
+    _subdir: str = dataclasses.field(default=None, init=False, repr=False)
+    _loaded: bool = dataclasses.field(default=True, init=True, repr=True)
+    _adata_path: Path = dataclasses.field(default=None, init=False, repr=False)
 
     def __init__(self, adata_path: Path, is_backed: bool = False):
-        self.path = adata_path.stem
-        self.name = adata_path.name
-        self.is_backed = is_backed
-        self._adata_path = adata_path
+        if adata_path is None:
+            # instantiate an empty adata object
+            self.path = None
+            self.name = "empty"
+            self.is_backed = False
+        else:
+            self.path = adata_path.parent
+            self.name = adata_path.name
+            self.is_backed = is_backed
 
     @property
     def adata(self):
+        if self.path is None:
+            return None
+
         if self._adata is None:
             if self.is_backed:
-                self._adata = ad.read_h5ad(self._adata_path, backed="r+")
+                self._adata = ad.read_h5ad(self.adata_path, backed="r+")
             else:
-                self._adata = ad.read_h5ad(self._adata_path)
+                self._adata = ad.read_h5ad(self.adata_path)
+        self._loaded = True
         return self._adata
+
+    @property
+    def adata_path(self):
+        _adata_path = Path(self.path) / self.name
+        return _adata_path
+
+    @property
+    def loaded(self):
+        return self._adata is not None
 
     def export(self, out_path: Path):
         """
@@ -136,21 +157,26 @@ def add_predictions_to_adata(adata, predictions, insert_key="pred", pred_key="la
     return adata
 
 
-def transfer_pcs(ref_ad: ad.AnnData, query_ad: ad.AnnData) -> ad.AnnData:
+def transfer_pcs(
+    query_ad: ad.AnnData, ref_ad: ad.AnnData | None = None, pcs: ndarray | None = None
+) -> ad.AnnData:
     """Transfer PCs from training data to get "loadings" (`X_pca`)
 
     Parameters
     ----------
-    ref_ad
-        AnnData object for training with PCs in varm["PCs"]
     query_ad
         AnnData object with "test" data in X
+    ref_ad
+        AnnData object for training with PCs in varm["PCs"]
+    pcs
+        Principal components ndarray from ref_ad.
 
     Returns
     -------
     AnnData
         AnnData object with PCs in varm["PCs"] and "loadings" in obsm["X_pca"]
     """
+
     # copy the old variables if they exist (i.e. raw count pcs)
     if "X_pca" in query_ad.obsm_keys():
         X_pca = query_ad.obsm.pop("X_pca")
@@ -168,17 +194,23 @@ def transfer_pcs(ref_ad: ad.AnnData, query_ad: ad.AnnData) -> ad.AnnData:
         _ = query_ad.uns.pop("_scvi_manager_uuid", None)
 
     # transfer PCs from ref_ad to query_ad
-    if "PCs" in ref_ad.varm_keys():
-        print("transfering PCs from ref_ad to query_ad")
-        query_ad.varm["PCs"] = ref_ad.varm["PCs"].copy()
-    elif "PCs" in ref_ad.uns_keys():
-        print("transfering PCs from ref_ad to query_ad")
-        query_ad.varm["PCs"] = ref_ad.uns["PCs"].copy()
+    if pcs is not None:
+        query_ad.uns["PCs"] = pcs
+    elif ref_ad is not None:
+        if "PCs" in ref_ad.varm_keys():
+            print("transfering PCs from ref_ad to query_ad")
+            query_ad.uns["PCs"] = ref_ad.varm["PCs"].copy()
+        elif "PCs" in ref_ad.uns_keys():
+            print("transfering PCs from ref_ad to query_ad")
+            query_ad.uns["PCs"] = ref_ad.uns["PCs"].copy()
+        else:
+            raise ValueError("No PCs found in ref_ad")
     else:
-        raise ValueError("No PCs found in ref_ad")
+        raise ValueError("No PCs available")
 
     # compute loadings
-    query_ad.obsm["X_pca"] = query_ad.X @ query_ad.varm["PCs"]
+    # TODO: check shape of X and PCs for compatibility
+    query_ad.obsm["X_pca"] = query_ad.X @ query_ad.uns["PCs"]
     # update the uns dictionary. there migth be a reason/way to compute this relative to ad_out
     # query_ad.uns.update(ref_ad.uns.copy())
 
@@ -315,5 +347,11 @@ def make_pc_loading_adata(adata: ad.AnnData, pca_key: str = "X_pca"):
     _ = loading_adata.uns.pop("_scvi_uuid", None)
     _ = loading_adata.uns.pop("_scvi_manager_uuid", None)
     # hold the PCS from varm in uns for transferring to query
-    loading_adata.uns["PCs"] = adata.varm["PCs"].copy()
+    if "PCs" in adata.varm_keys():
+        loading_adata.uns["PCs"] = adata.varm["PCs"].copy()
+    elif "PCs" in adata.uns_keys():
+        loading_adata.uns["PCs"] = adata.uns["PCs"].copy()
+    else:
+        raise ValueError("No PCs found in adata")
+
     return loading_adata
