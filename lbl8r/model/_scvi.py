@@ -370,7 +370,7 @@ def query_scanvi(ad: AnnData, model: SCANVI):
     """
     insert_key = "label"
     predictions = model.predict(ad, soft=True)
-    # predictions[insert_key] = model.predict(ad, soft=False)
+    predictions[insert_key] = model.predict(ad, soft=False)
 
     ad = merge_into_obs(ad, predictions)
 
