@@ -57,7 +57,7 @@ def validate_model_name(ctx, param, value):
 
 # data paths / names
 @click.option(
-    "--data-path",
+    "--train-path",
     type=click.Path(exists=True, path_type=Path),
     default=None,
     show_default=True,
@@ -136,7 +136,7 @@ def validate_model_name(ctx, param, value):
 
 # TODO: add logging
 def cli(
-    data_path,
+    train_path,
     query_path,
     model_path,
     model_name,
@@ -154,12 +154,12 @@ def cli(
     torch.set_float32_matmul_precision("medium")
 
     ## LOAD DATA ###################################################################
-    if train := data_path is not None:
-        train_data = load_training_data(data_path)
+    if train := train_path is not None:
+        train_data = load_training_data(train_path)
     else:
         if retrain_model:
             raise click.UsageError(
-                "Must provide training data (`data-path`) to retrain model"
+                "Must provide training data (`train-path`) to retrain model"
             )
         train_data = None
 
@@ -170,7 +170,7 @@ def cli(
 
     if not (train | query):
         raise click.UsageError(
-            "Must provide either `data-path` or `query-path` or both"
+            "Must provide either `train-path` or `query-path` or both"
         )
 
     ## PREP MODEL ###################################################################
@@ -224,24 +224,26 @@ def cli(
 
     if gen_plots:
         # train
-        print(f"archive train plots: {'📈 '*25}")
-        archive_plots(
-            train_data,
-            model_set,
-            "train",
-            labels_key=labels_key,
-            path=artifacts_path,
-        )
+        if train:
+            print(f"archive train plots: {'📈 '*25}")
+            archive_plots(
+                train_data,
+                model_set,
+                "train",
+                labels_key=labels_key,
+                path=artifacts_path,
+            )
 
         # query
-        print(f"archive test plots: {'📊 '*25}")
-        archive_plots(
-            query_data,
-            model_set,
-            "query",
-            labels_key=labels_key,
-            path=artifacts_path,
-        )
+        if query:
+            print(f"archive test plots: {'📊 '*25}")
+            archive_plots(
+                query_data,
+                model_set,
+                "query",
+                labels_key=labels_key,
+                path=artifacts_path,
+            )
 
     # In[ ]
     ## EXPORT ADATAs ###################################################################

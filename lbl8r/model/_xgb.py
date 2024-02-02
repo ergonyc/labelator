@@ -12,10 +12,9 @@ import pickle
 from pandas import DataFrame
 import numpy as np
 
-from .utils._data import merge_into_obs
 from .utils._timing import Timing
 from .utils._device import get_usable_device
-from .utils._le import dump_label_encoder, load_label_encoder
+from .utils._le import load_label_encoder
 
 
 class XGB:
@@ -195,7 +194,9 @@ class XGB:
 
         return self
 
-    def predict(self, adata: AnnData, label_key: str = "cell_type"):
+    def predict(
+        self, adata: AnnData, label_key: str = "cell_type", report: bool = False
+    ):
         """ """
         # TODO: add a total size check and iteratively predict if its too large
 
@@ -247,8 +248,10 @@ class XGB:
 
         # # Evaluate the model on the test set
         # print(classification_report(y_test, best_preds, target_names=classes))
-
-        return preds_df  # , report
+        if report:
+            return preds_df, report
+        else:
+            return preds_df  # , report
 
     def save(self, save_path: Path | str | None = None):
         """ """
@@ -534,7 +537,8 @@ def load_xgboost(bst_path: Path | str) -> xgb.Booster | None:
 def query_xgb(
     adata: AnnData,
     bst: XGB,
-) -> (AnnData, dict):
+) -> pd.DataFrame:
+    # ) -> AnnData:
     """
     Test the XGBoost classifier on the test set
 
@@ -557,9 +561,10 @@ def query_xgb(
     """
     predictions = bst.predict(adata, label_key="cell_type")
     # predictions, report = query_xgboost(bst, adata, label_encoder)
-    adata = merge_into_obs(adata, predictions)
 
-    return adata
+    # adata = merge_into_obs(adata, predictions)
+    # return adata
+    return predictions
 
 
 def query_xgboost(

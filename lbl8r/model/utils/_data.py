@@ -2,7 +2,8 @@ import dataclasses
 import pandas as pd
 from pathlib import Path
 import anndata as ad
-from numpy import ndarray
+import numpy as np
+from scipy.sparse import csr_matrix, hstack, issparse
 
 # from scanpy.pp import pca
 from ..._constants import OUT, H5, EMB, EXPR, CNT, PCS, VAE
@@ -355,3 +356,30 @@ def make_pc_loading_adata(adata: ad.AnnData, pca_key: str = "X_pca"):
         raise ValueError("No PCs found in adata")
 
     return loading_adata
+
+
+def prep_target_genes(ad: ad.AnnData, target_genes: list[str]) -> ad.AnnData:
+    """
+    Expand AnnData object to include all target_genes.  Missing target_genes will be added as zeros.
+    """
+    # Identify missing variables
+    missing_vars = list(set(target_genes) - set(ad.var_names))
+    # Create a dataframe/matrix of zeros for missing variables
+    if len(missing_vars) > 0:
+        if issparse(ad.X):
+            zeros = csr_matrix((ad.n_obs, len(missing_vars)))
+        elif isinstance(ad.X, np.ndarray):
+            zeros = np.zeros((ad.n_obs, len(missing_vars)))
+        else:
+            raise ValueError("X must be a numpy array or a sparse matrix")
+
+        # Create an AnnData object for the missing variables
+        missing_ad = ad.AnnData(
+            X=zeros, var=pd.DataFrame(index=missing_vars), obs=ad.obs
+        )
+        # Concatenate the original and the missing AnnData objects along the variables axis
+        expanded_ad = ad.concat([ad, missing_ad], axis=1, join="outer")
+    else:
+        expanded_ad = ad.copy()
+    # Ensure the order of variables matches all_vars
+    return expanded_ad[:, target_genes]

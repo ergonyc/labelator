@@ -483,7 +483,7 @@ def make_plots(
 
     fig_kwargs = dict(fig_dir=fig_dir, save=train_or_query, show=False)
     figs = []
-
+    # TODO: need to properly summarize true query data. i.e. no "ground truth" labels_key available
     if gen_plots:
         # PLOT embeddings ###############################################################
         fg = plot_predictions(
@@ -499,7 +499,7 @@ def make_plots(
         fg = plot_embedding(
             ad,
             basis=basis,
-            color=[labels_key, "batch"],
+            color=[labels_key, "pred", "batch"],
             **fig_kwargs,
         )
         fg.fig.suptitle(f"{title_str} :: {basis}")

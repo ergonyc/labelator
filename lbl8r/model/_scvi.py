@@ -5,7 +5,6 @@ from pathlib import Path
 import pandas as pd
 import numpy as np
 
-from .utils._data import merge_into_obs
 from .utils._timing import Timing
 from .._constants import *
 from .._constants import SCVI_LATENT_KEY_Z, SCVI_LATENT_KEY_MU_VAR
@@ -351,7 +350,7 @@ def get_query_scanvi(
     return scanvi_query, adata
 
 
-def query_scanvi(ad: AnnData, model: SCANVI):
+def query_scanvi(ad: AnnData, model: SCANVI) -> pd.DataFrame:
     """
     Get the "soft" and label predictions from a SCANVI model,
     and then add into the ad.obs
@@ -372,9 +371,9 @@ def query_scanvi(ad: AnnData, model: SCANVI):
     predictions = model.predict(ad, soft=True)
     predictions[insert_key] = model.predict(ad, soft=False)
 
-    ad = merge_into_obs(ad, predictions)
-
-    return ad
+    return predictions
+    # ad = merge_into_obs(ad, predictions)
+    # return ad
 
 
 def make_latent_adata(

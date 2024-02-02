@@ -1,5 +1,5 @@
 # interfrace for cli to lbl8 module
-
+# %%
 from anndata import AnnData
 from scvi.model import SCVI, SCANVI
 from pathlib import Path
@@ -14,8 +14,6 @@ from .model._lbl8r import (
     LBL8R,
     get_lbl8r,
     query_lbl8r,
-    get_scvi_lbl8r,
-    get_pca_lbl8r,
     prep_pcs_adata,
 )
 
@@ -30,11 +28,18 @@ from .model._scvi import (
     make_latent_adata,
 )
 
-from .model._xgb import get_xgb2, query_xgb, load_xgboost, XGB
-from .model.utils._data import Adata, transfer_pcs
+from .model._xgb import get_xgb2, query_xgb, XGB
+from .model.utils._data import Adata, transfer_pcs, prep_target_genes, merge_into_obs
 from .model.utils._lazy_model import LazyModel, ModelSet
 from .model.utils._plot import make_plots
-from .model.utils._pcs import save_pcs, load_pcs, extract_pcs
+from .model.utils._artifact import (
+    save_pcs,
+    save_genes,
+    load_genes,
+    load_pcs,
+    save_predictions,
+    load_predictions,
+)
 from ._constants import *
 
 MODEL = SCVI | SCANVI | LBL8R | XGB
@@ -128,6 +133,10 @@ def load_trained_model(
 ):
     # lazily load models and pack into apropriate ModelSet
 
+    # automatically loaded when initiationg ModelSet
+    # pcs = load_pcs(model_path / model_name)
+    # genes = load_genes(model_path / model_name)
+
     # SCANVI MODELS
     if model_name in (SCANVI_MODEL_NAME, SCANVI_BATCH_EQUALIZED_MODEL_NAME):
         vae_path = model_path / model_name / SCVI_SUB_MODEL_NAME
@@ -170,6 +179,7 @@ def load_trained_model(
     else:
         raise ValueError(f"unknown model_name {model_name}")
 
+    print(f"model genes n= {model.genes}")
     return model
 
 
@@ -201,9 +211,11 @@ def prep_model(
 
     if model_path.exists() and not retrain and data is None:
         # lazy load model
+        print(f"prep_model1: loading {(model_path/model_name)} model")
         model = load_trained_model(model_name, model_path, labels_key=labels_key)
         # if no traing data is loaded (just prepping for query) return placeholder data
         if data is None:
+            print("no train_data passed")
             data = Adata(None)
 
         model.prepped = False
@@ -211,6 +223,8 @@ def prep_model(
 
     elif data is not None:
         # train model.
+        print(f"prep_model1: training {(model_path/model_name)} model")
+
         model, data = train_model(
             data,
             model_name,
@@ -263,6 +277,9 @@ def train_model(
     data.set_output(model_name)
     # BUG. this coudl really be query data.  need to set to None and load adata from model? during prep?
     #  otherwise we need to load PCs artifacts so we can properly prep the query data.
+    print(f"train_model: 0. ngenes = {ad.n_vars} ncells = {ad.n_obs}")
+    # genes = ad.var_names.to_list()  # or should we leave as an Index?
+    save_genes(ad, model_path / model_name)
 
     models = {}
     # SCANVI E2E MODELS
@@ -308,8 +325,10 @@ def train_model(
         scanvi_model = LazyModel(scanvi_path, model)
         models = {SCVI_SUB_MODEL_NAME: vae, SCANVI_SUB_MODEL_NAME: scanvi_model}
 
-        model = ModelSet(models, (model_path / model_name), labels_key)
+        model = ModelSet(models, (model_path / model_name), labels_key=labels_key)
         model.default = SCANVI_SUB_MODEL_NAME
+
+        print(f"scanvi train model genes n= {model.genes}")
 
         return model, data
 
@@ -394,8 +413,9 @@ def train_model(
     model = LazyModel(model_path / model_name, model)
 
     models.update({model_name: model})
-    model = ModelSet(models, model_path / model_name, labels_key)
+    model = ModelSet(models, model_path / model_name, labels_key=labels_key)
     model.default = model_name
+    print(f"train model genes n= {len(model.genes)}")
 
     return model, data
 
@@ -423,6 +443,30 @@ def prep_latent_data(data: Adata, vae: SCVI, labels_key: str = "cell_type") -> A
     # 1. get the latent representation
     ad = prep_latent_z_adata(data.adata, vae=vae, labels_key=labels_key)
     # 2. update the data with the latent representation
+    data.update(ad)
+    return data
+
+
+def prep_query_data(data: Adata, genes: list[str]) -> Adata:
+    """
+    Prep adata for query
+
+    Parameters
+    ----------
+    data : Adata
+        dataclass holder for Annotated data matrix.
+    genes : list[str]
+        List of genes model expects (from training data)
+
+    Returns
+    -------
+    Adata
+        Adata with gene subsetted
+    """
+    print(f"prep_query_data: genes n= {len(genes)}")
+    ad = data.adata[:, genes].copy()
+
+    ad = prep_target_genes(data.adata, genes)
     data.update(ad)
     return data
 
@@ -526,26 +570,34 @@ def query_model(
 
     model = model_set.model[model_set.default]
 
+    # TODO: update interface to query_scanvi, query_lbl8r, query_xgb so the predictiosn tables are returned
+    #   do the merge_into_obs here, and also serialize the tables.
+
     # model.load_model()  # load the lazy model otherwise need to use model.type below to delay loading
     print(f"query_model: {model.model}")
+
+    xgb_report = None
     if isinstance(model.model, SCANVI):
         # "transfer learning" query models which need to be trained
-        ad = query_scanvi(data.adata, model.model)
+        predictions = query_scanvi(data.adata, model.model)
 
         # fix the labels_key with "ground_truth"
         ad.obs[model_set.labels_key] = ad.obs["ground_truth"].to_list()
-
     # no prep needed to query these models.
     elif isinstance(model.model, LBL8R):
-        ad = query_lbl8r(data.adata, model.model)
+        predictions = query_lbl8r(data.adata, model.model)
     elif isinstance(model.model, XGB):
-        ad = query_xgb(data.adata, model.model)
+        predictions, xgb_report = query_xgb(data.adata, model.model, report=True)
         # TODO: do something with the report...
     else:
         raise ValueError(f"model {model.model} is not a valid model")
 
+    ad = merge_into_obs(ad, predictions)
+
     # update data with ad
     data.update(ad)
+    # TODO: load the predictions into the model_set.. need to keep "train" validation and "query" predictions separate
+    # TODO: naming convention for saving datat
 
     return data
 
@@ -580,6 +632,11 @@ def prep_query_scanvi(
     ad = data.adata
 
     labels_key = model_set.labels_key
+
+    trained_genes = model_set.genes
+
+    # does this work?  what if we don't have all the trained genes, will it fill them wiht zeros?
+    ad = ad[:, trained_genes]
 
     # create a ground truth for SCANVI so we can clobber the labels_key for queries
     ad.obs["ground_truth"] = ad.obs[labels_key].to_list()
@@ -665,6 +722,10 @@ def prep_query_model(
     if ref_data is None:
         ref_data = model_set.pcs
 
+    genes = model_set.genes
+
+    query_data = prep_query_data(query_data, genes)
+
     # 1. prep query data (normalize / get latents / transfer PCs (if normalized) )
     if model_name in (
         SCVI_EXPRESION_MODEL_NAME,
@@ -746,3 +807,6 @@ def archive_data(
     """
 
     data.export(path)
+
+
+# %%
