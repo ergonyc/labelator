@@ -33,13 +33,11 @@ def prep_latent_z_adata(
         Annotated data matrix with latent variables as X
 
     """
-
+    adata = adata.copy()
     SCVI.setup_anndata(adata, labels_key=labels_key, batch_key=None)  # "dummy")
 
     latent_ad = make_latent_adata(adata, scvi_model=vae, return_dist=False)
-    latent_ad.obsm[
-        SCVI_LATENT_KEY
-    ] = (
+    latent_ad.obsm[SCVI_LATENT_KEY] = (
         latent_ad.X
     )  # copy to obsm for convenience (doubles size 🫤 but useful for plot_embedding)
     return latent_ad

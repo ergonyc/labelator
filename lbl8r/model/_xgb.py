@@ -11,6 +11,7 @@ from numpy import unique, asarray, argmax
 import pickle
 from pandas import DataFrame
 import numpy as np
+import pandas as pd
 
 from .utils._timing import Timing
 from .utils._device import get_usable_device
@@ -559,12 +560,10 @@ def query_xgb(
         Annotated data matrix with latent variables as X
 
     """
-    predictions = bst.predict(adata, label_key="cell_type")
-    # predictions, report = query_xgboost(bst, adata, label_encoder)
+    # predictions = bst.predict(adata, label_key="cell_type")
+    predictions, report = bst.predict(adata, label_key="cell_type", report=True)
 
-    # adata = merge_into_obs(adata, predictions)
-    # return adata
-    return predictions
+    return predictions, report
 
 
 def query_xgboost(

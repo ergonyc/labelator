@@ -23,6 +23,8 @@ class Adata:
     _subdir: str = dataclasses.field(default=None, init=False, repr=False)
     _loaded: bool = dataclasses.field(default=True, init=True, repr=True)
     _adata_path: Path = dataclasses.field(default=None, init=False, repr=False)
+    _labels_key: str = dataclasses.field(default=None, init=False, repr=False)
+    _ground_truth_key: str = dataclasses.field(default=None, init=False, repr=False)
 
     def __init__(self, adata_path: Path, is_backed: bool = False):
         if adata_path is None:
@@ -56,6 +58,22 @@ class Adata:
     @property
     def loaded(self):
         return self._adata is not None
+
+    @property
+    def labels_key(self):
+        return self._labels_key
+
+    @labels_key.setter
+    def labels_key(self, labels_key: str):
+        self._labels_key = labels_key
+
+    @property
+    def ground_truth_key(self):
+        return self._ground_truth_key
+
+    @ground_truth_key.setter
+    def ground_truth_key(self, ground_truth_key: str):
+        self._ground_truth_key = ground_truth_key
 
     def export(self, out_path: Path):
         """
@@ -159,7 +177,9 @@ def add_predictions_to_adata(adata, predictions, insert_key="pred", pred_key="la
 
 
 def transfer_pcs(
-    query_ad: ad.AnnData, ref_ad: ad.AnnData | None = None, pcs: ndarray | None = None
+    query_ad: ad.AnnData,
+    ref_ad: ad.AnnData | None = None,
+    pcs: np.ndarray | None = None,
 ) -> ad.AnnData:
     """Transfer PCs from training data to get "loadings" (`X_pca`)
 

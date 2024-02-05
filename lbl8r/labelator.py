@@ -120,8 +120,8 @@ def load_query_data(adata_path: str | Path) -> Adata:
 
     adata_path = Path(adata_path)
     # warn if "train" is not in data_path.name
-    if "test" not in adata_path.name:
-        print(f"WARNING:  'train' not in data_path.name: {adata_path.name}.  ")
+    if "test" not in adata_path.name or "query" not in adata_path.name:
+        print(f"WARNING:  'train' or 'query' not in data_path.name: {adata_path.name}.")
 
     return Adata(adata_path)
 
@@ -224,7 +224,7 @@ def prep_model(
     elif data is not None:
         # train model.
         print(f"prep_model1: training {(model_path/model_name)} model")
-
+        data.labels_key = labels_key
         model, data = train_model(
             data,
             model_name,
@@ -235,6 +235,7 @@ def prep_model(
         )
 
         model.prepped = True
+
         return model, data
 
     else:
@@ -315,6 +316,7 @@ def train_model(
         )
 
         # update data with ad
+        data.labels_key = labels_key
         data.update(ad)
         save_pcs(ad, model_path / model_name)
 
@@ -406,7 +408,9 @@ def train_model(
         model_name=model_name,
         **training_kwargs,
     )
+
     # 2. update the data with the latent representation
+    data.labels_key = labels_key
     data.update(ad)
     save_pcs(ad, model_path / model_name)
 
@@ -448,6 +452,36 @@ def prep_latent_data(data: Adata, vae: SCVI, labels_key: str = "cell_type") -> A
 
 
 def prep_query_data(data: Adata, genes: list[str]) -> Adata:
+    """
+    Prep adata for query
+
+    Parameters
+    ----------
+    data : Adata
+        dataclass holder for Annotated data matrix.
+    genes : list[str]
+        List of genes model expects (from training data)
+
+    Returns
+    -------
+    Adata
+        Adata with gene subsetted
+    """
+    print(f"prep_query_data: genes n= {len(genes)}")
+    # ad = data.adata[:, genes].copy()
+
+    # do we have ground truth labels?
+    if data.labels_key is not None:
+        data.ground_truth_key = data.labels_key
+    else:
+        data.ground_truth_key = "Unknown"
+
+    ad = prep_target_genes(data.adata, genes)
+    data.update(ad)
+    return data
+
+
+def prep_query_genes(data: Adata, genes: list[str]) -> Adata:
     """
     Prep adata for query
 
@@ -575,19 +609,20 @@ def query_model(
 
     # model.load_model()  # load the lazy model otherwise need to use model.type below to delay loading
     print(f"query_model: {model.model}")
+    ad = data.adata
 
     xgb_report = None
     if isinstance(model.model, SCANVI):
         # "transfer learning" query models which need to be trained
-        predictions = query_scanvi(data.adata, model.model)
+        predictions = query_scanvi(ad, model.model)
 
         # fix the labels_key with "ground_truth"
         ad.obs[model_set.labels_key] = ad.obs["ground_truth"].to_list()
     # no prep needed to query these models.
     elif isinstance(model.model, LBL8R):
-        predictions = query_lbl8r(data.adata, model.model)
+        predictions = query_lbl8r(ad, model.model)
     elif isinstance(model.model, XGB):
-        predictions, xgb_report = query_xgb(data.adata, model.model, report=True)
+        predictions, xgb_report = query_xgb(ad, model.model, report=True)
         # TODO: do something with the report...
     else:
         raise ValueError(f"model {model.model} is not a valid model")
@@ -598,6 +633,8 @@ def query_model(
     data.update(ad)
     # TODO: load the predictions into the model_set.. need to keep "train" validation and "query" predictions separate
     # TODO: naming convention for saving datat
+    model_set.predictions[data.name] = predictions
+    model_set.report[data.name] = xgb_report
 
     return data
 
@@ -722,8 +759,9 @@ def prep_query_model(
     if ref_data is None:
         ref_data = model_set.pcs
 
+    # set the labels_key
+    query_data.labels_key = labels_key
     genes = model_set.genes
-
     query_data = prep_query_data(query_data, genes)
 
     # 1. prep query data (normalize / get latents / transfer PCs (if normalized) )

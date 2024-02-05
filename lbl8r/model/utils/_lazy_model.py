@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from scvi.model import SCVI, SCANVI
 from numpy import ndarray
+import pandas as pd
 
 # from xgboost import Booster
 # from sklearn.preprocessing import LabelEncoder
@@ -72,80 +73,6 @@ class LazyModel:
             raise ValueError("model_type must be one of: 'scanvi', 'lbl8r', 'xgb'")
         self._type = model_type
 
-    # @dataclass
-    # class LazyModel:
-    #     """
-    #     LazyModel class for storing models + metadata.
-    #     """
-
-    #     path: Path | str
-    #     model: SCVI | SCANVI | LBL8R | XGB | None = None
-    #     _model_path: str = field(init=False)
-    #     _name: str = field(init=False)
-    #     _type: str = field(init=False)
-    #     # am I using helper?
-    #     _helper: list[str] = field(init=False)
-    #     _model: SCVI | SCANVI | LBL8R | XGB | None = field(init=False)
-
-    #     def __post_init__(self):
-    #         self._model_path = self.path.parent
-    #         self._name = self.path.name
-
-    #     @property
-    #     def name(self):
-    #         return self._name
-
-    #     @name.setter
-    #     def name(self, model_name: str):
-    #         if model_name is not None:
-    #             self._name = model_name
-
-    #             # infer type
-    #             if model_name.startswith("scanvi"):
-    #                 self._type = "scanvi"
-    #                 self._helper = ["scvi", "query_scvi", "query_scanvi"]
-    #             elif model_name.endswith("_xgb"):
-    #                 self._type = "xgb"
-    #                 if "scvi" in model_name:
-    #                     self._helper = ["scvi"]
-
-    #             else:  # could be REPR or CNT model
-    #                 self._type = "lbl8r"
-    #                 if "scvi" in model_name:
-    #                     self._helper = ["scvi"]
-
-    #     @property
-    #     def type(self):
-    #         return self._type
-
-    #     # @type.setter
-    #     # def type(self, model_type: str):
-    #     #     if model_type not in ["scanvi", "lbl8r", "xgb"]:
-    #     #         raise ValueError(f"model_type must be one of: 'scanvi', 'lbl8r', 'xgb'")
-    #     #     self._type = model_type
-
-    #     @property
-    #     def helper(self):
-    #         return self._helper
-
-    #     @property
-    #     def model(self):
-    #         if self.path is None:
-    #             return None
-
-    #         if self._model is None:
-    #             self.load_model()
-
-    #         return self._model
-
-    #     @model.setter
-    #     def model(self, model: SCVI | SCANVI | LBL8R | XGB):
-    #         self._model = model
-
-    #     @property
-    #     def model_path(self):
-    #         return self._model_path
-
     def load_model(self):
         # load model
         if self.type == "scanvi":
@@ -170,7 +97,11 @@ class ModelSet:
     _prepped: bool = field(default=False, init=False, repr=False)
     _pcs: ndarray | None = field(default=None, init=False, repr=False)
     _default: str | None = field(default=None, init=False, repr=False)
-    _genes: list[str] | None = field(default=None, init=False, repr=False)
+    _genes: list[str] | None = field(default_factory=list, init=False, repr=False)
+    predictions: dict[str, pd.DataFrame] = field(
+        default_factory=dict, init=True, repr=False
+    )
+    report: dict[str, dict] = field(default_factory=dict, init=True, repr=False)
     # _labels_key: str = field(init=False, repr=False)
 
     def __post_init__(self):
