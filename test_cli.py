@@ -9,8 +9,7 @@ from lbl8r.labelator import (
     prep_model,
     query_model,
     prep_query_model,
-    archive_plots,
-    archive_data,
+    archive_artifacts,
     CELL_TYPE_KEY,
 )
 
@@ -63,14 +62,14 @@ print(
     )
 ## LOAD DATA ###################################################################
 if train := train_path is not None:
-    train_data = load_training_data(train_path)
+    train_data = load_training_data(train_path, archive_path=output_data_path)
 else:
     if retrain_model:
         print("Must provide training data (`train-path`) to retrain model")
     train_data = None
 
 if query := query_path is not None:
-    query_data = load_query_data(query_path)
+    query_data = load_query_data(query_path, archive_path=output_data_path)
     # load model with query_data if training data is not provided
 else:
     query_data = None
@@ -129,39 +128,14 @@ if query:
     query_data = query_model(query_data, model_set)
 # In[ ]
 ## CREATE ARTIFACTS ###################################################################
-# TODO:  wrap in Models, Figures, and Adata in Artifacts class.
-#       currently the models are saved as soon as they are trained, but the figures and adata are not saved until the end.
-# TODO:  export results to tables.  artifacts are currently:  "figures" and "tables" (to be implimented)
 
 if gen_plots:
-    # train
-    if train:
-        print(f"archive train plots: {'📈 '*25}")
-        archive_plots(
-            train_data,
-            model_set,
-            "train",
-            labels_key=labels_key,
-            path=artifacts_path,
-        )
+    archive_artifacts(
+        train_data,
+        query_data,
+        model_set,
+        path=artifacts_path,
+    )
 
-    if query:
-        # query
-        print(f"archive test plots: {'📊 '*25}")
-        archive_plots(
-            query_data,
-            model_set,
-            "query",
-            labels_key=labels_key,
-            path=artifacts_path,
-        )
-# In[ ]
-## EXPORT ADATAs ###################################################################
-print(f"archive adata: {'💾 '*25}")
-
-if train_data is not None:  # just in case we are only "querying" or "getting"
-    archive_data(train_data, output_data_path)
-if query_data is not None:
-    archive_data(query_data, output_data_path)
 
 # %%

@@ -61,30 +61,26 @@ run_model() {
     done
 }
 
-# Define the array of model names
-model_path=$'models/REPR/scvi'  
-repr_model_names=("scvi_emb" "scvi_expr" "scvi_expr_pcs" "scvi_emb_xgb" "scvi_expr_xgb" "scvi_expr_pcs_xgb")
-# repr_model_names=("scvi_expr_xgb")
-
-model_path=$'models/CNT'  
-count_model_names=("pcs_lbl8r" "raw_lbl8r" "raw_xgb" "pcs_xgb" )
-
-model_path=$'models/TRANSFER/'  
-transfer_model_names=("scanvi_batch_eq" "scanvi" )
 
 train_adata=$"data/scdata/xylena/brain_atlas_anndata_train_cnt.h5ad"
 query_adata=$"data/scdata/xylena/brain_atlas_anndata_test_cnt.h5ad"
 adata_output_path=$'data/scdata/ASAP/LABELATOR/'
 
 
-query_adata=$'/media/ergonyc/data/sc/ASAP/artifacts/07_merged_filtered_processed_integrated_clustered_annotated_anndata_object.h5ad'
-query_adata=$'/media/ergonyc/data/sc/ASAP/artifacts/07_merged_filtered_integrated_clustered_annotated_anndata_object.h5ad'
+# query_adata=$'/media/ergonyc/data/sc/ASAP/artifacts/07_merged_filtered_processed_integrated_clustered_annotated_anndata_object.h5ad'
+# query_adata=$'/media/ergonyc/data/sc/ASAP/artifacts/07_merged_filtered_integrated_clustered_annotated_anndata_object.h5ad'
 
 
 artifacts_path=$'artifacts/'
 
 # Call the function 
+model_path=$'models/REPR/scvi'  
+repr_model_names=("scvi_emb" "scvi_expr" "scvi_expr_pcs" "scvi_emb_xgb" "scvi_expr_xgb" "scvi_expr_pcs_xgb")
 run_model $train_adata $query_adata repr_model_names[@] $model_path $adata_output_path $artifacts_path
+model_path=$'models/CNT'  
+count_model_names=("pcs_lbl8r" "raw_lbl8r" "raw_xgb" "pcs_xgb" )
 run_model $train_adata $query_adata count_model_names[@] $model_path $adata_output_path $artifacts_path
-# run_model $train_adata $query_adata transfer_model_names[@] $model_path $adata_output_path $artifacts_path
+model_path=$'models/TRANSFER/'  
+transfer_model_names=("scanvi_batch_eq" "scanvi" )
+run_model $train_adata $query_adata transfer_model_names[@] $model_path $adata_output_path $artifacts_path
 

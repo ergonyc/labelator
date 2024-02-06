@@ -8,7 +8,7 @@ from lbl8r.labelator import (
     prep_model,
     query_model,
     prep_query_model,
-    archive_plots,
+    archive_artifacts,
     archive_data,
     CELL_TYPE_KEY,
     VALID_MODEL_NAMES,
@@ -223,36 +223,14 @@ def cli(
     # TODO:  export results to tables.  artifacts are currently:  "figures" and "tables" (to be implimented)
 
     if gen_plots:
-        # train
-        if train:
-            print(f"archive train plots: {'📈 '*25}")
-            archive_plots(
-                train_data,
-                model_set,
-                "train",
-                labels_key=labels_key,
-                path=artifacts_path,
-            )
-
-        # query
-        if query:
-            print(f"archive test plots: {'📊 '*25}")
-            archive_plots(
-                query_data,
-                model_set,
-                "query",
-                labels_key=labels_key,
-                path=artifacts_path,
-            )
+        archive_artifacts(
+            train_data,
+            query_data,
+            model_set,
+            path=artifacts_path,
+        )
 
     # In[ ]
-    ## EXPORT ADATAs ###################################################################
-    print(f"archive adata: {'💾 '*25}")
-
-    if train_data is not None:  # just in case we are only "querying" or "getting"
-        archive_data(train_data, output_data_path)
-    if query_data is not None:
-        archive_data(query_data, output_data_path)
 
 
 if __name__ == "__main__":

@@ -31,7 +31,13 @@ from .model._scvi import (
 from .model._xgb import get_xgb2, query_xgb, XGB
 from .model.utils._data import Adata, transfer_pcs, prep_target_genes, merge_into_obs
 from .model.utils._lazy_model import LazyModel, ModelSet
-from .model.utils._plot import make_plots
+from .model.utils._plot import (
+    plot_embedding,
+    plot_predictions,
+    plot_scvi_training,
+    plot_scanvi_training,
+    plot_lbl8r_training,
+)
 from .model.utils._artifact import (
     save_pcs,
     save_genes,
@@ -94,7 +100,7 @@ def load_adata(
     return Adata(adata_path)
 
 
-def load_training_data(adata_path: str | Path) -> Adata:
+def load_training_data(adata_path: str | Path, archive_path: str | Path) -> Adata:
     """
     Load training data.
     """
@@ -109,21 +115,26 @@ def load_training_data(adata_path: str | Path) -> Adata:
             f"WARNING:  'train' not in data_path.name: {adata_path.name}.  "
             "This may cause problems with the output file names."
         )
+    data = Adata(adata_path)
+    data.archive_path = archive_path
+    return data
 
-    return Adata(adata_path)
 
-
-def load_query_data(adata_path: str | Path) -> Adata:
+def load_query_data(adata_path: str | Path, archive_path: str | Path) -> Adata:
     """
     Load query data.
     """
+
+    if adata_path is None:
+        return Adata(None)
 
     adata_path = Path(adata_path)
     # warn if "train" is not in data_path.name
     if "test" not in adata_path.name or "query" not in adata_path.name:
         print(f"WARNING:  'train' or 'query' not in data_path.name: {adata_path.name}.")
-
-    return Adata(adata_path)
+    data = Adata(adata_path)
+    data.archive_path = archive_path
+    return data
 
 
 def load_trained_model(
@@ -818,18 +829,122 @@ def prep_query_model(
     return model_set, query_data
 
 
+def archive_artifacts(
+    train_data: Adata, query_data: Adata, model_set: ModelSet, path: Path
+):
+    """
+    Archive the artifacts
+        - plots
+        - adata
+
+    """
+
+    if train_data is not None:  # just in case we are only "querying" or "getting"
+        print(f"archive training plots and data: {'📈 '*25}")
+        archive_plots(train_data, model_set, "train", fig_path=(path / "figs"))
+        print(f"archive train output adata: {'💾 '*25}")
+        archive_data(train_data)
+
+    if query_data is not None:
+        print(f"archive query plots and data: {'📊 '*25}")
+        archive_plots(query_data, model_set, "query", fig_path=(path / "figs"))
+        print(f"archive query output adata: {'💾 '*25}")
+        archive_data(query_data)
+
+
 def archive_plots(
     data: Adata,
     model_set: ModelSet,
     train_or_query: str,
-    labels_key: str,
-    path: Path | str | None = None,
+    fig_path: Path | str | None = None,
 ):
     """
     Archive the plots
     """
-    model = model_set.model[model_set.default]
-    figs = make_plots(data, model, train_or_query, labels_key=labels_key, path=path)
+    ad = data.adata
+    labels_key = data.labels_key
+    ground_truth_key = data.ground_truth_key
+    main_model = model_set.model[model_set.default]
+
+    ## training args
+    figs = []
+    if main_model.type == "scanvi":
+        # load model
+        fig_dir = fig_path / main_model.name
+        if train_or_query == "train":
+            file_nm = f"{train_or_query.upper()}_{SCVI_SUB_MODEL_NAME}_{data.name.rstrip('.h5ad')}"
+            fig_kwargs = dict(fig_dir=fig_dir, fig_nm=file_nm, show=False)
+            fg = plot_scvi_training(
+                model_set[SCVI_SUB_MODEL_NAME].model.history, **fig_kwargs
+            )
+            figs.extend(fg)
+
+            file_nm = f"{train_or_query.upper()}_{SCANVI_SUB_MODEL_NAME}_{data.name.rstrip('.h5ad')}"
+            fig_kwargs = dict(fig_dir=fig_dir, fig_nm=file_nm, show=False)
+            fg = plot_scanvi_training(
+                model_set[SCANVI_SUB_MODEL_NAME].model.history, **fig_kwargs
+            )
+            figs.extend(fg)
+        else:
+            file_nm = f"{train_or_query.upper()}_{QUERY_SCVI_SUB_MODEL_NAME}_{data.name.rstrip('.h5ad')}"
+            fig_kwargs = dict(fig_dir=fig_dir, fig_nm=file_nm, show=False)
+            fg = plot_scvi_training(
+                model_set[QUERY_SCVI_SUB_MODEL_NAME].model.history, **fig_kwargs
+            )
+            figs.extend(fg)
+
+            file_nm = f"{train_or_query.upper()}_{QUERY_SCANVI_SUB_MODEL_NAME}_{data.name.rstrip('.h5ad')}"
+            fig_kwargs = dict(fig_dir=fig_dir, fig_nm=file_nm, show=False)
+            fg = plot_scanvi_training(
+                model_set[QUERY_SCANVI_SUB_MODEL_NAME].model.history, **fig_kwargs
+            )
+            figs.extend(fg)
+
+    elif main_model.type == "lbl8r":
+        fig_dir = fig_path / main_model.name
+        file_nm = (
+            f"{train_or_query.upper()}_{main_model.name}_{data.name.rstrip('.h5ad')}"
+        )
+        fig_kwargs = dict(fig_dir=fig_dir, fig_nm=file_nm, show=False)
+        fg = plot_lbl8r_training(main_model.model.history, **fig_kwargs)
+        figs.extend(fg)
+
+    elif main_model.type == "xgb":
+        print("plotting for XGBoost training not available")
+
+    else:
+        raise ValueError(f"model_type must be one of: 'scanvi', 'lbl8r', 'xgb'")
+
+    fig_nm = f"{train_or_query.upper()}_{main_model.name}_{data.name.rstrip('.h5ad')}"
+    fig_dir = fig_path / main_model.name
+
+    # predictions
+    title_str = fig_nm.replace("_", "-")
+    if ground_truth_key is not None:
+        fg = plot_predictions(
+            ad,
+            pred_key="pred",
+            cell_type_key=labels_key,
+            model_name=main_model.name,
+            fig_nm=fig_nm,
+            fig_dir=fig_dir,
+            show=False,
+        )
+        figs.append(fg)
+
+    # embeddings
+    basis = SCVI_MDE_KEY if main_model.name.endswith(EMB) else MDE_KEY
+
+    # PLOT embeddings ###############################################################
+    fg = plot_embedding(
+        ad,
+        fig_nm,
+        fig_dir=fig_dir,
+        basis=basis,
+        color=[labels_key, "pred", "batch"],
+        show=False,
+    )
+    figs.append(fg)
 
     ## save plots..
     for fig in figs:
@@ -838,10 +953,17 @@ def archive_plots(
 
 def archive_data(
     data: Adata,
-    path: Path,
+    path: Path | None = None,
 ):
     """
     Archive the data
+
+    exports the output data as anndata.
+    other artifacts were generated along the way:
+        - genes
+        - pcs
+        - predictions
+        - plots
     """
 
     data.export(path)

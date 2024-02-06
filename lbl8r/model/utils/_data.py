@@ -25,6 +25,7 @@ class Adata:
     _adata_path: Path = dataclasses.field(default=None, init=False, repr=False)
     _labels_key: str = dataclasses.field(default=None, init=False, repr=False)
     _ground_truth_key: str = dataclasses.field(default=None, init=False, repr=False)
+    _archive_path: Path = dataclasses.field(default=None, init=False, repr=False)
 
     def __init__(self, adata_path: Path, is_backed: bool = False):
         if adata_path is None:
@@ -44,6 +45,7 @@ class Adata:
 
         if self._adata is None:
             if self.is_backed:
+                print(f"WARNING::: untested loading backed adata: {self.adata_path}")
                 self._adata = ad.read_h5ad(self.adata_path, backed="r+")
             else:
                 self._adata = ad.read_h5ad(self.adata_path)
@@ -75,15 +77,30 @@ class Adata:
     def ground_truth_key(self, ground_truth_key: str):
         self._ground_truth_key = ground_truth_key
 
-    def export(self, out_path: Path):
+    @property
+    def archive_path(self):
+        if self._archive_path is None and self._adata_path is None:
+            print("No adata.  Just a placeholder")
+            return None
+        else:
+            return self._archive_path
+
+    @archive_path.setter
+    def archive_path(self, archive_path: str | Path):
+        self._archive_path = Path(archive_path)
+
+    def export(self, out_path: Path | None = None):
         """
         Write adata to disk.
         """
+        if out_path is not None:
+            self.archive_path = out_path
 
-        if self._subdir is not None:
-            out_path = out_path / self._subdir
-        else:
-            print(f"writing {self.name} output directly to out_path")
+        out_path = (
+            self.archive_path
+            if self._subdir is None
+            else self.archive_path / self._subdir
+        )
 
         if self._out_suffix is not None:
             out_path = out_path / self.name.replace(H5, self._out_suffix + OUT + H5)
