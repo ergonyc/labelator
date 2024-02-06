@@ -9,8 +9,7 @@ from lbl8r.labelator import (
     prep_model,
     query_model,
     prep_query_model,
-    archive_plots,
-    archive_data,
+    archive_artifacts,
     CELL_TYPE_KEY,
 )
 
@@ -20,16 +19,22 @@ from lbl8r.labelator import (
 
 
 # TODO: add logging
-data_path = Path("data/scdata/xylena/brain_atlas_anndata_train_cnt.h5ad")
+train_path = Path("data/scdata/xylena/brain_atlas_anndata_train_cnt.h5ad")
 query_path = Path("data/scdata/xylena/brain_atlas_anndata_test_cnt.h5ad")
-model_path = Path("models/CNT/")
-model_path = Path("models/REPR/scvi/")
-model_path = Path("models/TRANSFER/")
 
+query_path = Path('data/scdata/ASAP/artifacts/06_merged_filtered_processed_integrated_clustered_anndata_object.h5ad')
+# query_path = Path('data/scdata/ASAP/artifacts/06_merged_filtered_integrated_clustered_anndata_object.h5ad')
+query_path = Path('data/scdata/ASAP/artifacts/07_merged_filtered_integrated_clustered_annotated_anndata_object.h5ad')
+
+# model_path = Path("models/CNT/")
+model_path = Path("models/REPR/scvi/")
+# model_path = Path("models/TRANSFER/")
+# train_path = None
 # model_name = "raw_lbl8r"
 # model_name = "scvi_emb_xgb"
-# model_name = "pcs_xgb"
-model_name = "scanvi_batch_eq"
+model_name = "pcs_lbl8r"
+model_name = "scvi_emb"
+
 
 output_data_path = Path("data/scdata/xylena/LABELATOR/")
 artifacts_path = Path("artifacts/")
@@ -46,36 +51,38 @@ else:
 %autoreload 2
 
 # In[ ]
-"""
-Command line interface for model processing pipeline.
+""" Command line interface for model processing pipeline.
 """
 
 # setup
 torch.set_float32_matmul_precision("medium")
 
 print(
-        f"{data_path=}:: {query_path=}:: {model_path=}:: {model_name=}:: {output_data_path=}:: {artifacts_path=}:: {gen_plots=}:: {retrain_model=}:: {labels_key=}:: {batch_key=}"
+        f"{train_path=}:: {query_path=}:: {model_path=}:: {model_name=}:: {output_data_path=}:: {artifacts_path=}:: {gen_plots=}:: {retrain_model=}:: {labels_key=}:: {batch_key=}"
     )
 ## LOAD DATA ###################################################################
-if train := data_path is not None:
-    train_data = load_training_data(data_path)
+if train := train_path is not None:
+    train_data = load_training_data(train_path, archive_path=output_data_path)
 else:
     if retrain_model:
-        print("Must provide training data (`data-path`) to retrain model")
+        print("Must provide training data (`train-path`) to retrain model")
     train_data = None
 
 if query := query_path is not None:
-    query_data = load_query_data(query_path)
+    query_data = load_query_data(query_path, archive_path=output_data_path)
     # load model with query_data if training data is not provided
-    if train_data is None:
-        train_data = query_data
-
 else:
     query_data = None
 
 if not (train | query):
     print("Must provide either `data-path` or `query-path` or both")
 
+# dummy_label = train_data.adata.obs[CELL_TYPE_KEY].values[0]
+# ad = query_data.adata
+
+# ad.obs[CELL_TYPE_KEY] = dummy_label
+# # update data with ad
+# query_data.update(ad)
 # In[ ]/'
 
 ## PREP MODEL ###################################################################
@@ -121,37 +128,14 @@ if query:
     query_data = query_model(query_data, model_set)
 # In[ ]
 ## CREATE ARTIFACTS ###################################################################
-# TODO:  wrap in Models, Figures, and Adata in Artifacts class.
-#       currently the models are saved as soon as they are trained, but the figures and adata are not saved until the end.
-# TODO:  export results to tables.  artifacts are currently:  "figures" and "tables" (to be implimented)
 
 if gen_plots:
-    # train
-    print(f"archive train plots: {'📈 '*25}")
-    archive_plots(
+    archive_artifacts(
         train_data,
-        model_set,
-        "train",
-        labels_key=labels_key,
-        path=artifacts_path,
-    )
-
-    # query
-    print(f"archive test plots: {'📊 '*25}")
-    archive_plots(
         query_data,
         model_set,
-        "query",
-        labels_key=labels_key,
         path=artifacts_path,
     )
-# In[ ]
-## EXPORT ADATAs ###################################################################
-print(f"archive adata: {'💾 '*25}")
 
-if train_data is not None:  # just in case we are only "querying" or "getting"
-    archive_data(train_data, output_data_path)
-if query_data is not None:
-    archive_data(query_data, output_data_path)
 
 # %%

@@ -11,11 +11,11 @@ from numpy import unique, asarray, argmax
 import pickle
 from pandas import DataFrame
 import numpy as np
+import pandas as pd
 
-from .utils._data import merge_into_obs
 from .utils._timing import Timing
 from .utils._device import get_usable_device
-from .utils._le import dump_label_encoder, load_label_encoder
+from .utils._le import load_label_encoder
 
 
 class XGB:
@@ -195,7 +195,9 @@ class XGB:
 
         return self
 
-    def predict(self, adata: AnnData, label_key: str = "cell_type"):
+    def predict(
+        self, adata: AnnData, label_key: str = "cell_type", report: bool = False
+    ):
         """ """
         # TODO: add a total size check and iteratively predict if its too large
 
@@ -247,8 +249,10 @@ class XGB:
 
         # # Evaluate the model on the test set
         # print(classification_report(y_test, best_preds, target_names=classes))
-
-        return preds_df  # , report
+        if report:
+            return preds_df, report
+        else:
+            return preds_df  # , report
 
     def save(self, save_path: Path | str | None = None):
         """ """
@@ -261,7 +265,7 @@ class XGB:
         # save the reference model
         self.module.save_model(self.path)
         # self.label_encoder.save(self.path.parent / "label_encoder.pkl")
-        # Save the LabelEncoder to a file
+        # Save the LabelEncoder to a file for easy query access
         with open(self.path.parent / "label_encoder.pkl", "wb") as f:
             pickle.dump(self.label_encoder, f)
         print(f"Saved the model to '{self.path}'.")
@@ -278,6 +282,7 @@ def get_xgb2(
 ) -> tuple[XGB, AnnData]:
     n_labels = len(adata.obs[labels_key].cat.categories)
 
+    retrain = True
     # 1. load/train model
     if model_path.exists() and not retrain:
         bst = XGB()
@@ -534,7 +539,8 @@ def load_xgboost(bst_path: Path | str) -> xgb.Booster | None:
 def query_xgb(
     adata: AnnData,
     bst: XGB,
-) -> (AnnData, dict):
+) -> pd.DataFrame:
+    # ) -> AnnData:
     """
     Test the XGBoost classifier on the test set
 
@@ -555,11 +561,10 @@ def query_xgb(
         Annotated data matrix with latent variables as X
 
     """
-    predictions = bst.predict(adata, label_key="cell_type")
-    # predictions, report = query_xgboost(bst, adata, label_encoder)
-    adata = merge_into_obs(adata, predictions)
+    # predictions = bst.predict(adata, label_key="cell_type")
+    predictions, report = bst.predict(adata, label_key="cell_type", report=True)
 
-    return adata
+    return predictions, report
 
 
 def query_xgboost(

@@ -2,7 +2,8 @@ import dataclasses
 import pandas as pd
 from pathlib import Path
 import anndata as ad
-from numpy import ndarray
+import numpy as np
+from scipy.sparse import csr_matrix, hstack, issparse
 
 # from scanpy.pp import pca
 from ..._constants import OUT, H5, EMB, EXPR, CNT, PCS, VAE
@@ -22,6 +23,9 @@ class Adata:
     _subdir: str = dataclasses.field(default=None, init=False, repr=False)
     _loaded: bool = dataclasses.field(default=True, init=True, repr=True)
     _adata_path: Path = dataclasses.field(default=None, init=False, repr=False)
+    _labels_key: str = dataclasses.field(default=None, init=False, repr=False)
+    _ground_truth_key: str = dataclasses.field(default=None, init=False, repr=False)
+    _archive_path: Path = dataclasses.field(default=None, init=False, repr=False)
 
     def __init__(self, adata_path: Path, is_backed: bool = False):
         if adata_path is None:
@@ -41,6 +45,7 @@ class Adata:
 
         if self._adata is None:
             if self.is_backed:
+                print(f"WARNING::: untested loading backed adata: {self.adata_path}")
                 self._adata = ad.read_h5ad(self.adata_path, backed="r+")
             else:
                 self._adata = ad.read_h5ad(self.adata_path)
@@ -56,15 +61,46 @@ class Adata:
     def loaded(self):
         return self._adata is not None
 
-    def export(self, out_path: Path):
+    @property
+    def labels_key(self):
+        return self._labels_key
+
+    @labels_key.setter
+    def labels_key(self, labels_key: str):
+        self._labels_key = labels_key
+
+    @property
+    def ground_truth_key(self):
+        return self._ground_truth_key
+
+    @ground_truth_key.setter
+    def ground_truth_key(self, ground_truth_key: str):
+        self._ground_truth_key = ground_truth_key
+
+    @property
+    def archive_path(self):
+        if self._archive_path is None and self._adata_path is None:
+            print("No adata.  Just a placeholder")
+            return None
+        else:
+            return self._archive_path
+
+    @archive_path.setter
+    def archive_path(self, archive_path: str | Path):
+        self._archive_path = Path(archive_path)
+
+    def export(self, out_path: Path | None = None):
         """
         Write adata to disk.
         """
+        if out_path is not None:
+            self.archive_path = out_path
 
-        if self._subdir is not None:
-            out_path = out_path / self._subdir
-        else:
-            print(f"writing {self.name} output directly to out_path")
+        out_path = (
+            self.archive_path
+            if self._subdir is None
+            else self.archive_path / self._subdir
+        )
 
         if self._out_suffix is not None:
             out_path = out_path / self.name.replace(H5, self._out_suffix + OUT + H5)
@@ -158,7 +194,9 @@ def add_predictions_to_adata(adata, predictions, insert_key="pred", pred_key="la
 
 
 def transfer_pcs(
-    query_ad: ad.AnnData, ref_ad: ad.AnnData | None = None, pcs: ndarray | None = None
+    query_ad: ad.AnnData,
+    ref_ad: ad.AnnData | None = None,
+    pcs: np.ndarray | None = None,
 ) -> ad.AnnData:
     """Transfer PCs from training data to get "loadings" (`X_pca`)
 
@@ -355,3 +393,30 @@ def make_pc_loading_adata(adata: ad.AnnData, pca_key: str = "X_pca"):
         raise ValueError("No PCs found in adata")
 
     return loading_adata
+
+
+def prep_target_genes(ad: ad.AnnData, target_genes: list[str]) -> ad.AnnData:
+    """
+    Expand AnnData object to include all target_genes.  Missing target_genes will be added as zeros.
+    """
+    # Identify missing variables
+    missing_vars = list(set(target_genes) - set(ad.var_names))
+    # Create a dataframe/matrix of zeros for missing variables
+    if len(missing_vars) > 0:
+        if issparse(ad.X):
+            zeros = csr_matrix((ad.n_obs, len(missing_vars)))
+        elif isinstance(ad.X, np.ndarray):
+            zeros = np.zeros((ad.n_obs, len(missing_vars)))
+        else:
+            raise ValueError("X must be a numpy array or a sparse matrix")
+
+        # Create an AnnData object for the missing variables
+        missing_ad = ad.AnnData(
+            X=zeros, var=pd.DataFrame(index=missing_vars), obs=ad.obs
+        )
+        # Concatenate the original and the missing AnnData objects along the variables axis
+        expanded_ad = ad.concat([ad, missing_ad], axis=1, join="outer")
+    else:
+        expanded_ad = ad.copy()
+    # Ensure the order of variables matches all_vars
+    return expanded_ad[:, target_genes]

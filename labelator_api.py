@@ -8,7 +8,7 @@ from lbl8r.labelator import (
     prep_model,
     query_model,
     prep_query_model,
-    archive_plots,
+    archive_artifacts,
     archive_data,
     CELL_TYPE_KEY,
     VALID_MODEL_NAMES,
@@ -57,7 +57,7 @@ def validate_model_name(ctx, param, value):
 
 # data paths / names
 @click.option(
-    "--data-path",
+    "--train-path",
     type=click.Path(exists=True, path_type=Path),
     default=None,
     show_default=True,
@@ -136,7 +136,7 @@ def validate_model_name(ctx, param, value):
 
 # TODO: add logging
 def cli(
-    data_path,
+    train_path,
     query_path,
     model_path,
     model_name,
@@ -154,23 +154,23 @@ def cli(
     torch.set_float32_matmul_precision("medium")
 
     ## LOAD DATA ###################################################################
-    if train := data_path is not None:
-        train_data = load_training_data(data_path)
+    if train := train_path is not None:
+        train_data = load_training_data(train_path, archive_path=output_data_path)
     else:
         if retrain_model:
             raise click.UsageError(
-                "Must provide training data (`data-path`) to retrain model"
+                "Must provide training data (`train-path`) to retrain model"
             )
         train_data = None
 
     if query := query_path is not None:
-        query_data = load_query_data(query_path)
+        query_data = load_query_data(query_path, archive_path=output_data_path)
     else:
         query_data = None
 
     if not (train | query):
         raise click.UsageError(
-            "Must provide either `data-path` or `query-path` or both"
+            "Must provide either `train-path` or `query-path` or both"
         )
 
     ## PREP MODEL ###################################################################
@@ -223,34 +223,14 @@ def cli(
     # TODO:  export results to tables.  artifacts are currently:  "figures" and "tables" (to be implimented)
 
     if gen_plots:
-        # train
-        print(f"archive train plots: {'📈 '*25}")
-        archive_plots(
+        archive_artifacts(
             train_data,
-            model_set,
-            "train",
-            labels_key=labels_key,
-            path=artifacts_path,
-        )
-
-        # query
-        print(f"archive test plots: {'📊 '*25}")
-        archive_plots(
             query_data,
             model_set,
-            "query",
-            labels_key=labels_key,
             path=artifacts_path,
         )
 
     # In[ ]
-    ## EXPORT ADATAs ###################################################################
-    print(f"archive adata: {'💾 '*25}")
-
-    if train_data is not None:  # just in case we are only "querying" or "getting"
-        archive_data(train_data, output_data_path)
-    if query_data is not None:
-        archive_data(query_data, output_data_path)
 
 
 if __name__ == "__main__":

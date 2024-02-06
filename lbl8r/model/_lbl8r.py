@@ -30,10 +30,10 @@ from .module._classifier import Classifier
 from ._scvi import get_trained_scvi
 
 from .utils._pred import get_stats_table
-from .utils._data import merge_into_obs, make_pc_loading_adata
+from .utils._data import make_pc_loading_adata
 from .utils._timing import Timing
 
-from .._constants import SCVI_LATENT_KEY, PCA_KEY
+from .._constants import PCA_KEY
 
 # TODO: enable logging
 # logger = logging.getLogger(__name__)
@@ -853,11 +853,11 @@ def get_lbl8r(
     return lat_lbl8r, adata
 
 
-# TODO:  add a flag to return predictions only rather than updating the adata?
 def query_lbl8r(
     adata: AnnData,
     labelator: LBL8R,
-) -> AnnData:
+) -> pd.DataFrame:
+    # ) -> AnnData:
     """
     Attach a classifier and prep adata for scVI LBL8R model
 
@@ -883,8 +883,9 @@ def query_lbl8r(
     # loadings_ad = add_predictions_to_adata(
     #     adata, predictions, insert_key=INSERT_KEY, pred_key=PRED_KEY
     # )
-    adata = merge_into_obs(adata, predictions)
-    return adata
+    # adata = merge_into_obs(adata, predictions)
+    # return adata
+    return predictions
 
 
 # depricated...

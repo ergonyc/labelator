@@ -5,7 +5,6 @@ from pathlib import Path
 import pandas as pd
 import numpy as np
 
-from .utils._data import merge_into_obs
 from .utils._timing import Timing
 from .._constants import *
 from .._constants import SCVI_LATENT_KEY_Z, SCVI_LATENT_KEY_MU_VAR
@@ -34,13 +33,11 @@ def prep_latent_z_adata(
         Annotated data matrix with latent variables as X
 
     """
-
+    adata = adata.copy()
     SCVI.setup_anndata(adata, labels_key=labels_key, batch_key=None)  # "dummy")
 
     latent_ad = make_latent_adata(adata, scvi_model=vae, return_dist=False)
-    latent_ad.obsm[
-        SCVI_LATENT_KEY
-    ] = (
+    latent_ad.obsm[SCVI_LATENT_KEY] = (
         latent_ad.X
     )  # copy to obsm for convenience (doubles size 🫤 but useful for plot_embedding)
     return latent_ad
@@ -351,7 +348,7 @@ def get_query_scanvi(
     return scanvi_query, adata
 
 
-def query_scanvi(ad: AnnData, model: SCANVI):
+def query_scanvi(ad: AnnData, model: SCANVI) -> pd.DataFrame:
     """
     Get the "soft" and label predictions from a SCANVI model,
     and then add into the ad.obs
@@ -372,9 +369,9 @@ def query_scanvi(ad: AnnData, model: SCANVI):
     predictions = model.predict(ad, soft=True)
     predictions[insert_key] = model.predict(ad, soft=False)
 
-    ad = merge_into_obs(ad, predictions)
-
-    return ad
+    return predictions
+    # ad = merge_into_obs(ad, predictions)
+    # return ad
 
 
 def make_latent_adata(
@@ -474,27 +471,7 @@ def make_scvi_normalized_adata(
 
     """
 
-    scvi_model.setup_anndata(adata, labels_key=labels_key, batch_key=batch_key)
-    denoised = scvi_model.get_normalized_expression(
-        adata,
-        library_size=1e4,
-        return_numpy=True,
-    )
-
-    exp_adata = AnnData(denoised)
-
-    exp_adata.obs_names = adata.obs_names.copy()
-    exp_adata.obs = adata.obs.copy()
-    exp_adata.var = adata.var.copy()
-    exp_adata.obsm = adata.obsm.copy()
-    exp_adata.uns = adata.uns.copy()
-    exp_adata.varm = adata.varm.copy()
-
-    # rename keys for PCA from the raw data
-    # better pattern:
-    # val = exp_adata.obsm.pop(key, None)
-    # if val is not None:
-    #     exp_adata.obsm[f"_{key}"] = val
+    exp_adata = adata.copy()
 
     if "X_pca" in exp_adata.obsm_keys():
         X_pca = exp_adata.obsm.pop("X_pca")
@@ -510,5 +487,14 @@ def make_scvi_normalized_adata(
         exp_adata.uns["_pca"] = pca_dict
         _ = exp_adata.uns.pop("_scvi_uuid", None)
         _ = exp_adata.uns.pop("_scvi_manager_uuid", None)
+
+    scvi_model.setup_anndata(exp_adata, labels_key=labels_key, batch_key=batch_key)
+    denoised = scvi_model.get_normalized_expression(
+        exp_adata,
+        library_size=1e4,
+        return_numpy=True,
+    )
+
+    exp_adata.X = denoised
 
     return exp_adata

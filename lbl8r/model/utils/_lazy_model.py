@@ -1,8 +1,7 @@
-import dataclasses
-from typing import Any
-
+from dataclasses import dataclass, field
 from scvi.model import SCVI, SCANVI
 from numpy import ndarray
+import pandas as pd
 
 # from xgboost import Booster
 # from sklearn.preprocessing import LabelEncoder
@@ -10,39 +9,50 @@ from pathlib import Path
 
 from .._lbl8r import LBL8R
 from .._xgb import XGB
-from ._pcs import load_pcs
+from ._artifact import load_pcs, load_genes
+from dataclasses import dataclass, field
+from pathlib import Path
+from scvi.model import SCVI, SCANVI
+from .._lbl8r import LBL8R
+from .._xgb import XGB
 
 # TODO: make this class handle the laoding / saving of models.
 
 
-@dataclasses.dataclass
+@dataclass
 class LazyModel:
     """
     LazyModel class for storing models + metadata.
     """
 
-    # TODO: make a __repr__ method which will print the properties rather than the _attributes
+    model_path: Path
+    model: SCVI | SCANVI | LBL8R | XGB | None = None
+    _name: str = field(init=False)
+    _type: str = field(init=False)
+    _helper: list[str] | None = field(default=None, init=False, repr=True)
+    _model: SCVI | SCANVI | LBL8R | XGB | None = field(
+        default=None, init=False, repr=False
+    )
 
-    _model_path: str
-    _name: str
-    _type: str
-    _name: str
-    _helper: Any = None
-    _model: SCVI | SCANVI | LBL8R | XGB | None = None
-    # _adata_path: str
+    def __post_init__(self):
+        self._name = self.model_path.name
+        self.path = self.model_path.parent
+        self._infer_type_and_helper()
 
-    def __init__(
-        self,
-        model_path: Path,
-        model: SCVI | SCANVI | LBL8R | XGB | None = None,
-    ):
-        self.path = model_path.parent
-        self.name = model_path.name
-        self._model_path = model_path
-        self._model = model
-
-        def __post_init__(self):
-            self.name = self.name
+    def _infer_type_and_helper(self):
+        # Infer type and helper based on the model name (_name)
+        model_name = self._name
+        if model_name.startswith("scanvi"):
+            self._type = "scanvi"
+            self._helper = ["scvi", "query_scvi", "query_scanvi"]
+        elif model_name.endswith("_xgb"):
+            self._type = "xgb"
+            if "scvi" in model_name:
+                self._helper = ["scvi"]
+        else:  # Assuming default case is LBL8R
+            self._type = "lbl8r"
+            if "scvi" in model_name:
+                self._helper = ["scvi"]
 
     @property
     def name(self):
@@ -50,22 +60,8 @@ class LazyModel:
 
     @name.setter
     def name(self, model_name: str):
-        if model_name is not None:
-            self._name = model_name
-
-            # infer type
-            if model_name.startswith("scanvi"):
-                self.type = "scanvi"
-                self._helper = ["scvi", "query_scvi", "query_scanvi"]
-            elif model_name.endswith("_xgb"):
-                self.type = "xgb"
-                if "scvi" in model_name:
-                    self._helper = ["scvi"]
-
-            else:  # could be REPR or CNT model
-                self.type = "lbl8r"
-                if "scvi" in model_name:
-                    self._helper = ["scvi"]
+        self._name = model_name
+        self._infer_type_and_helper()
 
     @property
     def type(self):
@@ -74,22 +70,8 @@ class LazyModel:
     @type.setter
     def type(self, model_type: str):
         if model_type not in ["scanvi", "lbl8r", "xgb"]:
-            raise ValueError(f"model_type must be one of: 'scanvi', 'lbl8r', 'xgb'")
+            raise ValueError("model_type must be one of: 'scanvi', 'lbl8r', 'xgb'")
         self._type = model_type
-
-    @property
-    def model(self):
-        if self.path is None:
-            return None
-
-        if self._model is None:
-            self.load_model()
-
-        return self._model
-
-    @property
-    def model_path(self):
-        return self._model_path
 
     def load_model(self):
         # load model
@@ -98,46 +80,38 @@ class LazyModel:
         elif self.type == "lbl8r":
             self._model = LBL8R.load(self.model_path)
         elif self.type == "xgb":
-            print(f"loading xgb model from: {self.model_path}")
-            # model = XGB(path=self.model_path)
             self._model = XGB.load(self.model_path)
         else:
             raise ValueError(f"model_type must be one of: 'scanvi', 'lbl8r', 'xgb'")
 
 
-@dataclasses.dataclass
+@dataclass
 class ModelSet:
     """
     Wrapper for model class for storing models + metadata.
     """
 
     model: dict[str, LazyModel]
-    path: str
-    labels_key: str | None = "cell_type"
-    _prepped: bool = False
-    _pcs: ndarray | None = None
-    _default: str | None = None
-
-    def __init__(
-        self,
-        mods: dict[str, LazyModel],
-        path: str | Path,
-        labels_key="cell_type",
-    ):
-        self.model = mods
-        self.path = Path(path) if isinstance(path, str) else path
-        self.labels_key = labels_key
-
-    # # TODO: __repr__ method
-    # def __repr__(self):
-    #     repr_str = super().__repr__().replace("ModelSet", "")
-    #     repr_str += f"ModelSet({self.prepped}, {self.pcs}"
-    #     return repr_str
+    path: Path | str
+    labels_key: str = "cell_type"
+    _prepped: bool = field(default=False, init=False, repr=False)
+    _pcs: ndarray | None = field(default=None, init=False, repr=False)
+    _default: str | None = field(default=None, init=False, repr=False)
+    _genes: list[str] | None = field(default_factory=list, init=False, repr=False)
+    predictions: dict[str, pd.DataFrame] = field(
+        default_factory=dict, init=True, repr=False
+    )
+    report: dict[str, dict] = field(default_factory=dict, init=True, repr=False)
+    # _labels_key: str = field(init=False, repr=False)
 
     def __post_init__(self):
+        # Ensure path is always a Path object
+        self.path = Path(self.path)
         # load saved pcs if they exist
         self._pcs = load_pcs(self.path)
         # print(f"loaded pcs: {self.pcs}")
+        print("post init load_genes")
+        self._genes = load_genes(self.path)
 
     def add_model(self, mods: dict[str, LazyModel]):
         for name, model in mods.items():
@@ -145,6 +119,24 @@ class ModelSet:
                 raise ValueError(f"Model name {name} already exists in model group")
             self.model[name] = model
         # self.model.update(mods)
+
+    # @property
+    # def labels_key(self):
+    #     return self._labels_key
+
+    # @labels_key.setter
+    # def labels_key(self, key: str):
+    #     self._labels_key = key
+
+    @property
+    def genes(self):
+        return self._genes
+
+    # might not need the setter
+    @genes.setter
+    def genes(self, genes: list[str]):
+        print(f"setting genes: n={len(genes)}")
+        self._genes = genes
 
     @property
     def prepped(self):
