@@ -216,7 +216,8 @@ def plot_predictions(
         Name of model. Default is `LBL8R`.
     title_str : str
         Additional string to add to title. Default is `""`.
-    fig_dir :
+    fig_dir : Path | str
+        Directory to save figure to. Default is `None`.
 
     Returns
     -------
@@ -257,7 +258,7 @@ def plot_predictions(
     ax.set_title(title_str.split(":"))
 
     if fig_nm is not None:
-        fig_n = f"predictions_{fig_nm}.png"
+        fig_n = f"{fig_nm}_predictions.png"
     else:
         fig_n = f"predictions.png"
     fig = pack_fig(fig, fig_n, fig_dir=fig_dir, show=show)
@@ -276,8 +277,14 @@ def plot_lbl8r_training(
     ----------
     model_history : dict
         History of scVI model.
+    fig_nm : str
+        Name of figure to save.
+    show : bool
+        Whether to show the figure. Default is `True`.
+    fig_dir : Path | str
+        Directory to save figure to. Default is `None`.
 
-    TODO:  wrap things so that empty keys don't break things
+    Returns
     -------
     None
 
@@ -294,7 +301,7 @@ def plot_lbl8r_training(
 
 def plot_scvi_training(
     model_history: dict,
-    fig_nm: str,
+    fig_nm: str | None = None,
     show: bool = True,
     fig_dir: Path | str | None = None,
 ):
@@ -304,15 +311,20 @@ def plot_scvi_training(
     ----------
     model_history : dict
         History of scVI model.
+    fig_nm : str | None
+        Name of figure to save.
+    show : bool
+        Whether to show the figure. Default is `True`.
+    fig_dir : Path | str
+        Directory to save figure to. Default is `None`.
 
-    TODO:  wrap things so that empty keys don't break things
+    Returns
     -------
     None
 
     """
-
-    if isinstance(save, bool):
-        save = "scvi_"
+    if fig_nm is None:
+        fig_nm = "scvi_"
 
     figs = []
 
@@ -354,14 +366,21 @@ def plot_scanvi_training(
     ----------
     model_history : dict
         History of scVI model.
+    fig_nm : str | None
+        Name of figure to save.
+    show : bool
+        Whether to show the figure. Default is `True`.
+    fig_dir : Path | str
+        Directory to save figure to. Default is `None`.
 
-    TODO:  wrap things so that empty keys don't break things
+    Returns
     -------
     None
 
+
     """
-    if file_nm is None:
-        file_nm = "scanvi_"
+    if fig_nm is None:
+        fig_nm = "scanvi_"
 
     # figs = plot_scvi_training(model_history, save=save, show=show, fig_dir=fig_dir)
     figs = []

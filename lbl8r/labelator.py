@@ -222,7 +222,7 @@ def prep_model(
 
     if model_path.exists() and not retrain and data is None:
         # lazy load model
-        print(f"prep_model1: loading {(model_path/model_name)} model")
+        print(f"prep_model 1: loading {(model_path/model_name)} model")
         model = load_trained_model(model_name, model_path, labels_key=labels_key)
         # if no traing data is loaded (just prepping for query) return placeholder data
         if data is None:
@@ -234,7 +234,7 @@ def prep_model(
 
     elif data is not None:
         # train model.
-        print(f"prep_model1: training {(model_path/model_name)} model")
+        print(f"prep_model 1: training {(model_path/model_name)} model")
         data.labels_key = labels_key
         model, data = train_model(
             data,
@@ -341,8 +341,6 @@ def train_model(
         model = ModelSet(models, (model_path / model_name), labels_key=labels_key)
         model.default = SCANVI_SUB_MODEL_NAME
 
-        print(f"scanvi train model genes n= {model.genes}")
-
         return model, data
 
     elif model_name in (
@@ -403,8 +401,7 @@ def train_model(
 
     else:
         # RAW model no update to adata
-        # raise ValueError(f"unknown model_name {model_name}")
-        print(f"{model_name} must not need any data prep")
+        print(f"{model_name} doesn not need any data prep")
 
     if model_name.endswith("_xgb"):
         get_model = get_xgb2
@@ -486,30 +483,6 @@ def prep_query_data(data: Adata, genes: list[str]) -> Adata:
         data.ground_truth_key = data.labels_key
     else:
         data.ground_truth_key = "Unknown"
-
-    ad = prep_target_genes(data.adata, genes)
-    data.update(ad)
-    return data
-
-
-def prep_query_genes(data: Adata, genes: list[str]) -> Adata:
-    """
-    Prep adata for query
-
-    Parameters
-    ----------
-    data : Adata
-        dataclass holder for Annotated data matrix.
-    genes : list[str]
-        List of genes model expects (from training data)
-
-    Returns
-    -------
-    Adata
-        Adata with gene subsetted
-    """
-    print(f"prep_query_data: genes n= {len(genes)}")
-    ad = data.adata[:, genes].copy()
 
     ad = prep_target_genes(data.adata, genes)
     data.update(ad)
@@ -618,8 +591,6 @@ def query_model(
     # TODO: update interface to query_scanvi, query_lbl8r, query_xgb so the predictiosn tables are returned
     #   do the merge_into_obs here, and also serialize the tables.
 
-    # model.load_model()  # load the lazy model otherwise need to use model.type below to delay loading
-    print(f"query_model: {model.model}")
     ad = data.adata
 
     xgb_report = None
@@ -633,7 +604,7 @@ def query_model(
     elif isinstance(model.model, LBL8R):
         predictions = query_lbl8r(ad, model.model)
     elif isinstance(model.model, XGB):
-        predictions, xgb_report = query_xgb(ad, model.model, report=True)
+        predictions, xgb_report = query_xgb(ad, model.model)
         # TODO: do something with the report...
     else:
         raise ValueError(f"model {model.model} is not a valid model")
@@ -680,11 +651,10 @@ def prep_query_scanvi(
     ad = data.adata
 
     labels_key = model_set.labels_key
-
     trained_genes = model_set.genes
 
     # does this work?  what if we don't have all the trained genes, will it fill them wiht zeros?
-    ad = ad[:, trained_genes]
+    ad = ad[:, trained_genes].copy()
 
     # create a ground truth for SCANVI so we can clobber the labels_key for queries
     ad.obs["ground_truth"] = ad.obs[labels_key].to_list()
@@ -875,28 +845,28 @@ def archive_plots(
             file_nm = f"{train_or_query.upper()}_{SCVI_SUB_MODEL_NAME}_{data.name.rstrip('.h5ad')}"
             fig_kwargs = dict(fig_dir=fig_dir, fig_nm=file_nm, show=False)
             fg = plot_scvi_training(
-                model_set[SCVI_SUB_MODEL_NAME].model.history, **fig_kwargs
+                model_set.model[SCVI_SUB_MODEL_NAME].model.history, **fig_kwargs
             )
             figs.extend(fg)
 
             file_nm = f"{train_or_query.upper()}_{SCANVI_SUB_MODEL_NAME}_{data.name.rstrip('.h5ad')}"
             fig_kwargs = dict(fig_dir=fig_dir, fig_nm=file_nm, show=False)
             fg = plot_scanvi_training(
-                model_set[SCANVI_SUB_MODEL_NAME].model.history, **fig_kwargs
+                model_set.model[SCANVI_SUB_MODEL_NAME].model.history, **fig_kwargs
             )
             figs.extend(fg)
         else:
             file_nm = f"{train_or_query.upper()}_{QUERY_SCVI_SUB_MODEL_NAME}_{data.name.rstrip('.h5ad')}"
             fig_kwargs = dict(fig_dir=fig_dir, fig_nm=file_nm, show=False)
             fg = plot_scvi_training(
-                model_set[QUERY_SCVI_SUB_MODEL_NAME].model.history, **fig_kwargs
+                model_set.model[QUERY_SCVI_SUB_MODEL_NAME].model.history, **fig_kwargs
             )
             figs.extend(fg)
 
             file_nm = f"{train_or_query.upper()}_{QUERY_SCANVI_SUB_MODEL_NAME}_{data.name.rstrip('.h5ad')}"
             fig_kwargs = dict(fig_dir=fig_dir, fig_nm=file_nm, show=False)
             fg = plot_scanvi_training(
-                model_set[QUERY_SCANVI_SUB_MODEL_NAME].model.history, **fig_kwargs
+                model_set.model[QUERY_SCANVI_SUB_MODEL_NAME].model.history, **fig_kwargs
             )
             figs.extend(fg)
 

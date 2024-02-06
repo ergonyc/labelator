@@ -143,7 +143,7 @@ def dump_genes(genes: list[str], path: Path):
     """
     genes_path = path / f"genes.pkl"
     _dump_pkl(genes, genes_path)
-    print(f"wrote: N={len(genes)} to {genes_path}")
+    # print(f"wrote: N={len(genes)} to {genes_path}")
 
 
 def load_genes(path: Path) -> list[str]:
@@ -185,7 +185,6 @@ def save_genes(ad: AnnData, model_path: Path):
 
     """
     genes = ad.var_names.tolist()
-    print(f"saving n={len(genes)} genes to {model_path}")
     dump_genes(genes, model_path)
 
 

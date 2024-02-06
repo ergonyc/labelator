@@ -265,7 +265,7 @@ class XGB:
         # save the reference model
         self.module.save_model(self.path)
         # self.label_encoder.save(self.path.parent / "label_encoder.pkl")
-        # Save the LabelEncoder to a file
+        # Save the LabelEncoder to a file for easy query access
         with open(self.path.parent / "label_encoder.pkl", "wb") as f:
             pickle.dump(self.label_encoder, f)
         print(f"Saved the model to '{self.path}'.")
@@ -282,6 +282,7 @@ def get_xgb2(
 ) -> tuple[XGB, AnnData]:
     n_labels = len(adata.obs[labels_key].cat.categories)
 
+    retrain = True
     # 1. load/train model
     if model_path.exists() and not retrain:
         bst = XGB()

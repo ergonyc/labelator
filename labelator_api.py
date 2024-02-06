@@ -155,7 +155,7 @@ def cli(
 
     ## LOAD DATA ###################################################################
     if train := train_path is not None:
-        train_data = load_training_data(train_path)
+        train_data = load_training_data(train_path, archive_path=output_data_path)
     else:
         if retrain_model:
             raise click.UsageError(
@@ -164,7 +164,7 @@ def cli(
         train_data = None
 
     if query := query_path is not None:
-        query_data = load_query_data(query_path)
+        query_data = load_query_data(query_path, archive_path=output_data_path)
     else:
         query_data = None
 
