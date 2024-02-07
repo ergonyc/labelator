@@ -11,8 +11,10 @@ SCVI_LATENT_KEY_MU_VAR = "X_scVI_mu_var"
 SCANVI_LATENT_KEY = "X_scANVI"
 SCANVI_PREDICTIONS_KEY = "C_scANVI"
 PCA_KEY = "X_pca"
+SCANVI_MDE_KEY = "X_scANVI_mde"
 SCVI_MDE_KEY = "X_scVI_mde"
 MDE_KEY = "X_mde"
+UMAP_KEY = "X_umap"
 
 CELL_TYPE_KEY = "cell_type"
 
@@ -86,7 +88,9 @@ __all__ = [
     "SCANVI_PREDICTIONS_KEY",
     "PCA_KEY",
     "SCVI_MDE_KEY",
+    "SCANVI_MDE_KEY",
     "MDE_KEY",
+    "UMAP_KEY",
     "CELL_TYPE_KEY",
     "EXPR",
     "OUT",

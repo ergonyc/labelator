@@ -128,8 +128,9 @@ def plot_embedding(
     adata: AnnData,
     fig_name: str,
     fig_dir: str,
-    basis: str = "X_mde",
+    basis: str = "X_pca",
     color: list = None,
+    umap: bool = False,
     **kwargs,
 ):
     """Plot embedding with `sc.pl.embedding`.
@@ -141,7 +142,7 @@ def plot_embedding(
     fig_name : str
         Name of figure to save.
     basis : str
-        Basis to plot. Default is `X_mde`. Could be: `X_pca`, `X_mde`, `X_umap`, `X_scVI`, `X_scVI_mde`.
+        Basis to plot. Default is `X_mde`. Could be: `X_pca`, `X_mde`, `X_umap`, `X_scVI`,`X_scANVI`
     color : list
         List of color keys to plot. Default is `None`.
     **kwargs : dict
@@ -155,21 +156,37 @@ def plot_embedding(
     # default kwargs
     device = kwargs.pop("device", None)
 
-    if "X_pca" not in adata.obsm_keys() and basis != "X_scVI":
-        print("Computing PCA")
-        sc.pp.pca(adata)
+    if umap:
+        if UMAP_KEY not in adata.obsm_keys():
+            print("getting neighbor graph")
+            sc.pp.neighbors(adata)
+            print("getting umap")
+            sc.tl.umap(adata)
+        basis = UMAP_KEY
 
-    if basis == "X_mde" and "X_mde" not in adata.obsm_keys():
-        adata.obsm["X_mde"] = mde(adata.obsm["X_pca"], device=device)
+    else:  # use mde for visualization
 
-    if basis == "X_umap" and "X_umap" not in adata.obsm_keys():
-        print("getting neighbor graph")
-        sc.pp.neighbors(adata)
-        print("getting umap")
-        sc.tl.umap(adata)
+        if basis == PCA_KEY:
+            if PCA_KEY not in adata.obsm_keys():
+                print("Computing PCA")
+                sc.pp.pca(adata)
+            if MDE_KEY not in adata.obsm_keys():
+                adata.obsm[MDE_KEY] = mde(adata.obsm[PCA_KEY], device=device)
+            basis = MDE_KEY
 
-    if basis == "X_scVI_mde" and "X_scVI_mde" not in adata.obsm_keys():
-        adata.obsm["X_scVI_mde"] = mde(adata.obsm["X_scVI"], device=device)
+        if basis == SCVI_LATENT_KEY:
+            if SCVI_MDE_KEY not in adata.obsm_keys():
+                adata.obsm[SCVI_MDE_KEY] = mde(
+                    adata.obsm[SCVI_LATENT_KEY], device=device
+                )
+            basis = SCVI_MDE_KEY
+
+        if basis == SCANVI_LATENT_KEY:
+            if SCANVI_MDE_KEY not in adata.obsm_keys():
+                adata.obsm[SCANVI_MDE_KEY] = mde(
+                    adata.obsm[SCANVI_LATENT_KEY], device=device
+                )
+            basis = SCANVI_MDE_KEY
 
     # force defaults
     frameon = kwargs.pop("frameon", False)
@@ -382,8 +399,11 @@ def plot_scanvi_training(
     if fig_nm is None:
         fig_nm = "scanvi_"
 
-    # figs = plot_scvi_training(model_history, save=save, show=show, fig_dir=fig_dir)
+    figs = plot_scvi_training(model_history, fig_nm=fig_nm, show=show, fig_dir=fig_dir)
     figs = []
+
+    if "train_classification_loss" not in model_history.keys():
+        return figs
 
     train_class = model_history["train_classification_loss"][1:]
     ax = train_class.plot()  # is dumping the return teh right thing to do?

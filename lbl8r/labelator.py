@@ -26,6 +26,7 @@ from .model._scvi import (
     prep_latent_z_adata,
     make_scvi_normalized_adata,
     make_latent_adata,
+    add_latent_obsm,
 )
 
 from .model._xgb import get_xgb2, query_xgb, XGB
@@ -89,18 +90,7 @@ Loading should
 """
 
 
-# wrap adata into a dataclass
-def load_adata(
-    adata_path: str | Path,
-) -> Adata:
-    """
-    Load data for training wrapped in Adata for easy artifact generation
-    """
-    adata_path = Path(adata_path)
-    return Adata(adata_path)
-
-
-def load_training_data(adata_path: str | Path, archive_path: str | Path) -> Adata:
+def load_data(adata_path: str | Path, archive_path: str | Path) -> Adata:
     """
     Load training data.
     """
@@ -109,29 +99,6 @@ def load_training_data(adata_path: str | Path, archive_path: str | Path) -> Adat
         return Adata(None)
 
     adata_path = Path(adata_path)
-    # warn if "train" is not in data_path.name
-    if "train" not in adata_path.name:
-        print(
-            f"WARNING:  'train' not in data_path.name: {adata_path.name}.  "
-            "This may cause problems with the output file names."
-        )
-    data = Adata(adata_path)
-    data.archive_path = archive_path
-    return data
-
-
-def load_query_data(adata_path: str | Path, archive_path: str | Path) -> Adata:
-    """
-    Load query data.
-    """
-
-    if adata_path is None:
-        return Adata(None)
-
-    adata_path = Path(adata_path)
-    # warn if "train" is not in data_path.name
-    if "test" not in adata_path.name or "query" not in adata_path.name:
-        print(f"WARNING:  'train' or 'query' not in data_path.name: {adata_path.name}.")
     data = Adata(adata_path)
     data.archive_path = archive_path
     return data
@@ -157,6 +124,9 @@ def load_trained_model(
         scanvi_model = LazyModel(scanvi_path)
         models = {SCVI_SUB_MODEL_NAME: vae, SCANVI_SUB_MODEL_NAME: scanvi_model}
         model = ModelSet(models, (model_path / model_name), labels_key)
+        model.batch_key = (
+            "sample" if model_name == SCANVI_BATCH_EQUALIZED_MODEL_NAME else None
+        )
 
     # scvi REPR models
     elif model_name in (
@@ -262,7 +232,6 @@ def train_model(
     model_name: str,
     model_path: Path | str,
     labels_key: str = "cell_type",
-    # batch_key: str | None = None, # TODO:  model_kwargs for controlling batch_key, etc..
     retrain: bool = False,
     **training_kwargs,
 ) -> ModelSet:
@@ -283,7 +252,6 @@ def train_model(
 
     """
     ad = data.adata
-    batch_key = training_kwargs.pop("batch_key", None)
 
     # 0. tag adata for artifact export
     data.set_output(model_name)
@@ -296,9 +264,13 @@ def train_model(
     models = {}
     # SCANVI E2E MODELS
     if model_name in (SCANVI_MODEL_NAME, SCANVI_BATCH_EQUALIZED_MODEL_NAME):
+        # pop the batch key...
         batch_key = (
             "sample" if model_name == SCANVI_BATCH_EQUALIZED_MODEL_NAME else None
         )
+
+        # put the batch_key back in the training_kwargs
+        training_kwargs["batch_key"] = batch_key
 
         # create a ground truth for SCANVI so we can clobber the labels_key for queries
         ad.obs["ground_truth"] = ad.obs[labels_key].to_list()
@@ -308,12 +280,12 @@ def train_model(
         vae, ad = get_trained_scvi(
             ad,
             labels_key=labels_key,
-            batch_key=batch_key,
             model_path=(model_path / model_name),
             retrain=retrain,
             model_name=SCVI_SUB_MODEL_NAME,
             **training_kwargs,
         )
+        ad = add_latent_obsm(ad, vae)
 
         print(f"scanvi getting 1 {(model_path/model_name/SCANVI_SUB_MODEL_NAME)}")
         model, ad = get_trained_scanvi(
@@ -326,6 +298,7 @@ def train_model(
             **training_kwargs,
         )
 
+        ad = add_latent_obsm(ad, model)
         # update data with ad
         data.labels_key = labels_key
         data.update(ad)
@@ -340,10 +313,13 @@ def train_model(
 
         model = ModelSet(models, (model_path / model_name), labels_key=labels_key)
         model.default = SCANVI_SUB_MODEL_NAME
-
+        model.batch_key = batch_key
+        model.basis = SCANVI_LATENT_KEY
         return model, data
 
-    elif model_name in (
+    basis = MDE_KEY
+    batch_key = None
+    if model_name in (
         SCVI_LATENT_MODEL_NAME,
         XGB_SCVI_LATENT_MODEL_NAME,
         SCVI_EXPRESION_MODEL_NAME,
@@ -356,7 +332,7 @@ def train_model(
         vae, ad = get_trained_scvi(
             ad,
             labels_key=labels_key,
-            batch_key=None,
+            batch_key=batch_key,
             model_path=model_path,
             retrain=retrain,
             model_name=SCVI_SUB_MODEL_NAME,
@@ -367,7 +343,7 @@ def train_model(
         vae = LazyModel(vae_path, vae)
 
         models = {SCVI_SUB_MODEL_NAME: vae}
-
+        basis = SCVI_LATENT_KEY
         # SCVI LBL8R LazyModel
         if model_name in (SCVI_LATENT_MODEL_NAME, XGB_SCVI_LATENT_MODEL_NAME):
             # 1. make the make_latent_adata
@@ -427,7 +403,9 @@ def train_model(
     models.update({model_name: model})
     model = ModelSet(models, model_path / model_name, labels_key=labels_key)
     model.default = model_name
-    print(f"train model genes n= {len(model.genes)}")
+
+    # model.batch_key = None
+    model.basis = basis
 
     return model, data
 
@@ -651,7 +629,10 @@ def prep_query_scanvi(
     ad = data.adata
 
     labels_key = model_set.labels_key
+    batch_key = model_set.batch_key
     trained_genes = model_set.genes
+
+    # the query data doesn't automatically know the batch_key.  ADD IT
 
     # does this work?  what if we don't have all the trained genes, will it fill them wiht zeros?
     ad = ad[:, trained_genes].copy()
@@ -665,22 +646,27 @@ def prep_query_scanvi(
         ad,
         model_set.model[SCVI_SUB_MODEL_NAME].model,
         labels_key=labels_key,
+        batch_key=batch_key,
         model_path=model_set.path,
         retrain=retrain,
-        model_name=QUERY_SCVI_SUB_MODEL_NAME,
+        model_name=f"{QUERY_SCVI_SUB_MODEL_NAME}_{data.name.rstrip('.h5ad')}",
     )
+
+    # add latent representation to ad for embedding plots..
+    ad = add_latent_obsm(ad, q_scvi)
+
     # 2. get query_scanvi
     q_scanvi, ad = get_query_scanvi(
         ad,
         model_set.model[SCANVI_SUB_MODEL_NAME].model,
         labels_key=labels_key,
+        batch_key=batch_key,
         model_path=model_set.path,
         retrain=retrain,
-        model_name=QUERY_SCANVI_SUB_MODEL_NAME,
+        model_name=f"{QUERY_SCANVI_SUB_MODEL_NAME}_{data.name.rstrip('.h5ad')}",
     )
 
-    data = prep_pc_data(data, ref_data=model_set.pcs)
-
+    ad = add_latent_obsm(ad, q_scanvi)
     # update data with ad
     data.update(ad)
 
@@ -695,12 +681,10 @@ def prep_query_scanvi(
     # 4 pack into the model set
     model_set.add_model(models)
     model_set.default = QUERY_SCANVI_SUB_MODEL_NAME
-
+    model_set.basis = SCANVI_LATENT_KEY
     return data, model_set
 
 
-# BUG. this coudl really be query data.  need to set to None and load adata from model? during prep?
-#  otherwise we need to load PCs artifacts so we can properly prep the query data.
 def prep_query_model(
     query_data: Adata,
     model_set: ModelSet,
@@ -743,6 +727,7 @@ def prep_query_model(
     # set the labels_key
     query_data.labels_key = labels_key
     genes = model_set.genes
+    # NOTE: scanvi / scvi scarches mixin prep_query_data automatically handles this...
     query_data = prep_query_data(query_data, genes)
 
     # 1. prep query data (normalize / get latents / transfer PCs (if normalized) )
@@ -901,16 +886,17 @@ def archive_plots(
             show=False,
         )
         figs.append(fg)
+    else:
+        print("no ground truth labels to plot")
 
     # embeddings
-    basis = SCVI_MDE_KEY if main_model.name.endswith(EMB) else MDE_KEY
 
     # PLOT embeddings ###############################################################
     fg = plot_embedding(
         ad,
         fig_nm,
         fig_dir=fig_dir,
-        basis=basis,
+        basis=model_set.basis,
         color=[labels_key, "pred", "batch"],
         show=False,
     )

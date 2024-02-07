@@ -25,16 +25,15 @@ query_path = Path("data/scdata/xylena/brain_atlas_anndata_test_cnt.h5ad")
 query_path = Path('data/scdata/ASAP/artifacts/06_merged_filtered_processed_integrated_clustered_anndata_object.h5ad')
 # query_path = Path('data/scdata/ASAP/artifacts/06_merged_filtered_integrated_clustered_anndata_object.h5ad')
 query_path = Path('data/scdata/ASAP/artifacts/07_merged_filtered_integrated_clustered_annotated_anndata_object.h5ad')
-
 # model_path = Path("models/CNT/")
 model_path = Path("models/REPR/scvi/")
-# model_path = Path("models/TRANSFER/")
+model_path = Path("models/TRANSFER/")
 # train_path = None
 # model_name = "raw_lbl8r"
 # model_name = "scvi_emb_xgb"
 model_name = "pcs_lbl8r"
 model_name = "scvi_emb"
-
+model_name = "scanvi_batch_eq"
 
 output_data_path = Path("data/scdata/xylena/LABELATOR/")
 artifacts_path = Path("artifacts/")
@@ -88,7 +87,7 @@ if not (train | query):
 ## PREP MODEL ###################################################################
 # gets model and preps Adata
 # TODO:  add additional training_kwargs to cli
-training_kwargs = dict(batch_key=batch_key)
+training_kwargs = {} #dict(batch_key=batch_key)
 print(f"prep_model: {'🛠️ '*25}")
 
 model_set, train_data = prep_model(

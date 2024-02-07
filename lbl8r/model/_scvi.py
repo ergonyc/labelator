@@ -7,7 +7,8 @@ import numpy as np
 
 from .utils._timing import Timing
 from .._constants import *
-from .._constants import SCVI_LATENT_KEY_Z, SCVI_LATENT_KEY_MU_VAR
+
+# from .._constants import SCVI_LATENT_KEY_Z, SCVI_LATENT_KEY_MU_VAR
 
 
 def prep_latent_z_adata(
@@ -265,6 +266,8 @@ def get_query_scvi(
     qscvi_path = model_path / model_name
 
     SCVI.prepare_query_anndata(adata, vae)
+    # the query model might exist if we are not batch correcting... need to fix...
+
     if qscvi_path.exists() and not retrain:
         scvi_query = SCVI.load(qscvi_path.as_posix(), adata)
     else:
@@ -280,7 +283,6 @@ def get_query_scvi(
 
     adata.obsm[SCVI_LATENT_KEY] = scvi_query.get_latent_representation(adata)
     if retrain or not qscvi_path.exists():
-        # save the reference model
         scvi_query.save(qscvi_path, overwrite=True)
 
     return scvi_query, adata
@@ -291,6 +293,7 @@ def get_query_scanvi(
     adata: AnnData,
     scanvi_model: SCANVI,
     labels_key: str = "cell_type",
+    batch_key: str | None = None,
     model_path: Path = Path.cwd(),
     retrain: bool = False,
     model_name: str = "query_scanvi",
@@ -325,6 +328,8 @@ def get_query_scanvi(
     surgery_epochs = 150
 
     qscanvi_path = model_path / model_name
+
+    # should the reference be teh scvi_model or the scanvi_model?
     SCANVI.prepare_query_anndata(adata, scanvi_model)
 
     if qscanvi_path.exists() and not retrain:
@@ -372,6 +377,29 @@ def query_scanvi(ad: AnnData, model: SCANVI) -> pd.DataFrame:
     return predictions
     # ad = merge_into_obs(ad, predictions)
     # return ad
+
+
+def add_latent_obsm(ad: AnnData, model: SCVI | SCANVI) -> AnnData:
+    """
+    Add the latent representation from a scVI model into the ad.obsm
+
+    Parameters
+    ----------
+    ad : AnnData
+        Annotated data matrix.
+    model : SCVI | SCANVI
+        An scVI or scANVI model.
+
+    Returns
+    -------
+    AnnData
+        Annotated data matrix with latent variables.
+
+    """
+    key = SCVI_LATENT_KEY if isinstance(model, SCVI) else SCANVI_LATENT_KEY
+
+    ad.obsm[key] = model.get_latent_representation(ad)
+    return ad
 
 
 def make_latent_adata(
@@ -496,5 +524,7 @@ def make_scvi_normalized_adata(
     )
 
     exp_adata.X = denoised
+
+    exp_adata = add_latent_obsm(exp_adata, scvi_model)
 
     return exp_adata

@@ -3,13 +3,11 @@ import torch
 from pathlib import Path
 
 from lbl8r.labelator import (
-    load_training_data,
-    load_query_data,
+    load_data,
     prep_model,
     query_model,
     prep_query_model,
     archive_artifacts,
-    archive_data,
     CELL_TYPE_KEY,
     VALID_MODEL_NAMES,
 )
@@ -118,17 +116,17 @@ def validate_model_name(ctx, param, value):
     required=False,
     help="Key to adata.obsm 'ground_truth' labels.",
 )
-@click.option(
-    "--batch-key",
-    type=str,
-    default=None,
-    show_default=True,
-    required=False,
-    help="""
-        Key to adata.obsm 'batch' labels for instantiating `scVI`.. e.g. `sample`. Defaults 
-        to None wich will instantiate scVI having no batch correction.
-        """,
-)
+# @click.option(
+#     "--batch-key",
+#     type=str,
+#     default=None,
+#     show_default=True,
+#     required=False,
+#     help="""
+#         Key to adata.obsm 'batch' labels for instantiating `scVI`.. e.g. `sample`. Defaults
+#         to None wich will instantiate scVI having no batch correction.
+#         """,
+# )
 #
 # TODO:  add options for model configureaion: e.g. n_hidden, n_latent, n_layers, dropout_rate, dispersion, gene_likelihood, latent_distribution encode_covariates,
 # TODO: enable other **training_kwargs:  train_size, accelerators, devices, early_stopping, early_stopping_kwargs, batch_size, epochs, etc.
@@ -145,7 +143,7 @@ def cli(
     gen_plots,
     retrain_model,
     labels_key,
-    batch_key,
+    # batch_key,
 ):
     """
     Command line interface for model processing pipeline.
@@ -155,7 +153,7 @@ def cli(
 
     ## LOAD DATA ###################################################################
     if train := train_path is not None:
-        train_data = load_training_data(train_path, archive_path=output_data_path)
+        train_data = load_data(train_path, archive_path=output_data_path)
     else:
         if retrain_model:
             raise click.UsageError(
@@ -164,7 +162,7 @@ def cli(
         train_data = None
 
     if query := query_path is not None:
-        query_data = load_query_data(query_path, archive_path=output_data_path)
+        query_data = load_data(query_path, archive_path=output_data_path)
     else:
         query_data = None
 
@@ -176,7 +174,7 @@ def cli(
     ## PREP MODEL ###################################################################
     # gets model and preps Adata
     # TODO:  add additional training_kwargs to cli
-    training_kwargs = dict(batch_key=batch_key)
+    training_kwargs = {}  # dict(batch_key=batch_key)
     print(f"prep_model: {'🛠️ '*25}")
 
     # WARNING:  BUG.  if train_data is None preping with query data hack won't work for PCs

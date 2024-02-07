@@ -16,6 +16,8 @@ from scvi.model import SCVI, SCANVI
 from .._lbl8r import LBL8R
 from .._xgb import XGB
 
+from ..._constants import SCVI_LATENT_KEY, SCANVI_LATENT_KEY, PCA_KEY
+
 # TODO: make this class handle the laoding / saving of models.
 
 
@@ -94,14 +96,18 @@ class ModelSet:
     model: dict[str, LazyModel]
     path: Path | str
     labels_key: str = "cell_type"
+    batch_key: str | None = None
     _prepped: bool = field(default=False, init=False, repr=False)
     _pcs: ndarray | None = field(default=None, init=False, repr=False)
     _default: str | None = field(default=None, init=False, repr=False)
     _genes: list[str] | None = field(default_factory=list, init=False, repr=False)
+    _basis: str | None = field(default=None, init=False, repr=False)
+
     predictions: dict[str, pd.DataFrame] = field(
         default_factory=dict, init=True, repr=False
     )
     report: dict[str, dict] = field(default_factory=dict, init=True, repr=False)
+
     # _labels_key: str = field(init=False, repr=False)
 
     def __post_init__(self):
@@ -120,13 +126,20 @@ class ModelSet:
             self.model[name] = model
         # self.model.update(mods)
 
-    # @property
-    # def labels_key(self):
-    #     return self._labels_key
+    @property
+    def basis(self):
+        return self._basis
 
-    # @labels_key.setter
-    # def labels_key(self, key: str):
-    #     self._labels_key = key
+    @basis.setter
+    def basis(self, key: str):
+        if key not in [PCA_KEY, SCVI_LATENT_KEY, SCANVI_LATENT_KEY]:
+            print(
+                f"basis must be one of: {PCA_KEY},{SCVI_LATENT_KEY}, {SCANVI_LATENT_KEY}"
+            )
+            print(f"setting basis to default: {PCA_KEY}")
+            self._basis = PCA_KEY
+        else:
+            self._basis = key
 
     @property
     def genes(self):

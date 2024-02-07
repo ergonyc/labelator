@@ -191,7 +191,7 @@ class XGB:
 
         print(f"training {self.name}")
         # train
-        self.module = train_xgboost(X_train, y_train, **training_kwargs)
+        self.module = train_xgboost2(X_train, y_train, **training_kwargs)
 
         return self
 
@@ -206,25 +206,25 @@ class XGB:
         y_test = le.transform(adata.obs[label_key])
         index = adata.obs.index
 
-        # num_samples = X_test.shape[0]
-        # chunk_size = 10000  # Define a chunk size that fits in your memory
-        # its = 0
-        # preds = []
-        # # HACK: this is a hack to deal with large datasets. should do at once if possible
-        # for i in range(0, num_samples, chunk_size):
-        #     # Read a chunk of data
-        #     X_chunk = X_test[i : i + chunk_size, :]
-        #     y_chunk = y_test[i : i + chunk_size]
+        num_samples = X_test.shape[0]
+        chunk_size = 10000  # Define a chunk size that fits in your memory
+        its = 0
+        preds = []
+        # HACK: this is a hack to deal with large datasets. should do at once if possible
+        for i in range(0, num_samples, chunk_size):
+            # Read a chunk of data
+            X_chunk = X_test[i : i + chunk_size, :]
+            y_chunk = y_test[i : i + chunk_size]
 
-        #     dtest = xgb.DMatrix(X_chunk, label=y_chunk)
-        #     preds.append(self.module.predict(dtest))
+            dtest = xgb.DMatrix(X_chunk, label=y_chunk)
+            preds.append(self.module.predict(dtest))
 
-        #     its += 1
-        # preds = np.vstack(preds)
-        # print(f" ending chunk size = {X_chunk.shape} in {its=} iterations")
+            its += 1
+        preds = np.vstack(preds)
+        print(f" ending chunk size = {X_chunk.shape} in {its=} iterations")
 
-        dtest = xgb.DMatrix(X_test, label=y_test)
-        preds = self.module.predict(dtest)
+        # dtest = xgb.DMatrix(X_test, label=y_test)
+        # preds = self.module.predict(dtest)
 
         classes = self.label_encoder.classes_
         # Predict the probabilities for each class on the test set
@@ -366,25 +366,6 @@ def train_xgboost(X, y, num_round=50, **training_kwargs) -> xgb.Booster:
         device=device,
     )
 
-    # params = {
-    #     "max_depth": 7,
-    #     "objective": "multi:softprob",  # error evaluation for multiclass training
-    #     "num_class": n_cats,
-    #     "eta": 0.3,  # the training step for each iteration
-    #     # 'n_gpus': 0
-    # }
-    # if use_gpu:
-    #     params["device"] = "cuda"
-
-    # # Set up parameters for xgboost
-    # param = {
-    # 'max_depth': 6,  # the maximum depth of each tree
-    # 'eta': 0.3,  # the training step for each iteration
-    # 'objective': 'multi:softprob',  # error evaluation for multiclass training
-    # 'num_class': len(np.unique(y_train_full_encoded)) } # the number of classes
-
-    # evallist = [(dval, 'eval'), (dtrain, 'train')]
-    # bst = xgb.train(param, dtrain, num_round, evallist)
     bst = xgb.train(
         params,
         dtrain,
