@@ -211,7 +211,6 @@ def cli(
 
     if query:
         print(f"query_model: {'🔮 '*25}")
-
         query_data = query_model(query_data, model_set)
     # In[ ]
     ## CREATE ARTIFACTS ###################################################################

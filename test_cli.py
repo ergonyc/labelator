@@ -21,7 +21,7 @@ from lbl8r.labelator import (
 train_path = Path("data/scdata/xylena/brain_atlas_anndata_train_cnt.h5ad")
 query_path = Path("data/scdata/xylena/brain_atlas_anndata_test_cnt.h5ad")
 
-train_path = None
+# train_path = None
 # query_path = Path('data/scdata/ASAP/artifacts/06_merged_filtered_processed_integrated_clustered_anndata_object.h5ad')
 # # query_path = Path('data/scdata/ASAP/artifacts/06_merged_filtered_integrated_clustered_anndata_object.h5ad')
 # query_path = Path('data/scdata/ASAP/artifacts/07_merged_filtered_integrated_clustered_annotated_anndata_object.h5ad')
@@ -107,7 +107,6 @@ if query:
         query_data,
         model_set,
         model_name,
-        train_data,
         labels_key=labels_key,
         retrain=retrain_model,
     )
@@ -123,7 +122,6 @@ if train:
 
 if query:
     print(f"query_model: {'🔮 '*25}")
-
     query_data = query_model(query_data, model_set)
 # In[ ]
 ## CREATE ARTIFACTS ###################################################################
