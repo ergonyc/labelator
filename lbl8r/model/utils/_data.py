@@ -6,7 +6,7 @@ import numpy as np
 from scipy.sparse import csr_matrix, hstack, issparse
 
 # from scanpy.pp import pca
-from ..._constants import OUT, H5, EMB, EXPR, CNT, PCS, VAE
+from ..._constants import OUT, H5, EMB, EXPR, CNT, PCS, VAE, CELL_TYPE_KEY
 
 
 @dataclasses.dataclass
@@ -50,6 +50,8 @@ class Adata:
             else:
                 self._adata = ad.read_h5ad(self.adata_path)
         self._loaded = True
+
+        self.ground_truth_key = CELL_TYPE_KEY
         return self._adata
 
     @property
@@ -75,7 +77,12 @@ class Adata:
 
     @ground_truth_key.setter
     def ground_truth_key(self, ground_truth_key: str):
-        self._ground_truth_key = ground_truth_key
+        if self._adata is None:
+            print("adata not loaded")
+            return None
+
+        if ground_truth_key in self._adata.obs_keys():
+            self._ground_truth_key = ground_truth_key
 
     @property
     def archive_path(self):
@@ -193,6 +200,7 @@ def add_predictions_to_adata(adata, predictions, insert_key="pred", pred_key="la
     return adata
 
 
+# TODO: remove ref_ad input
 def transfer_pcs(
     query_ad: ad.AnnData,
     ref_ad: ad.AnnData | None = None,

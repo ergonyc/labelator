@@ -155,6 +155,9 @@ def plot_embedding(
     """
     # default kwargs
     device = kwargs.pop("device", None)
+    if basis is None:
+        print("No basis provided, using PCA")
+        basis = PCA_KEY
 
     if umap:
         if UMAP_KEY not in adata.obsm_keys():

@@ -20,7 +20,6 @@ run_model() {
         start_time=$(date +%s)
 
         python -m labelator_api \
-            --train-path $train_adata \
             --query-path $query_adata \
             --model-path $model_path \
             --model-name $model_name \
@@ -28,7 +27,7 @@ run_model() {
             --artifacts-path $artifacts_path \
             --gen-plots 
             # --retrain-model
-
+        #    --train-path $train_adata \
         # Check if the Python call was successful
         
         # python -m labelator_api \

@@ -264,7 +264,7 @@ def get_query_scvi(
     surgery_epochs = 150
 
     qscvi_path = model_path / model_name
-
+    # failing here... ?!?
     SCVI.prepare_query_anndata(adata, vae)
     # the query model might exist if we are not batch correcting... need to fix...
 

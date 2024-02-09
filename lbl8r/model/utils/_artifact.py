@@ -165,7 +165,7 @@ def load_genes(path: Path) -> list[str]:
 
     if genes_path.exists():
         genes = _load_pkl(genes_path)
-        print(f"loaded n={len(genes)} genes from {genes_path}")
+        # print(f"loaded n={len(genes)} genes from {genes_path}")
         return genes
     else:
         print(f"no genes found at {genes_path}")

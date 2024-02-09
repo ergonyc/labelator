@@ -197,7 +197,6 @@ def cli(
             query_data,
             model_set,
             model_name,
-            train_data,
             labels_key=labels_key,
             retrain=retrain_model,
         )

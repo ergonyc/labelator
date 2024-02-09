@@ -72,21 +72,6 @@ class XGB:
     def label_encoder(self, label_encoder: LabelEncoder):
         self._label_encoder = label_encoder
 
-    # make module lazy ? not sure about this logic
-    @property
-    def module(self):
-        if self._module is None:
-            if self.path is not None:
-                self._module = load_xgboost(self.path)
-            else:
-                print("Error:  No path set.")
-
-        return self._module
-
-    @module.setter
-    def module(self, module: Booster):
-        self._module = module
-
     @property
     def path(self):
         return self._path
@@ -102,13 +87,13 @@ class XGB:
                     self._path = path
                 else:
                     self._path = path / "xgb.json"
-                self.name = path.parent.name
             else:
                 path.mkdir(exist_ok=True, parents=True)
                 self._path = path / "xgb.json"
-                self.name = path.parent.name
+        self.name = self._path.parent.name
 
     # wrapper for instantiating model from disk.
+    # @classmethod
     def load(self, path: Path | str):
         """
         Load an XGBoost classifier model from a file.
@@ -124,6 +109,7 @@ class XGB:
             The loaded XGBoost classifier model, or None if loading fails.
         """
 
+        # cls = cls()
         # Check if the file exists
         path = Path(path) if isinstance(path, str) else path
 
@@ -133,7 +119,7 @@ class XGB:
 
         self.path = path
 
-        print(f"loading xgb model from: {self.path}")
+        print(f"loading xgb model from: {path}")
         # Set the global configuration for XGBoost
         try:
             self.label_encoder = load_label_encoder(self.path.parent)
@@ -144,13 +130,12 @@ class XGB:
             # self.label_encoder = LabelEncoder().load(path.parent / "label_encoder.pkl")
 
             self._module = model
-
-            return self
+            # print(cls)
+            # return cls
 
         except Exception as e:
             # Handle exceptions that occur during model loading
             print(f"Failed to load the model: {e}")
-            return None
 
     def prep_adata(self, adata: AnnData | None = None, label_key: str = "cell_type"):
         """
@@ -282,12 +267,14 @@ def get_xgb2(
 ) -> tuple[XGB, AnnData]:
     n_labels = len(adata.obs[labels_key].cat.categories)
 
-    retrain = True
+    # retrain = True
     # 1. load/train model
     if model_path.exists() and not retrain:
+        print("loading xgb model from path")
         bst = XGB()
         bst.load(model_path / model_name)
     else:
+        print("training xgb model")
         bst = XGB(adata, n_labels=n_labels)
         bst.train(**training_kwargs)
 
