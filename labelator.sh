@@ -20,27 +20,14 @@ run_model() {
         start_time=$(date +%s)
 
         python -m labelator_api \
+            --train-path $train_adata \
             --query-path $query_adata \
             --model-path $model_path \
             --model-name $model_name \
             --output-data-path $output_data_path \
             --artifacts-path $artifacts_path \
-            --gen-plots 
-            # --retrain-model
-        #    --train-path $train_adata \
-        # Check if the Python call was successful
-        
-        # python -m labelator_api \
-        #     --train-path $train_adata \
-        #     --query-path $query_adata \
-        #     --model-path $model_path \
-        #     --model-name $model_name \
-        #     --output-data-path $output_data_path \
-        #     --artifacts-path $artifacts_path \
-        #     --gen-plots 
-        #     # --retrain-model
-
-        # # Check if the Python call was successful
+            --gen-plots \
+            --labels-key "cellassign_types"
         
         if [ $? -ne 0 ]; then
             echo "🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 "
@@ -59,25 +46,42 @@ run_model() {
     done
 }
 
-train_data="data/scdata/xylena/brain_atlas_anndata_train_cnt.h5ad"
-query_data="data/scdata/xylena/brain_atlas_anndata_test_cnt.h5ad"
-adata_output_path='data/scdata/ASAP/LABELATOR/'
+train_data="data/scdata/xylena/xyl2_train.h5ad"
+query_data="data/scdata/xylena/xyl2_test.h5ad"
+adata_output_path='data/scdata/ASAP/LABELATOR2/'
 
 
 # query_adata=$'/media/ergonyc/data/sc/ASAP/artifacts/07_merged_filtered_processed_integrated_clustered_annotated_anndata_object.h5ad'
 # query_adata=$'/media/ergonyc/data/sc/ASAP/artifacts/07_merged_filtered_integrated_clustered_annotated_anndata_object.h5ad'
 
 
-artifacts_path='artifacts/'
+artifacts_path='artifacts2/'
 
 # Call the function 
-model_path='models/REPR/scvi'  
-repr_model_names=("scvi_emb" "scvi_expr" "scvi_expr_pcs" "scvi_emb_xgb" "scvi_expr_xgb" "scvi_expr_pcs_xgb")
+model_path='models2/REPR/scvi'  
+# repr_model_names=("scvi_emb" "scvi_expr" "scvi_expr_pcs" "scvi_emb_xgb" "scvi_expr_xgb" "scvi_expr_pcs_xgb")
+repr_model_names=("scvi_emb" "scvi_expr" "scvi_expr_pcs")
 run_model $train_data $query_data repr_model_names[@] $model_path $adata_output_path $artifacts_path
-model_path='models/CNT'  
-count_model_names=("pcs_lbl8r" "raw_lbl8r" "raw_xgb" "pcs_xgb" )
+model_path='models2/CNT'  
+# count_model_names=("pcs_lbl8r" "raw_lbl8r" "raw_xgb" "pcs_xgb" )
+count_model_names=("pcs_lbl8r" "raw_lbl8r")
 run_model $train_data $query_data count_model_names[@] $model_path $adata_output_path $artifacts_path
-model_path='models/TRANSFER/'  
+model_path='models2/TRANSFER/'  
 transfer_model_names=("scanvi_batch_eq" "scanvi" )
 run_model $train_data $query_data transfer_model_names[@] $model_path $adata_output_path $artifacts_path
+
+
+query_data="data/scdata/xylena/xyl2_query.h5ad"
+train_data=""
+# Call the function 
+model_path='models2/REPR/scvi'  
+repr_model_names=("scvi_emb" "scvi_expr" "scvi_expr_pcs")
+run_model $train_data $query_data repr_model_names[@] $model_path $adata_output_path $artifacts_path
+model_path='models2/CNT'  
+count_model_names=("pcs_lbl8r" "raw_lbl8r")
+run_model $train_data $query_data count_model_names[@] $model_path $adata_output_path $artifacts_path
+model_path='models2/TRANSFER/'  
+transfer_model_names=("scanvi_batch_eq" "scanvi" )
+run_model $train_data $query_data transfer_model_names[@] $model_path $adata_output_path $artifacts_path
+
 

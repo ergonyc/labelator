@@ -20,27 +20,30 @@ from lbl8r.labelator import (
 # TODO: add logging
 train_path = Path("data/scdata/xylena/brain_atlas_anndata_train_cnt.h5ad")
 query_path = Path("data/scdata/xylena/brain_atlas_anndata_test_cnt.h5ad")
-
+train_path = Path("data/scdata/xylena/xyl2_train.h5ad")
+query_path = Path("data/scdata/xylena/xyl2_test.h5ad")
+query_path = Path("data/scdata/xylena/xyl2_query.h5ad")
+train_path = None
 # train_path = None
 # query_path = Path('data/scdata/ASAP/artifacts/06_merged_filtered_processed_integrated_clustered_anndata_object.h5ad')
 # # query_path = Path('data/scdata/ASAP/artifacts/06_merged_filtered_integrated_clustered_anndata_object.h5ad')
 # query_path = Path('data/scdata/ASAP/artifacts/07_merged_filtered_integrated_clustered_annotated_anndata_object.h5ad')
-# model_path = Path("models/CNT/")
-model_path = Path("models/REPR/scvi/")
-# model_path = Path("models/TRANSFER/")
+# model_path = Path("models/CNT2/")
+model_path = Path("models/REPR2/scvi/")
+# model_path = Path("models/TRANSFER2/")
 # train_path = None
 # model_name = "raw_lbl8r"
-model_name = "scvi_emb_xgb"
+# model_name = "scvi_emb_xgb"
 # model_name = "pcs_lbl8r"
-# model_name = "scvi_emb"
+model_name = "scvi_emb"
 # model_name = "scanvi_batch_eq"
 
-output_data_path = Path("data/scdata/xylena/LABELATOR/")
-artifacts_path = Path("artifacts/")
+output_data_path = Path("data/scdata/xylena/LABELATOR2/")
+artifacts_path = Path("artifacts2/")
 gen_plots = True
 retrain_model = False
 labels_key = CELL_TYPE_KEY
-
+labels_key = "cellassign_types"
 # if model_name == "scanvi_batch_eq":
 #     batch_key = "sample"
 # else:

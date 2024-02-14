@@ -141,6 +141,8 @@ def dump_genes(genes: list[str], path: Path):
         Path to save genes.
 
     """
+    if not path.exists():
+        path.mkdir(parents=True, exist_ok=True)
     genes_path = path / f"genes.pkl"
     _dump_pkl(genes, genes_path)
     # print(f"wrote: N={len(genes)} to {genes_path}")

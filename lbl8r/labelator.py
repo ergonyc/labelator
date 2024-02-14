@@ -200,6 +200,9 @@ def prep_model(
         if data is None:
             print("no train_data passed")
             data = Adata(None)
+        elif model.genes is None:
+            save_genes(data.adata, model_path / model_name)
+            model.genes = genes
 
         model.prepped = False
         return model, data
