@@ -127,6 +127,7 @@ def load_trained_model(
         model.batch_key = (
             "sample" if model_name == SCANVI_BATCH_EQUALIZED_MODEL_NAME else None
         )
+        model.basis = SCANVI_LATENT_KEY
 
     # scvi REPR models
     elif model_name in (
@@ -144,6 +145,7 @@ def load_trained_model(
         model = LazyModel(model_path)
         models = {model_name: model, SCVI_SUB_MODEL_NAME: vae}
         model = ModelSet(models, model_path, labels_key)
+        model.basis = SCVI_LATENT_KEY
 
     # CNT models
     elif model_name in (
@@ -156,11 +158,11 @@ def load_trained_model(
         model = LazyModel(model_path)
         models = {model_name: model}
         model = ModelSet(models, model_path, labels_key)
-
+        model.basis = PCA_KEY
     else:
         raise ValueError(f"unknown model_name {model_name}")
 
-    print(f"model genes n= {model.genes}")
+    model.default = model_name
     return model
 
 
@@ -198,6 +200,9 @@ def prep_model(
         if data is None:
             print("no train_data passed")
             data = Adata(None)
+        elif model.genes is None:
+            save_genes(data.adata, model_path / model_name)
+            model.genes = genes
 
         model.prepped = False
         return model, data
@@ -317,7 +322,7 @@ def train_model(
         model.basis = SCANVI_LATENT_KEY
         return model, data
 
-    basis = MDE_KEY
+    basis = PCA_KEY
     batch_key = None
     if model_name in (
         SCVI_LATENT_MODEL_NAME,
@@ -410,7 +415,9 @@ def train_model(
     return model, data
 
 
-def prep_latent_data(data: Adata, vae: SCVI, labels_key: str = "cell_type") -> Adata:
+def prep_latent_data(
+    data: Adata, vae: LazyModel, labels_key: str = "cell_type"
+) -> Adata:
     """
     Prep adata for scVI LBL8R model
 
@@ -418,7 +425,7 @@ def prep_latent_data(data: Adata, vae: SCVI, labels_key: str = "cell_type") -> A
     ----------
     data : Adata
         dataclass holder for Annotated data matrix.
-    model :
+    model : LazyModel
         An classification model.
     labels_key : str
         Key for cell type labels. Default is `cell_type`.
@@ -429,9 +436,11 @@ def prep_latent_data(data: Adata, vae: SCVI, labels_key: str = "cell_type") -> A
         Annotated data matrix with latent variables as X
 
     """
+    if not vae.loaded:
+        vae.load_model(data.adata)
 
     # 1. get the latent representation
-    ad = prep_latent_z_adata(data.adata, vae=vae, labels_key=labels_key)
+    ad = prep_latent_z_adata(data.adata, vae=vae.model, labels_key=labels_key)
     # 2. update the data with the latent representation
     data.update(ad)
     return data
@@ -460,7 +469,9 @@ def prep_query_data(data: Adata, genes: list[str]) -> Adata:
     if data.labels_key is not None:
         data.ground_truth_key = data.labels_key
     else:
-        data.ground_truth_key = "Unknown"
+        # TODO: fix "ground_truth" logic
+        print("should I set ground_truth_key to 'Unknown'?")
+        # data.ground_truth_key = "Unknown"
 
     ad = prep_target_genes(data.adata, genes)
     data.update(ad)
@@ -468,7 +479,7 @@ def prep_query_data(data: Adata, genes: list[str]) -> Adata:
 
 
 def prep_expr_data(
-    data: Adata, vae: SCVI, ref_data: Adata | ndarray | None = None
+    data: Adata, vae: LazyModel, ref_pcs: ndarray | None = None
 ) -> Adata:
     """
     Prep adata for scVI LBL8R model
@@ -477,9 +488,9 @@ def prep_expr_data(
     ----------
     data : Adata
         dataclass holder for Annotated data matrix.
-    vae :
+    vae : LazyModel
         An scvi model used for normalization.
-    ref_data : Adata
+    ref_pcs : ndarray
         "training" data used for transferring pcs
 
     Returns
@@ -488,16 +499,15 @@ def prep_expr_data(
         Annotated data matrix with latent variables as X
 
     """
+    if not vae.loaded:
+        vae.load_model(data.adata)
 
     # 1. get the normalized adata
-    ad = make_scvi_normalized_adata(vae, data.adata)
+    ad = make_scvi_normalized_adata(vae.model, data.adata)
 
     # 2. update the data with pcs
-    if isinstance(ref_data, Adata):
-        ref = ref_data.adata
-        ad = transfer_pcs(ad, ref_ad=ref, pcs=None)
-    elif isinstance(ref_data, ndarray):
-        ad = transfer_pcs(ad, ref_ad=None, pcs=ref_data)
+    if ref_pcs is not None:
+        ad = transfer_pcs(ad, ref_ad=None, pcs=ref_pcs)
     else:
         ValueError("no PCs to transfer, can't make scvi normalized pcs")
 
@@ -506,7 +516,7 @@ def prep_expr_data(
     return data
 
 
-def prep_pc_data(data: Adata, pca_key=PCA_KEY, ref_data: Adata | None = None) -> Adata:
+def prep_pc_data(data: Adata, pca_key=PCA_KEY, ref_pcs: ndarray | None = None) -> Adata:
     """
     Prep adata for pcs LBL8R model
 
@@ -516,7 +526,7 @@ def prep_pc_data(data: Adata, pca_key=PCA_KEY, ref_data: Adata | None = None) ->
         dataclass holder for Annotated data matrix.
     pca_key : str
         Key for pca. Default is `X_pca`.
-    ref_data : Adata
+    ref_pcs : ndarray
         "training" data used for transferring pcs
 
     Returns
@@ -528,11 +538,18 @@ def prep_pc_data(data: Adata, pca_key=PCA_KEY, ref_data: Adata | None = None) ->
 
     ad = data.adata
     # 1. make sure we have pcs
-    if isinstance(ref_data, Adata):
-        ref = ref_data.adata
-        ad = transfer_pcs(ad, ref_ad=ref, pcs=None)
-    elif isinstance(ref_data, ndarray):
-        ad = transfer_pcs(ad, ref_ad=None, pcs=ref_data)
+    if ref_pcs is not None:
+        ad = transfer_pcs(ad, ref_ad=None, pcs=ref_pcs)
+    elif pca_key in ad.obsm_keys():
+        print(f"already have PCs. ?")
+    elif "PCs" in ad.uns_keys():
+        print(f"transfering PCs from .uns['PCs']")
+        ref_pcs = ad.uns["PCs"].copy()
+        ad = transfer_pcs(ad, ref_ad=None, pcs=ref_pcs)
+    elif "PCs" in ad.varm_keys():
+        print(f"transfering PCs from .varm['PCs']")
+        ref_pcs = ad.varm["PCs"].copy()
+        ad = transfer_pcs(ad, ref_ad=None, pcs=ref_pcs)
     else:
         ValueError("no PCs to transfer, can't make scvi normalized pcs")
 
@@ -565,6 +582,9 @@ def query_model(
     """
 
     model = model_set.model[model_set.default]
+
+    if not model.loaded:
+        model.load_model(data.adata)
 
     # TODO: update interface to query_scanvi, query_lbl8r, query_xgb so the predictiosn tables are returned
     #   do the merge_into_obs here, and also serialize the tables.
@@ -689,7 +709,6 @@ def prep_query_model(
     query_data: Adata,
     model_set: ModelSet,
     model_name: str,
-    ref_data: Adata | None = None,
     labels_key: str = "cell_type",
     retrain: bool = False,
 ) -> (ModelSet, Adata):
@@ -719,11 +738,6 @@ def prep_query_model(
     # 0. tag adata for artifact export
     query_data.set_output(model_name)
 
-    # if we didn't load the training data we need to load the PCs from the model
-    # might just want to always do this and not pass in ref_data.
-    if ref_data is None:
-        ref_data = model_set.pcs
-
     # set the labels_key
     query_data.labels_key = labels_key
     genes = model_set.genes
@@ -744,13 +758,13 @@ def prep_query_model(
         # SCVI expression models
         pcs = model_set.pcs
         query_data = prep_expr_data(
-            query_data, model_set.model[SCVI_SUB_MODEL_NAME].model, ref_data=ref_data
+            query_data, model_set.model[SCVI_SUB_MODEL_NAME], ref_pcs=model_set.pcs
         )
         if model_name in (
             SCVI_EXPR_PC_MODEL_NAME,
             XGB_SCVI_EXPR_PC_MODEL_NAME,
         ):
-            query_data = prep_pc_data(query_data, ref_data=ref_data)
+            query_data = prep_pc_data(query_data, ref_pcs=model_set.pcs)
 
     elif model_name in (
         SCVI_LATENT_MODEL_NAME,
@@ -759,7 +773,7 @@ def prep_query_model(
         # SCVI embedding models
         query_data = prep_latent_data(
             query_data,
-            model_set.model[SCVI_SUB_MODEL_NAME].model,
+            model_set.model[SCVI_SUB_MODEL_NAME],
             labels_key=labels_key,
         )
 
@@ -768,7 +782,7 @@ def prep_query_model(
         XGB_RAW_PC_MODEL_NAME,
     ):
         # PCS models
-        query_data = prep_pc_data(query_data, ref_data=ref_data)
+        query_data = prep_pc_data(query_data, ref_pcs=model_set.pcs)
 
     elif model_name in (
         SCANVI_BATCH_EQUALIZED_MODEL_NAME,
@@ -794,13 +808,13 @@ def archive_artifacts(
 
     """
 
-    if train_data is not None:  # just in case we are only "querying" or "getting"
+    if train_data.adata is not None:  # just in case we are only "querying" or "getting"
         print(f"archive training plots and data: {'📈 '*25}")
         archive_plots(train_data, model_set, "train", fig_path=(path / "figs"))
         print(f"archive train output adata: {'💾 '*25}")
         archive_data(train_data)
 
-    if query_data is not None:
+    if query_data.adata is not None:
         print(f"archive query plots and data: {'📊 '*25}")
         archive_plots(query_data, model_set, "query", fig_path=(path / "figs"))
         print(f"archive query output adata: {'💾 '*25}")

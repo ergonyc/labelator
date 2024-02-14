@@ -197,7 +197,6 @@ def cli(
             query_data,
             model_set,
             model_name,
-            train_data,
             labels_key=labels_key,
             retrain=retrain_model,
         )
@@ -212,7 +211,6 @@ def cli(
 
     if query:
         print(f"query_model: {'🔮 '*25}")
-
         query_data = query_model(query_data, model_set)
     # In[ ]
     ## CREATE ARTIFACTS ###################################################################

@@ -1,6 +1,6 @@
 #conda env create -f lbl8r.yaml 
 
-name: lbl8r2
+name: lbl8r
 channels:
 - conda-forge
 - pytorch
@@ -17,9 +17,10 @@ dependencies:
 - click
 - pip
 - pip:
-  - scvi-tools==1.1.0rc2
+  - scvi-tools
   - scanpy
   - anndata
   - numpy
   - pandas
   - pymde
+  - scikit-misc

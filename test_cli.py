@@ -4,8 +4,7 @@ import torch
 from pathlib import Path
 
 from lbl8r.labelator import (
-    load_training_data,
-    load_query_data,
+    load_data,
     prep_model,
     query_model,
     prep_query_model,
@@ -21,30 +20,34 @@ from lbl8r.labelator import (
 # TODO: add logging
 train_path = Path("data/scdata/xylena/brain_atlas_anndata_train_cnt.h5ad")
 query_path = Path("data/scdata/xylena/brain_atlas_anndata_test_cnt.h5ad")
-
-query_path = Path('data/scdata/ASAP/artifacts/06_merged_filtered_processed_integrated_clustered_anndata_object.h5ad')
-# query_path = Path('data/scdata/ASAP/artifacts/06_merged_filtered_integrated_clustered_anndata_object.h5ad')
-query_path = Path('data/scdata/ASAP/artifacts/07_merged_filtered_integrated_clustered_annotated_anndata_object.h5ad')
-# model_path = Path("models/CNT/")
-model_path = Path("models/REPR/scvi/")
-model_path = Path("models/TRANSFER/")
+train_path = Path("data/scdata/xylena/xyl2_train.h5ad")
+query_path = Path("data/scdata/xylena/xyl2_test.h5ad")
+query_path = Path("data/scdata/xylena/xyl2_query.h5ad")
+train_path = None
+# train_path = None
+# query_path = Path('data/scdata/ASAP/artifacts/06_merged_filtered_processed_integrated_clustered_anndata_object.h5ad')
+# # query_path = Path('data/scdata/ASAP/artifacts/06_merged_filtered_integrated_clustered_anndata_object.h5ad')
+# query_path = Path('data/scdata/ASAP/artifacts/07_merged_filtered_integrated_clustered_annotated_anndata_object.h5ad')
+# model_path = Path("models/CNT2/")
+model_path = Path("models/REPR2/scvi/")
+# model_path = Path("models/TRANSFER2/")
 # train_path = None
 # model_name = "raw_lbl8r"
 # model_name = "scvi_emb_xgb"
-model_name = "pcs_lbl8r"
+# model_name = "pcs_lbl8r"
 model_name = "scvi_emb"
-model_name = "scanvi_batch_eq"
+# model_name = "scanvi_batch_eq"
 
-output_data_path = Path("data/scdata/xylena/LABELATOR/")
-artifacts_path = Path("artifacts/")
+output_data_path = Path("data/scdata/xylena/LABELATOR2/")
+artifacts_path = Path("artifacts2/")
 gen_plots = True
 retrain_model = False
 labels_key = CELL_TYPE_KEY
-
-if model_name == "scanvi_batch_eq":
-    batch_key = "sample"
-else:
-    batch_key = None
+labels_key = "cellassign_types"
+# if model_name == "scanvi_batch_eq":
+#     batch_key = "sample"
+# else:
+#     batch_key = None
 
 %load_ext autoreload
 %autoreload 2
@@ -56,19 +59,19 @@ else:
 # setup
 torch.set_float32_matmul_precision("medium")
 
-print(
-        f"{train_path=}:: {query_path=}:: {model_path=}:: {model_name=}:: {output_data_path=}:: {artifacts_path=}:: {gen_plots=}:: {retrain_model=}:: {labels_key=}:: {batch_key=}"
-    )
+# print(
+#         f"{train_path=}:: {query_path=}:: {model_path=}:: {model_name=}:: {output_data_path=}:: {artifacts_path=}:: {gen_plots=}:: {retrain_model=}:: {labels_key=}:: {batch_key=}"
+#     )
 ## LOAD DATA ###################################################################
 if train := train_path is not None:
-    train_data = load_training_data(train_path, archive_path=output_data_path)
+    train_data = load_data(train_path, archive_path=output_data_path)
 else:
     if retrain_model:
         print("Must provide training data (`train-path`) to retrain model")
     train_data = None
 
 if query := query_path is not None:
-    query_data = load_query_data(query_path, archive_path=output_data_path)
+    query_data = load_data(query_path, archive_path=output_data_path)
     # load model with query_data if training data is not provided
 else:
     query_data = None
@@ -107,7 +110,6 @@ if query:
         query_data,
         model_set,
         model_name,
-        train_data,
         labels_key=labels_key,
         retrain=retrain_model,
     )
@@ -123,7 +125,6 @@ if train:
 
 if query:
     print(f"query_model: {'🔮 '*25}")
-
     query_data = query_model(query_data, model_set)
 # In[ ]
 ## CREATE ARTIFACTS ###################################################################
