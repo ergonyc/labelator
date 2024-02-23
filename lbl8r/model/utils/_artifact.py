@@ -2,8 +2,8 @@ import pickle
 from pathlib import Path
 from anndata import AnnData
 from numpy import ndarray
-import scanpy as sc
 import pandas as pd
+from ._pca import compute_pcs
 
 
 def _dump_pkl(obj, path: Path):
@@ -58,7 +58,6 @@ def dump_pcs(pcs: ndarray, model_path: Path):
     """
     pcs_path = model_path / f"pcs.pkl"
     _dump_pkl(pcs, pcs_path)
-    print(f"wrote: {pcs_path}")
 
 
 def load_pcs(model_path: Path) -> ndarray:
@@ -104,11 +103,11 @@ def extract_pcs(ad: AnnData) -> ndarray:
         print("getting PCs from varm")
         pcs = ad.varm["PCs"].copy()
     elif "PCs" in ad.uns_keys():
-        print("transfering PCs from ref_ad to query_ad")
+        print("getting PCs ad.uns")
         pcs = ad.uns["PCs"].copy()
     else:
-        sc.pp.pca(ad)
-        pcs = ad.varm["PCs"].copy()
+        print("🚨WARNING: no PCs to extract... computing")
+        pcs = compute_pcs(ad)
 
     return pcs
 
@@ -231,3 +230,30 @@ def load_predictions(model_path: Path) -> pd.DataFrame:
     else:
         print(f"no predictions found at {preds_path}")
         return None
+
+
+def model_exists(model_path: Path) -> bool:
+    """
+    Check if model exists.
+
+    Parameters
+    ----------
+    model_path : Path
+        Path to the model.
+
+    Returns
+    -------
+    bool
+        True if model exists.
+
+    """
+    if model_path.is_file():
+        return True
+
+    if "xgb" in model_path.name:
+        model_arch = model_path / "xgb.json"
+    else:
+        model_arch = model_path / "model.pt"
+
+    # is_file is probably not necessary
+    return model_arch.is_file()

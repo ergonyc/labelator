@@ -136,7 +136,9 @@ class ModelSet:
         # Ensure path is always a Path object
         self.path = Path(self.path)
         # load saved pcs if they exist
-        self._pcs = load_pcs(self.path)
+        if "pcs" in self.path.name or "raw" in self.path.name:
+            print(f"pre init load_pcs: {self.path.name}")
+            self._pcs = load_pcs(self.path)
         # print(f"loaded pcs: {self.pcs}")
         print("post init load_genes")
         self._genes = load_genes(self.path)

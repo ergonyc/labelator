@@ -30,8 +30,10 @@ from .module._classifier import Classifier
 from ._scvi import get_trained_scvi
 
 from .utils._pred import get_stats_table
-from .utils._data import make_pc_loading_adata
+from .utils._data import make_pc_loading_adata, add_pc_loadings
 from .utils._timing import Timing
+from .utils._artifact import model_exists
+from .utils._pca import compute_pcs
 
 from .._constants import PCA_KEY
 
@@ -43,6 +45,7 @@ LABELS_KEY = "cell_type"
 
 def prep_pcs_adata(
     adata: AnnData,
+    pcs: np.ndarray | None = None,
     pca_key: str = "X_pca",
 ) -> AnnData:
     """
@@ -62,8 +65,40 @@ def prep_pcs_adata(
 
     """
 
-    loadings_ad = make_pc_loading_adata(adata, pca_key)
+    if pcs is None:
+        pcs = compute_pcs(adata)
+
+    loadings_ad = make_pc_loading_adata(adata, pcs=pcs, pca_key=pca_key)
     return loadings_ad
+
+
+def prep_raw_adata(
+    adata: AnnData,
+    pcs: np.ndarray | None = None,
+    pca_key: str = "X_pca",
+) -> AnnData:
+    """
+    make an adata with PCs copied to adata.X.
+
+    Parameters
+    ----------
+    adata : AnnData
+        Annotated data matrix.
+    pca_key : str
+        Key for pca loadings. Default is `X_pca`.
+
+    Returns
+    -------
+    AnnData
+        Annotated data matrix with latent variables as X
+
+    """
+
+    if pcs is None:
+        pcs = compute_pcs(adata)
+
+    adata = add_pc_loadings(adata, pcs=pcs, pca_key=pca_key)
+    return adata
 
 
 def get_stats_from_logits(logits: torch.Tensor, categories: np.ndarray) -> dict:
@@ -834,8 +869,10 @@ def get_lbl8r(
     LBL8R.setup_anndata(adata, labels_key=labels_key)
 
     # 1. load/train model
-    if lbl8r_path.exists() and not retrain:
+    if model_exists(lbl8r_path) and not retrain:
+        print(f"`get_lbl8r` existing model from {lbl8r_path}")
         lat_lbl8r = LBL8R.load(lbl8r_path, adata.copy())
+
     else:
         lat_lbl8r = LBL8R(adata, n_labels=n_labels)
         lat_lbl8r.train(
@@ -846,7 +883,7 @@ def get_lbl8r(
             **training_kwargs,
         )
 
-    if retrain or not lbl8r_path.exists():
+    if retrain or not model_exists(lbl8r_path):
         # save the reference model
         lat_lbl8r.save(lbl8r_path, overwrite=True)
 
