@@ -49,34 +49,34 @@ count_model_names=("pcs_lbl8r" "raw_lbl8r")
 transfer_model_names=("scanvi_batch_eq" "scanvi" )
 
 
-## 1k
-adata_output_path='data/scdata/xylena1k/LABELATOR/'
-artifacts_path='artifacts1k/'
-query_data="data/scdata/xylena1k/xyl2_query.h5ad"
+# ## 2k
+# adata_output_path='data/scdata/xylena1k/LABELATOR/'
+# artifacts_path='artifacts2k/'
+# query_data="data/scdata/xylena2k/xyl2_query.h5ad"
 
-model_path='models1k/REPR/scvi'  
-query_model $query_data repr_model_names[@] $model_path $adata_output_path $artifacts_path
+# model_path='models2k/REPR/scvi'  
+# query_model $query_data repr_model_names[@] $model_path $adata_output_path $artifacts_path
 
-model_path='models1k/CNT'  
-query_model $query_data count_model_names[@] $model_path $adata_output_path $artifacts_path
+# model_path='models2k/CNT'  
+# query_model $query_data count_model_names[@] $model_path $adata_output_path $artifacts_path
 
-model_path='models1k/TRANSFER/'  
-query_model $query_data transfer_model_names[@] $model_path $adata_output_path $artifacts_path
+# model_path='models2k/TRANSFER/'  
+# query_model $query_data transfer_model_names[@] $model_path $adata_output_path $artifacts_path
 
 
-## 3k
-adata_output_path='data/scdata/xylena3k/LABELATOR/'
-artifacts_path='artifacts3k/'
-query_data="data/scdata/xylena3k/xyl2_query.h5ad"
+# ## 3k
+# adata_output_path='data/scdata/xylena3k/LABELATOR/'
+# artifacts_path='artifacts3k/'
+# query_data="data/scdata/xylena3k/xyl2_query.h5ad"
 
-model_path='models3k/REPR/scvi'  
-query_model $query_data repr_model_names[@] $model_path $adata_output_path $artifacts_path
+# model_path='models3k/REPR/scvi'  
+# query_model $query_data repr_model_names[@] $model_path $adata_output_path $artifacts_path
 
-model_path='models3k/CNT'  
-query_model $query_data count_model_names[@] $model_path $adata_output_path $artifacts_path
+# model_path='models3k/CNT'  
+# query_model $query_data count_model_names[@] $model_path $adata_output_path $artifacts_path
 
-model_path='models3k/TRANSFER/'  
-query_model $query_data transfer_model_names[@] $model_path $adata_output_path $artifacts_path
+# model_path='models3k/TRANSFER/'  
+# query_model $query_data transfer_model_names[@] $model_path $adata_output_path $artifacts_path
 
 
 # 5k 
@@ -107,18 +107,18 @@ query_model $query_data count_model_names[@] $model_path $adata_output_path $art
 model_path='models10k/TRANSFER/'  
 query_model $query_data transfer_model_names[@] $model_path $adata_output_path $artifacts_path
 
-# 20k
-adata_output_path='data/scdata/xylena20k/LABELATOR/'
-artifacts_path='artifacts20k/'
-query_data="data/scdata/xylena20k/xyl2_query.h5ad"
+# # 20k
+# adata_output_path='data/scdata/xylena20k/LABELATOR/'
+# artifacts_path='artifacts20k/'
+# query_data="data/scdata/xylena20k/xyl2_query.h5ad"
 
-model_path='models20k/REPR/scvi'  
-query_model $query_data repr_model_names[@] $model_path $adata_output_path $artifacts_path
+# model_path='models20k/REPR/scvi'  
+# query_model $query_data repr_model_names[@] $model_path $adata_output_path $artifacts_path
 
-model_path='models20k/CNT'  
-query_model $query_data count_model_names[@] $model_path $adata_output_path $artifacts_path
+# model_path='models20k/CNT'  
+# query_model $query_data count_model_names[@] $model_path $adata_output_path $artifacts_path
 
-model_path='models20k/TRANSFER/'  
-query_model $query_data transfer_model_names[@] $model_path $adata_output_path $artifacts_path
+# model_path='models20k/TRANSFER/'  
+# query_model $query_data transfer_model_names[@] $model_path $adata_output_path $artifacts_path
 
 

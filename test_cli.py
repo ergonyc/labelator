@@ -12,38 +12,49 @@ from lbl8r.labelator import (
     CELL_TYPE_KEY,
 )
 
-#
-# TODO:  add options for model configureaion: e.g. n_hidden, n_latent, n_layers, dropout_rate, dispersion, gene_likelihood, latent_distribution encode_covariates,
-# TODO: enable other **training_kwargs:  train_size, accelerators, devices, early_stopping, early_stopping_kwargs, batch_size, epochs, etc.
+# #
+# repr_model_names=["scvi_emb", "scvi_expr", "scvi_expr_pcs"]
+# count_model_names=["pcs_lbl8r", "raw_lbl8r"]
+# transfer_model_names=["scanvi_batch_eq", "scanvi"]
 
 
-# TODO: add logging
+
+# train_data="data/scdata/xylena5k/xyl2_train.h5ad"
+# query_data="data/scdata/xylena5k/xyl2_test.h5ad"
+# adata_output_path='data/scdata/xylena5k/LABELATOR/'
+# artifacts_path='artifacts5k/'
+
+# model_path='models5k/REPR/scvi'  
+
+
 train_path = Path("data/scdata/xylena/brain_atlas_anndata_train_cnt.h5ad")
 query_path = Path("data/scdata/xylena/brain_atlas_anndata_test_cnt.h5ad")
-train_path = Path("data/scdata/xylena/xyl2_train.h5ad")
-query_path = Path("data/scdata/xylena/xyl2_test.h5ad")
-query_path = Path("data/scdata/xylena/xyl2_query.h5ad")
+train_path = Path("data/scdata/xylena5k/xyl2_train.h5ad")
+query_path = Path("data/scdata/xylena5k/xyl2_test.h5ad")
+query_path = Path("data/scdata/xylena5k/xyl2_query.h5ad")
 train_path = None
-# train_path = None
 # query_path = Path('data/scdata/ASAP/artifacts/06_merged_filtered_processed_integrated_clustered_anndata_object.h5ad')
 # # query_path = Path('data/scdata/ASAP/artifacts/06_merged_filtered_integrated_clustered_anndata_object.h5ad')
 # query_path = Path('data/scdata/ASAP/artifacts/07_merged_filtered_integrated_clustered_annotated_anndata_object.h5ad')
-# model_path = Path("models/CNT2/")
-model_path = Path("models/REPR2/scvi/")
-# model_path = Path("models/TRANSFER2/")
-# train_path = None
-# model_name = "raw_lbl8r"
+model_path = Path("models5k/REPR/scvi/")
 # model_name = "scvi_emb_xgb"
-# model_name = "pcs_lbl8r"
-model_name = "scvi_emb"
-# model_name = "scanvi_batch_eq"
+# model_name = "scvi_emb"
 
-output_data_path = Path("data/scdata/xylena/LABELATOR2/")
-artifacts_path = Path("artifacts2/")
+model_path = Path("models5k/TRANSFER/")
+model_name = "scanvi_batch_eq"
+
+# model_path = Path("models5k/CNT/")
+# model_name = "pcs_lbl8r"
+# model_name = "raw_lbl8r"
+
+
+output_data_path = Path("data/scdata/xylena5k/LABELATOR/")
+artifacts_path = Path("artifacts5k/")
+
 gen_plots = True
 retrain_model = False
 labels_key = CELL_TYPE_KEY
-labels_key = "cellassign_types"
+# labels_key = "cell_type"
 # if model_name == "scanvi_batch_eq":
 #     batch_key = "sample"
 # else:
@@ -79,12 +90,7 @@ else:
 if not (train | query):
     print("Must provide either `data-path` or `query-path` or both")
 
-# dummy_label = train_data.adata.obs[CELL_TYPE_KEY].values[0]
-# ad = query_data.adata
 
-# ad.obs[CELL_TYPE_KEY] = dummy_label
-# # update data with ad
-# query_data.update(ad)
 # In[ ]/'
 
 ## PREP MODEL ###################################################################
@@ -103,6 +109,8 @@ model_set, train_data = prep_model(
 )
 # In[ ]
 ## QUERY MODELs ###################################################################
+# makes sure the genes correspond to those of the prepped model
+#     projects counts onto the principle components of the training datas eigenvectors as 'X_pca'
 # TODO:  add additional training_kwargs to cli
 if query:
     print(f"prep query: {'💅 '*25}")
