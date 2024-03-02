@@ -1,7 +1,7 @@
 # labelator
 Simple framework for transfering labels to scRNAseq dataset from our favorite scRNAseq atlas.
 
-
+NOTE: XGBoost variants are currently depricated.  
 
 ### overview.
 We call this tool the "labelator".  The purpose of a "labelator" is to easily classify _cell types_ for out-of-sample __"Test"__ or __"Query"__ data. 
@@ -55,7 +55,7 @@ In two steps:
 We will also try some _end-to-end_ approaches for comparision.  In these models a single model takes us from raw counts to category probabilities.  
 
 - __naive__ inference
-    - boosted trees (e.g. xgboost)
+    - ~~boosted trees (e.g. xgboost)~~
     - MLP classifier
 
 - __transfer__ learning
@@ -81,3 +81,16 @@ There are several gotchas to anticipate:
 - features.  Currently we are locked into the 3k genes we are testing with.  Handling subsets and supersets is TBC.
 - batch.  In principle each "embedding" or decode part of the model should be able to measure a "batch-correction" parameter explicitly.  In `scVI` this is explicitly _learned_.  However in _naive_ inference mode it should just be an inferred fudge factor.
 - noise.  including or _not_ including `doublet`, `mito`, or `ribo` metrics
+
+
+
+----------------
+### future changes
+
+The _training_ and _query_ should be split up.   Different cli's for each modality.   The _query_ cli can be levraged for both the validation  __"Test"__ **and** any eadditional __"Query"_ probes.
+
+_training_ might be split into **prep** and **train**, with **prep** creating the base `scvi` _vae_ models for the other model flavors to use.  Note that the `scanvi` variants require both _'batch_eq'_ and non batch corrected variants.
+
+
+wrinkles:
+- the `scvi` family of 

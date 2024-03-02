@@ -16,6 +16,7 @@ import pandas as pd
 from .utils._timing import Timing
 from .utils._device import get_usable_device
 from .utils._le import load_label_encoder
+from .utils._artifact import model_exists
 
 
 class XGB:
@@ -269,7 +270,7 @@ def get_xgb2(
 
     # retrain = True
     # 1. load/train model
-    if model_path.exists() and not retrain:
+    if model_exists(model_path) and not retrain:
         print("loading xgb model from path")
         bst = XGB()
         bst.load(model_path / model_name)
@@ -278,7 +279,7 @@ def get_xgb2(
         bst = XGB(adata, n_labels=n_labels)
         bst.train(**training_kwargs)
 
-    if retrain or not model_path.exists():
+    if retrain or not model_exists(model_path):
         # save the reference model
         bst.save(model_path / model_name)
 
@@ -306,7 +307,7 @@ def get_xgb(
 
     X_train, y_train, label_encoder = get_xgb_data(adata, label_key=labels_key)
 
-    if bst_path.exists() and not retrain:
+    if model_exists(bst_path) and not retrain:
         # load trained model''
         print(f"loading {bst_path}")
         bst, le = load_xgboost(bst_path)
@@ -318,7 +319,7 @@ def get_xgb(
         # train
         bst = train_xgboost(X_train, y_train, **training_kwargs)
 
-    if retrain or not bst_path.exists():
+    if retrain or not model_exists(bst_path):
         save_xgboost(bst, bst_path, label_encoder)
         # HACK: reload to so that the training GPU memory is cleared
         bst, _ = load_xgboost(bst_path)

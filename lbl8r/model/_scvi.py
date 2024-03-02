@@ -6,6 +6,8 @@ import pandas as pd
 import numpy as np
 
 from .utils._timing import Timing
+from .utils._artifact import model_exists
+
 from .._constants import *
 
 # from .._constants import SCVI_LATENT_KEY_Z, SCVI_LATENT_KEY_MU_VAR
@@ -54,7 +56,7 @@ def get_trained_scvi(
     retrain: bool = False,
     model_name: str = "scvi",
     **training_kwargs,
-) -> (SCVI, AnnData):
+) -> tuple[SCVI, AnnData]:
     """
     Get scVI model and add latent representation to adata
 
@@ -108,7 +110,7 @@ def get_trained_scvi(
     )  # X contains raw counts
 
     scvi_path = model_path / model_name
-    if scvi_path.exists() and not retrain:
+    if model_exists(scvi_path) and not retrain:
         vae = SCVI.load(scvi_path.as_posix(), adata.copy())
 
     else:
@@ -131,7 +133,7 @@ def get_trained_scvi(
 
     adata.obsm[SCVI_LATENT_KEY] = vae.get_latent_representation()
 
-    if retrain or not scvi_path.exists():
+    if retrain or not model_exists(scvi_path):
         # save the reference model
         vae.save(scvi_path, overwrite=True)
 
@@ -147,7 +149,7 @@ def get_trained_scanvi(
     retrain: bool = False,
     model_name: str = "scanvi",
     **training_kwargs,
-) -> (SCANVI, AnnData):
+) -> tuple[SCANVI, AnnData]:
     """
     Get scANVI model and add latent representation to adata.
 
@@ -199,7 +201,7 @@ def get_trained_scanvi(
         )
 
     scanvi_path = model_path / model_name
-    if scanvi_path.exists() and not retrain:
+    if model_exists(scanvi_path) and not retrain:
         scanvi_model = SCANVI.load(scanvi_path.as_posix(), adata)
     else:
         scanvi_model = SCANVI.from_scvi_model(vae, "Unknown", labels_key=labels_key)
@@ -212,7 +214,7 @@ def get_trained_scanvi(
         )
     adata.obsm[SCANVI_LATENT_KEY] = scanvi_model.get_latent_representation(adata)
 
-    if retrain or not scanvi_path.exists():
+    if retrain or not model_exists(scanvi_path):
         # save the reference model
         scanvi_model.save(scanvi_path, overwrite=True)
 
@@ -222,14 +224,15 @@ def get_trained_scanvi(
 @Timing(prefix="model_name")
 def get_query_scvi(
     adata: AnnData,
-    vae: SCVI,
+    vae: SCVI | str,
     labels_key: str = "cell_type",
     batch_key: str | None = None,
     model_path: Path = Path.cwd(),
+    batch_eq: bool = False,
     retrain: bool = False,
     model_name: str = "query_scvi",
     **training_kwargs,
-) -> (SCVI, AnnData):
+) -> tuple[SCVI, AnnData]:
     """
     Get scVI model via `scarches` surgery and add latent representation to adata.
 
@@ -245,6 +248,8 @@ def get_query_scvi(
         Key for batch labels. Default is `None`.
     model_path : Path
         Path to save model. Default is `Path.cwd()`.
+    batch_eq : bool
+        Whether to use batch equalization. Default is `False`.
     retrain : bool
         Whether to retrain the model. Default is `False`.
     model_name : str
@@ -267,8 +272,14 @@ def get_query_scvi(
     # failing here... ?!?
     SCVI.prepare_query_anndata(adata, vae)
     # the query model might exist if we are not batch correcting... need to fix...
+    if batch_eq:
+        # just use the vae.
+        if isinstance(vae, SCVI):
+            scvi_query = vae
+        else:
+            scvi_query = SCVI.load(vae, adata)
 
-    if qscvi_path.exists() and not retrain:
+    elif model_exists(qscvi_path) and not retrain:
         scvi_query = SCVI.load(qscvi_path.as_posix(), adata)
     else:
         scvi_query = SCVI.load_query_data(adata, vae)
@@ -282,7 +293,7 @@ def get_query_scvi(
         )
 
     adata.obsm[SCVI_LATENT_KEY] = scvi_query.get_latent_representation(adata)
-    if retrain or not qscvi_path.exists():
+    if retrain or not model_exists(qscvi_path):
         scvi_query.save(qscvi_path, overwrite=True)
 
     return scvi_query, adata
@@ -295,10 +306,11 @@ def get_query_scanvi(
     labels_key: str = "cell_type",
     batch_key: str | None = None,
     model_path: Path = Path.cwd(),
+    batch_eq: bool = False,
     retrain: bool = False,
     model_name: str = "query_scanvi",
     **training_kwargs,
-) -> (SCANVI, AnnData):
+) -> tuple[SCANVI, AnnData]:
     """
     Get scANVI model via `scarches` surgery and add latent representation to adata.
 
@@ -312,6 +324,8 @@ def get_query_scanvi(
         Key for cell type labels. Default is `cell_type`.
     model_path : Path
         Path to save model. Default is `Path.cwd()`.
+    batch_eq : bool
+        Whether to use batch equalization. Default is `False`.
     retrain : bool
         Whether to retrain the model. Default is `False`.
     model_name : str
@@ -332,7 +346,15 @@ def get_query_scanvi(
     # should the reference be teh scvi_model or the scanvi_model?
     SCANVI.prepare_query_anndata(adata, scanvi_model)
 
-    if qscanvi_path.exists() and not retrain:
+    # the query model might exist if we are not batch correcting... need to fix...
+    if batch_eq:
+        # just use the scanvi_model.
+        if isinstance(scanvi_model, SCANVI):
+            scvi_query = scanvi_model
+        else:
+            scvi_query = SCVI.load(scanvi_model, adata)
+
+    elif model_exists(qscanvi_path) and not retrain:
         scanvi_query = SCANVI.load(qscanvi_path.as_posix(), adata)
     else:
         scanvi_query = SCANVI.load_query_data(adata, scanvi_model)
@@ -346,7 +368,7 @@ def get_query_scanvi(
 
     adata.obsm[SCVI_LATENT_KEY] = scanvi_query.get_latent_representation(adata)
 
-    if retrain or not qscanvi_path.exists():
+    if retrain or not model_exists(qscanvi_path):
         # save the reference model
         scanvi_query.save(qscanvi_path, overwrite=True)
 

@@ -11,8 +11,8 @@ dependencies:
 - torchvision
 - torchaudio
 - pytorch-cuda=12.1
-- jax
-- jaxlib
+# - jax
+# - jaxlib
 - xgboost
 - click
 - pip
@@ -24,3 +24,4 @@ dependencies:
   - pandas
   - pymde
   - scikit-misc
+  - "jax[cuda12_pip]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html

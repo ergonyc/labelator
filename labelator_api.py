@@ -148,6 +148,10 @@ def cli(
     """
     Command line interface for model processing pipeline.
     """
+    print(f"{train_path=}:: {query_path=}:: {model_path=}:: {model_name=}")
+    print(
+        f"{output_data_path=}:: {artifacts_path=}:: {gen_plots=}:: {retrain_model=}:: {labels_key=}"
+    )
     # setup
     torch.set_float32_matmul_precision("medium")
 
@@ -188,6 +192,8 @@ def cli(
     )
     # In[ ]
     ## QUERY MODELs ###################################################################
+    # makes sure the genes correspond to those of the prepped model
+    #     projects counts onto the principle components of the training datas eigenvectors as 'X_pca'
     # TODO:  add additional training_kwargs to cli
     if query:
         print(f"prep query: {'💅 '*25}")

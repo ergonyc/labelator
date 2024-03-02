@@ -4,6 +4,7 @@ from pathlib import Path
 import anndata as ad
 import numpy as np
 from scipy.sparse import csr_matrix, hstack, issparse
+from ._pca import transfer_pca
 
 # from scanpy.pp import pca
 from ..._constants import OUT, H5, EMB, EXPR, CNT, PCS, VAE, CELL_TYPE_KEY
@@ -56,8 +57,8 @@ class Adata:
 
     @property
     def adata_path(self):
-        _adata_path = Path(self.path) / self.name
-        return _adata_path
+        self._adata_path = Path(self.path) / self.name
+        return self._adata_path
 
     @property
     def loaded(self):
@@ -240,25 +241,17 @@ def transfer_pcs(
         _ = query_ad.uns.pop("_scvi_manager_uuid", None)
 
     # transfer PCs from ref_ad to query_ad
-    if pcs is not None:
-        query_ad.uns["PCs"] = pcs
-    elif ref_ad is not None:
+    if pcs is None and ref_ad is not None:
         if "PCs" in ref_ad.varm_keys():
             print("transfering PCs from ref_ad to query_ad")
-            query_ad.uns["PCs"] = ref_ad.varm["PCs"].copy()
+            pcs = ref_ad.varm["PCs"].copy()
         elif "PCs" in ref_ad.uns_keys():
             print("transfering PCs from ref_ad to query_ad")
-            query_ad.uns["PCs"] = ref_ad.uns["PCs"].copy()
+            pcs = ref_ad.uns["PCs"].copy()
         else:
             raise ValueError("No PCs found in ref_ad")
-    else:
-        raise ValueError("No PCs available")
 
-    # compute loadings
-    # TODO: check shape of X and PCs for compatibility
-    query_ad.obsm["X_pca"] = query_ad.X @ query_ad.uns["PCs"]
-    # update the uns dictionary. there migth be a reason/way to compute this relative to ad_out
-    # query_ad.uns.update(ref_ad.uns.copy())
+    query_ad = transfer_pca(query_ad, pcs)
 
     return query_ad
 
@@ -356,7 +349,9 @@ def export_ouput_adata(adata: ad.AnnData, file_name: str, out_path: Path):
     return None
 
 
-def make_pc_loading_adata(adata: ad.AnnData, pca_key: str = "X_pca"):
+def make_pc_loading_adata(
+    adata: ad.AnnData, pcs: np.ndarray | None = None, pca_key: str = "X_pca"
+):
     """
     Makes adata with PCA loadings
 
@@ -364,6 +359,8 @@ def make_pc_loading_adata(adata: ad.AnnData, pca_key: str = "X_pca"):
     ----------
     adata : AnnData
         Annotated data matrix.
+    pcs : np.ndarray
+        Principal components.
     pca_key : str
         Key in `adata.obsm` where PCA loadings are stored. Default is `X_pca`.
         If `X_pca` is not in `adata.obsm`, then it will raise an error.
@@ -374,57 +371,124 @@ def make_pc_loading_adata(adata: ad.AnnData, pca_key: str = "X_pca"):
         Annotated data matrix with PCA loadings.
 
     """
-    if pca_key in adata.obsm_keys():
+
+    if pcs is not None:
+        loadings = adata.X @ pcs
+    elif pca_key in adata.obsm_keys():
         # already have the loadings...
-        loading_adata = ad.AnnData(adata.obsm[pca_key])
+        loadings = adata.obsm[pca_key]
+        if "PCs" in adata.varm_keys():
+            pcs = adata.varm["PCs"]
+        elif "PCs" in adata.uns_keys():
+            print("make_pc_loading_adata pcs from .uns['PCs']")
+            pcs = adata.uns["PCs"]
+        else:
+            print(
+                f"found {pca_key} in adata.obsm but no PCs in adata.varm or adata.uns"
+            )
+            pcs = None
     else:  #
         ValueError("Need to get PCA loadings first")
         print(f"doing nothing: {pca_key} not in {adata.obsm_keys()}")
-
         return adata
 
+    loading_adata = ad.AnnData(loadings)
     var_names = [f"pc_{i}" for i in range(loading_adata.shape[1])]
 
     loading_adata.obs_names = adata.obs_names.copy()
     loading_adata.obs = adata.obs.copy()
     loading_adata.var_names = var_names
-    loading_adata.obsm = adata.obsm.copy()
+
+    obsm = adata.obsm.copy()
+    obsm[pca_key] = loadings
+    loading_adata.obsm = obsm
+
     loading_adata.uns = adata.uns.copy()
     _ = loading_adata.uns.pop("_scvi_uuid", None)
     _ = loading_adata.uns.pop("_scvi_manager_uuid", None)
-    # hold the PCS from varm in uns for transferring to query
-    if "PCs" in adata.varm_keys():
-        loading_adata.uns["PCs"] = adata.varm["PCs"].copy()
-    elif "PCs" in adata.uns_keys():
-        loading_adata.uns["PCs"] = adata.uns["PCs"].copy()
-    else:
-        raise ValueError("No PCs found in adata")
 
+    # hold the PCS from varm in uns for transferring to query
+    if pcs is not None:
+        loading_adata.uns["PCs"] = pcs
+    print("made `loading_adata` with PCA loadings")
     return loading_adata
 
 
-def prep_target_genes(ad: ad.AnnData, target_genes: list[str]) -> ad.AnnData:
+def add_pc_loadings(
+    adata: ad.AnnData, pcs: np.ndarray | None = None, pca_key: str = "X_pca"
+):
+    """
+    Makes adata with PCA loadings
+
+    Parameters
+    ----------
+    adata : AnnData
+        Annotated data matrix.
+    pcs : np.ndarray
+        Principal components.
+    pca_key : str
+        Key in `adata.obsm` where PCA loadings are stored. Default is `X_pca`.
+        If `X_pca` is not in `adata.obsm`, then it will raise an error.
+
+    Returns
+    -------
+    AnnData
+        Annotated data matrix with PCA loadings.
+
+    """
+
+    if pcs is not None:
+        loadings = adata.X @ pcs
+    elif pca_key in adata.obsm_keys():
+        # already have the loadings...
+        loadings = adata.obsm[pca_key]
+        if "PCs" in adata.varm_keys():
+            pcs = adata.varm["PCs"]
+        elif "PCs" in adata.uns_keys():
+            print("getting PCs from ad.uns[PCs']")
+            pcs = adata.uns["PCs"]
+        else:
+            print(
+                f"found {pca_key} in adata.obsm but no PCs in adata.varm or adata.uns"
+            )
+            pcs = None
+    else:  #
+        ValueError("Need to get PCA loadings first")
+        print(f"doing nothing: {pca_key} not in {adata.obsm_keys()}")
+        return adata
+
+    adata.obsm[pca_key] = loadings
+    if pcs is not None:
+        adata.uns["PCs"] = pcs
+
+    return adata
+
+
+def prep_target_genes(adata: ad.AnnData, target_genes: list[str]) -> ad.AnnData:
     """
     Expand AnnData object to include all target_genes.  Missing target_genes will be added as zeros.
     """
     # Identify missing variables
-    missing_vars = list(set(target_genes) - set(ad.var_names))
+    missing_vars = list(set(target_genes) - set(adata.var_names))
     # Create a dataframe/matrix of zeros for missing variables
     if len(missing_vars) > 0:
-        if issparse(ad.X):
-            zeros = csr_matrix((ad.n_obs, len(missing_vars)))
+        if issparse(adata.X):
+            zeros = csr_matrix((adata.n_obs, len(missing_vars)))
         elif isinstance(ad.X, np.ndarray):
-            zeros = np.zeros((ad.n_obs, len(missing_vars)))
+            zeros = np.zeros((adata.n_obs, len(missing_vars)))
         else:
             raise ValueError("X must be a numpy array or a sparse matrix")
 
         # Create an AnnData object for the missing variables
         missing_ad = ad.AnnData(
-            X=zeros, var=pd.DataFrame(index=missing_vars), obs=ad.obs
+            X=zeros, var=pd.DataFrame(index=missing_vars), obs=adata.obs
         )
+        print(missing_ad)
         # Concatenate the original and the missing AnnData objects along the variables axis
-        expanded_ad = ad.concat([ad, missing_ad], axis=1, join="outer")
+        expanded_ad = ad.concat([adata, missing_ad], axis=1, join="outer")
+        expanded_ad.obs = adata.obs.copy()
+        print(expanded_ad)
     else:
-        expanded_ad = ad.copy()
+        expanded_ad = adata.copy()
     # Ensure the order of variables matches all_vars
     return expanded_ad[:, target_genes]
