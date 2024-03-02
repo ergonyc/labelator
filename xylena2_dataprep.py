@@ -28,7 +28,7 @@ import scvi
 
 ## e.g. for xylena data
 XYLENA2_RAW_ANNDATA = "full_object.h5ad"
-XYLENA2_GROUND_TRUTH = "cellassign_predictions.csv"
+XYLENA2_GROUND_TRUTH = "ground_truth_labels.csv"
 
 XYLENA2_FULL = "xyl2_full.h5ad"
 
@@ -108,11 +108,11 @@ predictions = (
     bdata.obs[["sample", "cell_type"]].reset_index().rename(columns={"index": "cells"})
 )
 predictions.to_csv(
-    "ground_truth_labels", index=False
+    raw_data_path / XYLENA2_GROUND_TRUTH, index=False
 )  # # pred_file = "cellassign_predictions.csv"
 
 # In[ ]: collect metadata
-ground_truth = predictions  # pd.read_csv(raw_data_path / XYLENA2_GROUND_TRUTH)
+ground_truth = pd.read_csv(raw_data_path / XYLENA2_GROUND_TRUTH)
 obs = raw_ad.obs
 
 # In[ ]: get the train/test splits
@@ -160,7 +160,7 @@ raw_ad.obs = newmeta[
         "G2M.Score",
         "Phase",
         "sample_other",
-        # "cell_type",
+        "cell_type",
         "train",
         "test",
         "query",
@@ -227,20 +227,20 @@ hvgs_full = sc.experimental.pp.highly_variable_genes(
 hvgs_full.to_csv(raw_data_path / XYLENA2_FULL_HVG)
 # In[ ]:
 
-raw_train_filen = raw_data_path / XYLENA2_TRAIN
-adata = ad.read_h5ad(raw_train_filen)
+# raw_train_filen = raw_data_path / XYLENA2_TRAIN
+# adata = ad.read_h5ad(raw_train_filen)
 
-hvgs_train = sc.experimental.pp.highly_variable_genes(
-    adata,
-    n_top_genes=20_000,
-    batch_key="sample",
-    flavor="pearson_residuals",
-    check_values=True,
-    layer=None,
-    subset=False,
-    inplace=False,
-)
-hvgs_train.to_csv(raw_data_path / XYLENA2_TRAIN_HVG)
+# hvgs_train = sc.experimental.pp.highly_variable_genes(
+#     adata,
+#     n_top_genes=20_000,
+#     batch_key="sample",
+#     flavor="pearson_residuals",
+#     check_values=True,
+#     layer=None,
+#     subset=False,
+#     inplace=False,
+# )
+# hvgs_train.to_csv(raw_data_path / XYLENA2_TRAIN_HVG)
 # In[ ]:
 # hvgs_train = pd.read_csv(raw_data_path / XYLENA2_TRAIN_HVG, index_col=0)
 hvgs_full = pd.read_csv(raw_data_path / XYLENA2_FULL_HVG, index_col=0)
@@ -275,7 +275,7 @@ hvgs_full.sort_values(
 #     na_position="last",
 #     inplace=True,
 # )
-# In[ ]:
+# In
 gene_list = hvgs_full.iloc[:20_000].copy()
 
 gene_list["marker"] = False
