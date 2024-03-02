@@ -11,13 +11,12 @@ from lbl8r.labelator import (
     archive_artifacts,
     CELL_TYPE_KEY,
 )
+# In[ ]
 
 # #
 # repr_model_names=["scvi_emb", "scvi_expr", "scvi_expr_pcs"]
 # count_model_names=["pcs_lbl8r", "raw_lbl8r"]
 # transfer_model_names=["scanvi_batch_eq", "scanvi"]
-
-
 
 # train_data="data/scdata/xylena5k/xyl2_train.h5ad"
 # query_data="data/scdata/xylena5k/xyl2_test.h5ad"
@@ -26,30 +25,42 @@ from lbl8r.labelator import (
 
 # model_path='models5k/REPR/scvi'  
 
-
 train_path = Path("data/scdata/xylena/brain_atlas_anndata_train_cnt.h5ad")
 query_path = Path("data/scdata/xylena/brain_atlas_anndata_test_cnt.h5ad")
 train_path = Path("data/scdata/xylena5k/xyl2_train.h5ad")
 query_path = Path("data/scdata/xylena5k/xyl2_test.h5ad")
-query_path = Path("data/scdata/xylena5k/xyl2_query.h5ad")
-train_path = None
+# query_path = Path("data/scdata/xylena5k/xyl2_query.h5ad")
+# train_path = None
+
 # query_path = Path('data/scdata/ASAP/artifacts/06_merged_filtered_processed_integrated_clustered_anndata_object.h5ad')
 # # query_path = Path('data/scdata/ASAP/artifacts/06_merged_filtered_integrated_clustered_anndata_object.h5ad')
 # query_path = Path('data/scdata/ASAP/artifacts/07_merged_filtered_integrated_clustered_annotated_anndata_object.h5ad')
 model_path = Path("models5k/REPR/scvi/")
 # model_name = "scvi_emb_xgb"
-# model_name = "scvi_emb"
+model_name = "scvi_emb"
+# model_name = "scvi_expr"
+# model_name = "scvi_expr_pcs"
 
-model_path = Path("models5k/TRANSFER/")
-model_name = "scanvi_batch_eq"
+# model_path = Path("models5k/TRANSFER/")
+# model_name = "scanvi_batch_eq"
 
 # model_path = Path("models5k/CNT/")
 # model_name = "pcs_lbl8r"
 # model_name = "raw_lbl8r"
 
-
 output_data_path = Path("data/scdata/xylena5k/LABELATOR/")
 artifacts_path = Path("artifacts5k/")
+
+
+train_path = Path("data/scdata/xylena10k/xyl2_train.h5ad")
+query_path = Path("data/scdata/xylena10k/xyl2_test.h5ad")
+model_path = Path("models10k/REPR/scvi/")
+model_name = "scvi_emb"
+
+output_data_path = Path("data/scdata/xylena10k/LABELATOR/")
+artifacts_path = Path("artifacts10k/")
+
+
 
 gen_plots = True
 retrain_model = False
@@ -66,6 +77,17 @@ labels_key = CELL_TYPE_KEY
 # In[ ]
 """ Command line interface for model processing pipeline.
 """
+# import pandas as pd
+# XYLENA2_GROUND_TRUTH = "ground_truth_labels.csv"
+# XYLENA2_RAW_PATH = "data/scdata/xylena_raw"
+
+# root_path = Path.cwd()
+# raw_data_path = root_path / XYLENA2_RAW_PATH
+
+# gene_list = pd.read_csv(raw_data_path / "xyl2_full_hvg.csv", index_col=0)
+
+# n_top_gene = 500
+# keep_genes = gene_list.iloc[:n_top_gene].index.to_list()
 
 # setup
 torch.set_float32_matmul_precision("medium")
@@ -91,8 +113,13 @@ if not (train | query):
     print("Must provide either `data-path` or `query-path` or both")
 
 
-# In[ ]/'
+# In[ ]
+# # hack to keep only marker genes
+# ad = query_data.adata
+# ad = ad[:, keep_genes].copy()
+# query_data.update(ad)
 
+# In[ ]
 ## PREP MODEL ###################################################################
 # gets model and preps Adata
 # TODO:  add additional training_kwargs to cli

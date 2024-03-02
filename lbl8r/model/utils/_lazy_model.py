@@ -124,6 +124,7 @@ class ModelSet:
     _default: str | None = field(default=None, init=False, repr=False)
     _genes: list[str] | None = field(default_factory=list, init=False, repr=False)
     _basis: str | None = field(default=None, init=False, repr=False)
+    _name: str | None = field(default=None, init=False, repr=True)
 
     predictions: dict[str, pd.DataFrame] = field(
         default_factory=dict, init=True, repr=False
@@ -136,6 +137,7 @@ class ModelSet:
         # Ensure path is always a Path object
         self.path = Path(self.path)
         # load saved pcs if they exist
+        self._name = self.path.name
         if "pcs" in self.path.name or "raw" in self.path.name:
             print(f"pre init load_pcs: {self.path.name}")
             self._pcs = load_pcs(self.path)
@@ -149,6 +151,12 @@ class ModelSet:
                 raise ValueError(f"Model name {name} already exists in model group")
             self.model[name] = model
         # self.model.update(mods)
+
+    @property
+    def name(self):
+        if self._name is None:
+            self._name = self.path.name
+        return self._name
 
     @property
     def basis(self):

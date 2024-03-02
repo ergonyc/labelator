@@ -147,12 +147,12 @@ def load_trained_model(
         scanvi_path = model_path / model_name / SCANVI_SUB_MODEL_NAME
         scanvi_model = LazyModel(scanvi_path)
         models = {SCVI_SUB_MODEL_NAME: vae, SCANVI_SUB_MODEL_NAME: scanvi_model}
-        model = ModelSet(models, (model_path / model_name), labels_key)
-        model.batch_key = (
+        model_set = ModelSet(models, (model_path / model_name), labels_key)
+        model_set.batch_key = (
             "sample" if model_name == SCANVI_BATCH_EQUALIZED_MODEL_NAME else None
         )
-        model.basis = SCANVI_LATENT_KEY
-        model.default = SCANVI_SUB_MODEL_NAME
+        model_set.basis = SCANVI_LATENT_KEY
+        model_set.default = SCANVI_SUB_MODEL_NAME
 
     # scvi REPR models
     elif model_name in (
@@ -169,9 +169,9 @@ def load_trained_model(
         model_path = model_path / model_name
         model = LazyModel(model_path)
         models = {model_name: model, SCVI_SUB_MODEL_NAME: vae}
-        model = ModelSet(models, model_path, labels_key)
-        model.basis = SCVI_LATENT_KEY
-        model.default = model_name
+        model_set = ModelSet(models, model_path, labels_key)
+        model_set.basis = SCVI_LATENT_KEY
+        model_set.default = model_name
 
     # CNT models
     elif model_name in (
@@ -183,13 +183,13 @@ def load_trained_model(
         model_path = model_path / model_name
         model = LazyModel(model_path)
         models = {model_name: model}
-        model = ModelSet(models, model_path, labels_key)
-        model.basis = PCA_KEY
-        model.default = model_name
+        model_set = ModelSet(models, model_path, labels_key)
+        model_set.basis = PCA_KEY
+        model_set.default = model_name
     else:
         raise ValueError(f"unknown model_name {model_name}")
 
-    return model
+    return model_set
 
 
 def get_trained_model(
@@ -224,7 +224,7 @@ def get_trained_model(
     #  otherwise we need to load PCs artifacts so we can properly prep the query data.
     print(f"get_trained_model: 0. ngenes = {ad.n_vars} ncells = {ad.n_obs}")
     # genes = ad.var_names.to_list()  # or should we leave as an Index?
-    save_genes(ad, model_path / model_name)
+    # TODO: the saving of genes should happen with the model... not here
 
     models = {}
     # SCANVI E2E MODELS
@@ -240,13 +240,16 @@ def get_trained_model(
         # create a ground truth for SCANVI so we can clobber the labels_key for queries
         ad.obs["ground_truth"] = ad.obs[labels_key].to_list()
 
+        save_genes(ad, model_path / model_name)
+
         # load teh scvi model, scanvi_model, (qnd query models?)
         print(f"scanvi getting 0 {(model_path/model_name/SCVI_SUB_MODEL_NAME)}")
+        # BUG:  assume that we already have an scvi model... need to delete if we want to retrain
         vae, ad = get_trained_scvi(
             ad,
             labels_key=labels_key,
             model_path=(model_path / model_name),
-            retrain=retrain,
+            retrain=False,
             model_name=SCVI_SUB_MODEL_NAME,
             **training_kwargs,
         )
@@ -276,11 +279,11 @@ def get_trained_model(
         scanvi_model = LazyModel(scanvi_path, model)
         models = {SCVI_SUB_MODEL_NAME: vae, SCANVI_SUB_MODEL_NAME: scanvi_model}
 
-        model = ModelSet(models, (model_path / model_name), labels_key=labels_key)
-        model.default = SCANVI_SUB_MODEL_NAME
-        model.batch_key = batch_key
-        model.basis = SCANVI_LATENT_KEY
-        return model, data
+        model_set = ModelSet(models, (model_path / model_name), labels_key=labels_key)
+        model_set.default = SCANVI_SUB_MODEL_NAME
+        model_set.batch_key = batch_key
+        model_set.basis = SCANVI_LATENT_KEY
+        return model_set, data
 
     basis = PCA_KEY
     batch_key = None
@@ -294,6 +297,7 @@ def get_trained_model(
         XGB_SCVI_EXPR_PC_MODEL_NAME,
     ):
         # need vae
+        save_genes(ad, model_path / SCVI_SUB_MODEL_NAME)
         print(f"getting scvi: 1 {(model_path/SCVI_SUB_MODEL_NAME)}")
         vae, ad = get_trained_scvi(
             ad,
@@ -310,6 +314,8 @@ def get_trained_model(
 
         models = {SCVI_SUB_MODEL_NAME: vae}
         basis = SCVI_LATENT_KEY
+
+        save_genes(ad, model_path / model_name)
         # SCVI LBL8R LazyModel
         if model_name in (SCVI_LATENT_MODEL_NAME, XGB_SCVI_LATENT_MODEL_NAME):
             # 1. make the make_latent_adata
@@ -333,6 +339,7 @@ def get_trained_model(
                 save_pcs(ad, model_path / model_name)
 
     elif model_name in (RAW_PC_MODEL_NAME, XGB_RAW_PC_MODEL_NAME):
+        save_genes(ad, model_path / model_name)
         print(f"getting raw pcs {(model_path/model_name)}")
         # 1. make the pcs representation
         ad = prep_pcs_adata(ad, pca_key=PCA_KEY)
@@ -340,6 +347,7 @@ def get_trained_model(
         save_pcs(ad, model_path / model_name)
 
     else:
+        save_genes(ad, model_path / model_name)
         # RAW model no update to adata
         print(f"{model_name} prep PCS for visualization")
         # 1. make the pcs representation
@@ -368,13 +376,13 @@ def get_trained_model(
     model = LazyModel(model_path / model_name, model)
 
     models.update({model_name: model})
-    model = ModelSet(models, model_path / model_name, labels_key=labels_key)
-    model.default = model_name
+    model_set = ModelSet(models, model_path / model_name, labels_key=labels_key)
+    model_set.default = model_name
 
     # model.batch_key = None
-    model.basis = basis
+    model_set.basis = basis
 
-    return model, data
+    return model_set, data
 
 
 def prep_latent_data(
@@ -635,7 +643,8 @@ def prep_query_scanvi(
     ad = ad[:, trained_genes].copy()
 
     # create a ground truth for SCANVI so we can clobber the labels_key for queries
-    ad.obs["ground_truth"] = ad.obs[labels_key].to_list()
+    labels = ad.obs[labels_key].to_list()
+    ad.obs["ground_truth"] = labels
     ad.obs[labels_key] = "Unknown"
 
     # if we are in query only mode we need to pass strings of the model paths instead of models
@@ -830,9 +839,9 @@ def archive_plots(
 
     ## training args
     figs = []
+    fig_dir = fig_path / model_set.name
     if main_model.type == "scanvi":
         # load model
-        fig_dir = fig_path / main_model.name
         if train_or_query == "train":
             file_nm = f"{train_or_query.upper()}_{SCVI_SUB_MODEL_NAME}_{data.name.rstrip('.h5ad')}"
             fig_kwargs = dict(fig_dir=fig_dir, fig_nm=file_nm, show=False)
@@ -863,7 +872,6 @@ def archive_plots(
             figs.extend(fg)
 
     elif main_model.type == "lbl8r":
-        fig_dir = fig_path / main_model.name
         file_nm = (
             f"{train_or_query.upper()}_{main_model.name}_{data.name.rstrip('.h5ad')}"
         )
@@ -878,7 +886,7 @@ def archive_plots(
         raise ValueError(f"model_type must be one of: 'scanvi', 'lbl8r', 'xgb'")
 
     fig_nm = f"{train_or_query.upper()}_{main_model.name}_{data.name.rstrip('.h5ad')}"
-    fig_dir = fig_path / main_model.name
+    # fig_dir = fig_path / main_model.name
 
     # predictions
     title_str = fig_nm.replace("_", "-")

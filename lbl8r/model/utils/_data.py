@@ -464,28 +464,31 @@ def add_pc_loadings(
     return adata
 
 
-def prep_target_genes(ad: ad.AnnData, target_genes: list[str]) -> ad.AnnData:
+def prep_target_genes(adata: ad.AnnData, target_genes: list[str]) -> ad.AnnData:
     """
     Expand AnnData object to include all target_genes.  Missing target_genes will be added as zeros.
     """
     # Identify missing variables
-    missing_vars = list(set(target_genes) - set(ad.var_names))
+    missing_vars = list(set(target_genes) - set(adata.var_names))
     # Create a dataframe/matrix of zeros for missing variables
     if len(missing_vars) > 0:
-        if issparse(ad.X):
-            zeros = csr_matrix((ad.n_obs, len(missing_vars)))
+        if issparse(adata.X):
+            zeros = csr_matrix((adata.n_obs, len(missing_vars)))
         elif isinstance(ad.X, np.ndarray):
-            zeros = np.zeros((ad.n_obs, len(missing_vars)))
+            zeros = np.zeros((adata.n_obs, len(missing_vars)))
         else:
             raise ValueError("X must be a numpy array or a sparse matrix")
 
         # Create an AnnData object for the missing variables
         missing_ad = ad.AnnData(
-            X=zeros, var=pd.DataFrame(index=missing_vars), obs=ad.obs
+            X=zeros, var=pd.DataFrame(index=missing_vars), obs=adata.obs
         )
+        print(missing_ad)
         # Concatenate the original and the missing AnnData objects along the variables axis
-        expanded_ad = ad.concat([ad, missing_ad], axis=1, join="outer")
+        expanded_ad = ad.concat([adata, missing_ad], axis=1, join="outer")
+        expanded_ad.obs = adata.obs.copy()
+        print(expanded_ad)
     else:
-        expanded_ad = ad.copy()
+        expanded_ad = adata.copy()
     # Ensure the order of variables matches all_vars
     return expanded_ad[:, target_genes]
