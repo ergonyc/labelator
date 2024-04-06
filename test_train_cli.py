@@ -62,7 +62,7 @@ model_name = "scvi_emb"
 # artifacts_path = Path("artifacts15k/")
 
 gen_plots = True
-retrain_model = True
+retrain_model = False
 labels_key = CELL_TYPE_KEY
 # labels_key = "cell_type"
 # if model_name == "scanvi_batch_eq":
@@ -96,7 +96,7 @@ torch.set_float32_matmul_precision("medium")
 #     )
 ## LOAD DATA ###################################################################
 train_data = load_data(train_path, archive_path=output_data_path)
-
+# In[ ]
 # gets model and preps Adata
 # TODO:  add additional training_kwargs to cli
 training_kwargs = {}  # dict(batch_key=batch_key)
@@ -111,23 +111,22 @@ model, train_data = get_trained_model(
     retrain=retrain_model,
     **training_kwargs,
 )
-
-# WARNING:  BUG.  if train_data is None preping with query data hack won't work for PCs
-model_set, train_data = prep_model(
-    train_data,  # Note this is actually query_data if train_data arg was None
-    model_name=model_name,
-    model_path=model_path,
-    labels_key=labels_key,
-    retrain=retrain_model,
-    **training_kwargs,
-)
+# In[ ]
+# model_set, train_data = prep_model(
+#     train_data,  # Note this is actually query_data if train_data arg was None
+#     model_name=model_name,
+#     model_path=model_path,
+#     labels_key=labels_key,
+#     retrain=retrain_model,
+#     **training_kwargs,
+# )
 
 # In[ ]
 # prep_train_data
 #    - check if train_data was prepped (i.e. model was trained in prep_model)
 #    - if not, prep_train_data
 print(f"train_model: {'🏋️ '*25}")
-train_data = query_model(train_data, model_set)
+train_data = query_model(train_data, model)
 
 # In[ ]
 ## CREATE ARTIFACTS ###################################################################
@@ -135,7 +134,7 @@ train_data = query_model(train_data, model_set)
 if gen_plots:
     print(f"archive training plots and data: {'📈 '*25}")
     archive_plots(
-        train_data, model_set, "train", fig_path=(artifacts_path / "figs")
+        train_data, model, "train", fig_path=(artifacts_path / "figs")
     )
     print(f"archive train output adata: {'💾 '*25}")
     archive_data(train_data)
@@ -152,6 +151,12 @@ query_path = Path("data/scdata/xylena/brain_atlas_anndata_test_cnt.h5ad")
 query_path = Path("data/scdata/xylena5k/xyl2_test.h5ad")
 
 query_path = Path("data/scdata/xylena3k/xyl2_query.h5ad")
+
+SET_NAME = '3k'
+query_path = Path(f"data/scdata/xylena{SET_NAME}/xyl2_test.h5ad")
+model_path = Path(f"models{SET_NAME}/REPR/scvi/")
+model_name = "scvi_emb"
+
 
 # In[ ]
 ## QUERY MODELs ###################################################################
@@ -197,8 +202,10 @@ if gen_plots:
     archive_plots(
         query_data, model_set, "query", fig_path=(artifacts_path / "figs")
     )
-
+ 
 print(f"archive query plots and data: {'📊 '*25}")
 archive_plots(query_data, model_set, "query", fig_path=(artifacts_path / "figs"))
 print(f"archive query output adata: {'💾 '*25}")
 archive_data(query_data)
+
+# %%
