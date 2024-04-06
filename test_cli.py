@@ -29,13 +29,14 @@ train_path = Path("data/scdata/xylena/brain_atlas_anndata_train_cnt.h5ad")
 query_path = Path("data/scdata/xylena/brain_atlas_anndata_test_cnt.h5ad")
 train_path = Path("data/scdata/xylena5k/xyl2_train.h5ad")
 query_path = Path("data/scdata/xylena5k/xyl2_test.h5ad")
-# query_path = Path("data/scdata/xylena5k/xyl2_query.h5ad")
-# train_path = None
+
+query_path = Path("data/scdata/xylena3k/xyl2_query.h5ad")
+train_path = None
 
 # query_path = Path('data/scdata/ASAP/artifacts/06_merged_filtered_processed_integrated_clustered_anndata_object.h5ad')
 # # query_path = Path('data/scdata/ASAP/artifacts/06_merged_filtered_integrated_clustered_anndata_object.h5ad')
 # query_path = Path('data/scdata/ASAP/artifacts/07_merged_filtered_integrated_clustered_annotated_anndata_object.h5ad')
-model_path = Path("models5k/REPR/scvi/")
+model_path = Path("models3k/REPR/scvi/")
 # model_name = "scvi_emb_xgb"
 model_name = "scvi_emb"
 # model_name = "scvi_expr"
@@ -48,22 +49,22 @@ model_name = "scvi_emb"
 # model_name = "pcs_lbl8r"
 # model_name = "raw_lbl8r"
 
-output_data_path = Path("data/scdata/xylena5k/LABELATOR/")
-artifacts_path = Path("artifacts5k/")
+output_data_path = Path("data/scdata/xylena3k/LABELATOR/")
+artifacts_path = Path("artifacts3k/")
 
 
-train_path = Path("data/scdata/xylena10k/xyl2_train.h5ad")
-query_path = Path("data/scdata/xylena10k/xyl2_test.h5ad")
-model_path = Path("models10k/REPR/scvi/")
+train_path = Path("data/scdata/xylena2k/xyl2_train.h5ad")
+query_path = Path("data/scdata/xylena2k/xyl2_test.h5ad")
+model_path = Path("models2k/REPR/scvi/")
 model_name = "scvi_emb"
 
-output_data_path = Path("data/scdata/xylena10k/LABELATOR/")
-artifacts_path = Path("artifacts10k/")
+# output_data_path = Path("data/scdata/xylena15k/LABELATOR/")
+# artifacts_path = Path("artifacts15k/")
 
 
 
 gen_plots = True
-retrain_model = False
+retrain_model = True
 labels_key = CELL_TYPE_KEY
 # labels_key = "cell_type"
 # if model_name == "scanvi_batch_eq":

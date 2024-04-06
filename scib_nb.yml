@@ -1,6 +1,6 @@
 #conda env create -f lbl8r.yaml 
 
-name: lbl8r_nb2
+name: scib_nb
 channels:
 - conda-forge
 - pytorch
@@ -20,8 +20,8 @@ dependencies:
 - click
 - pip
 - pip:
-  # - "jax[cuda12_pip]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html   
   - scvi-tools
+  - scib
   - scanpy
   - anndata
   - numpy

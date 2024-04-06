@@ -13,12 +13,12 @@ query_model() {
     
         # echo "🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 🌊 "
         echo "########################################################################"
-        echo "🚀 🚀 🚀 🚀 Running model: $model_name 🚀 🚀 🚀 🚀 🚀 🚀 🚀 🚀"
+        echo "🚀 🚀 🚀 🚀 Querying model: $model_name 🚀 🚀 🚀 🚀 🚀 🚀 🚀 🚀"
         echo "## ⏬ ⏬ ⏬ ⏬ ⏬ ⏬ ⏬ ⏬ ⏬ ⏬ ⏬ ⏬ ⏬ ⏬ ⏬ ⏬ ⏬ ⏬ ⏬ ⏬"
         # Start timing
         start_time=$(date +%s)
 
-        python -m labelator_api \
+        python -m query_labelator \
             --query-path $query_adata \
             --model-path $model_path \
             --model-name $model_name \
@@ -30,7 +30,7 @@ query_model() {
         
         if [ $? -ne 0 ]; then
             echo "🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 "
-            echo "🚨 🚨 🚨 🚨 🚨 Error: Model $model_name failed to run. 🚨 🚨 🚨 🚨 🚨"
+            echo "🚨 🚨 🚨 🚨 🚨 Error: Query Model $model_name failed to run. 🚨 🚨 🚨 🚨 🚨"
             echo "🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 "
         fi
 
@@ -49,7 +49,7 @@ count_model_names=("pcs_lbl8r" "raw_lbl8r")
 transfer_model_names=("scanvi_batch_eq" "scanvi" )
 
 
-# ## 2k
+# # ## 2k
 # adata_output_path='data/scdata/xylena1k/LABELATOR/'
 # artifacts_path='artifacts2k/'
 # query_data="data/scdata/xylena2k/xyl2_query.h5ad"
@@ -93,19 +93,19 @@ query_model $query_data count_model_names[@] $model_path $adata_output_path $art
 model_path='models5k/TRANSFER/'  
 query_model $query_data transfer_model_names[@] $model_path $adata_output_path $artifacts_path
 
-# 10k
-adata_output_path='data/scdata/xylena10k/LABELATOR/'
-artifacts_path='artifacts10k/'
-query_data="data/scdata/xylena10k/xyl2_query.h5ad"
+# # 10k
+# adata_output_path='data/scdata/xylena10k/LABELATOR/'
+# artifacts_path='artifacts10k/'
+# query_data="data/scdata/xylena10k/xyl2_query.h5ad"
 
-model_path='models10k/REPR/scvi'  
-query_model $query_data repr_model_names[@] $model_path $adata_output_path $artifacts_path
+# model_path='models10k/REPR/scvi'  
+# query_model $query_data repr_model_names[@] $model_path $adata_output_path $artifacts_path
 
-model_path='models10k/CNT'  
-query_model $query_data count_model_names[@] $model_path $adata_output_path $artifacts_path
+# model_path='models10k/CNT'  
+# query_model $query_data count_model_names[@] $model_path $adata_output_path $artifacts_path
 
-model_path='models10k/TRANSFER/'  
-query_model $query_data transfer_model_names[@] $model_path $adata_output_path $artifacts_path
+# model_path='models10k/TRANSFER/'  
+# query_model $query_data transfer_model_names[@] $model_path $adata_output_path $artifacts_path
 
 # # 20k
 # adata_output_path='data/scdata/xylena20k/LABELATOR/'

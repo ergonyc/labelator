@@ -64,6 +64,7 @@ def load_data(adata_path: str | Path, archive_path: str | Path) -> Adata:
     return data
 
 
+# TODO: depricate this
 def prep_model(
     data: Adata,
     model_name: str,
@@ -800,6 +801,7 @@ def prep_query_model(
     return model_set, query_data
 
 
+# TODO: depricate this
 def archive_artifacts(
     train_data: Adata, query_data: Adata, model_set: ModelSet, path: Path
 ):
