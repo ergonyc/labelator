@@ -522,7 +522,7 @@ def make_scvi_normalized_adata(
     """
 
     exp_adata = adata.copy()
-
+    print(" -> 0 make_scvi_normalized_adata")
     if "X_pca" in exp_adata.obsm_keys():
         X_pca = exp_adata.obsm.pop("X_pca")
         exp_adata.obsm["_X_pca"] = X_pca
@@ -539,6 +539,9 @@ def make_scvi_normalized_adata(
         _ = exp_adata.uns.pop("_scvi_manager_uuid", None)
 
     scvi_model.setup_anndata(exp_adata, labels_key=labels_key, batch_key=batch_key)
+
+    print(" -> 1 get_normalized_expression")
+
     denoised = scvi_model.get_normalized_expression(
         exp_adata,
         library_size=1e4,
@@ -546,6 +549,7 @@ def make_scvi_normalized_adata(
     )
 
     exp_adata.X = denoised
+    print(" -> 2 add_latent_obsm")
 
     exp_adata = add_latent_obsm(exp_adata, scvi_model)
 

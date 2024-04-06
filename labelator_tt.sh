@@ -19,7 +19,7 @@ train_test_model() {
         # Start timing
         start_time=$(date +%s)
 
-        python -m labelator_api \
+        python -m train_labelator \
             --train-path $train_adata \
             --query-path $query_adata \
             --model-path $model_path \
@@ -32,7 +32,7 @@ train_test_model() {
         
         if [ $? -ne 0 ]; then
             echo "🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 "
-            echo "🚨 🚨 🚨 🚨 🚨 Error: Model $model_name failed to run. 🚨 🚨 🚨 🚨 🚨"
+            echo "🚨 🚨 🚨 🚨 🚨 Error: Train $model_name failed to run. 🚨 🚨 🚨 🚨 🚨"
             echo "🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 "
         fi
 
@@ -40,7 +40,34 @@ train_test_model() {
         end_time=$(date +%s)
 
         echo "##### ⏫⏫⏫⏫⏫⏫⏫⏫⏫⏫  #############"
-        echo "#  🏁 🏁 🏁  Model $model_name completed in $((end_time - start_time)) seconds. 🏁 🏁 🏁 "
+        echo "#  🏁 🏁 🏁 Train  Model $model_name completed in $((end_time - start_time)) seconds. 🏁 🏁 🏁 "
+        echo "## 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 "
+
+
+        start_time=$(date +%s)
+
+        python -m query_labelator \
+            --query-path $query_adata \
+            --model-path $model_path \
+            --model-name $model_name \
+            --output-data-path $output_data_path \
+            --artifacts-path $artifacts_path \
+            --gen-plots \
+            --labels-key "cell_type" 
+            # --retrain-model
+        
+        if [ $? -ne 0 ]; then
+            echo "🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 "
+            echo "🚨 🚨 🚨 🚨 🚨 Error: Query Model $model_name failed to run. 🚨 🚨 🚨 🚨 🚨"
+            echo "🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 "
+        fi
+
+        # End timing
+        end_time=$(date +%s)
+
+
+        echo "##### ⏫⏫⏫⏫⏫⏫⏫⏫⏫⏫  #############"
+        echo "#  🏁 🏁 🏁 Test (Query) Model $model_name completed in $((end_time - start_time)) seconds. 🏁 🏁 🏁 "
         echo "## 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 "
 
 
@@ -84,23 +111,23 @@ transfer_model_names=("scanvi_batch_eq" "scanvi" )
 
 
 
-# ## 5k
-# repr_model_names=( "scvi_expr" "scvi_expr_pcs")
+## 5k
+repr_model_names=( "scvi_expr" "scvi_expr_pcs")
 
-# train_data="data/scdata/xylena5k/xyl2_train.h5ad"
-# query_data="data/scdata/xylena5k/xyl2_test.h5ad"
-# adata_output_path='data/scdata/xylena5k/LABELATOR/'
-# artifacts_path='artifacts5k/'
+train_data="data/scdata/xylena5k/xyl2_train.h5ad"
+query_data="data/scdata/xylena5k/xyl2_test.h5ad"
+adata_output_path='data/scdata/xylena5k/LABELATOR/'
+artifacts_path='artifacts5k/'
 
-# # Call the function 
-# model_path='models5k/REPR/scvi'  
-# train_test_model $train_data $query_data repr_model_names[@] $model_path $adata_output_path $artifacts_path
+# Call the function 
+model_path='models5k/REPR/scvi'  
+train_test_model $train_data $query_data repr_model_names[@] $model_path $adata_output_path $artifacts_path
 
-# # model_path='models5k/CNT'  
-# # train_test_model $train_data $query_data count_model_names[@] $model_path $adata_output_path $artifacts_path
+# model_path='models5k/CNT'  
+# train_test_model $train_data $query_data count_model_names[@] $model_path $adata_output_path $artifacts_path
 
-# # model_path='models5k/TRANSFER/'  
-# # train_test_model $train_data $query_data transfer_model_names[@] $model_path $adata_output_path $artifacts_path
+# model_path='models5k/TRANSFER/'  
+# train_test_model $train_data $query_data transfer_model_names[@] $model_path $adata_output_path $artifacts_path
 
 # # 10 k
 # repr_model_names=("scvi_expr" "scvi_expr_pcs")
@@ -122,16 +149,16 @@ transfer_model_names=("scanvi_batch_eq" "scanvi" )
 
 
 ## 15k
-repr_model_names=("scvi_expr" "scvi_expr_pcs")
+# repr_model_names=("scvi_expr" "scvi_expr_pcs")
 
-train_data="data/scdata/xylena15k/xyl2_train.h5ad"
-query_data="data/scdata/xylena15k/xyl2_test.h5ad"
-adata_output_path='data/scdata/xylena15k/LABELATOR/'
-artifacts_path='artifacts15k/'
+# train_data="data/scdata/xylena15k/xyl2_train.h5ad"
+# query_data="data/scdata/xylena15k/xyl2_test.h5ad"
+# adata_output_path='data/scdata/xylena15k/LABELATOR/'
+# artifacts_path='artifacts15k/'
 
-# Call the function 
-model_path='models15k/REPR/scvi'  
-train_test_model $train_data $query_data repr_model_names[@] $model_path $adata_output_path $artifacts_path
+# # Call the function 
+# model_path='models15k/REPR/scvi'  
+# train_test_model $train_data $query_data repr_model_names[@] $model_path $adata_output_path $artifacts_path
 
 # model_path='models15k/CNT'  
 # train_test_model $train_data $query_data count_model_names[@] $model_path $adata_output_path $artifacts_path

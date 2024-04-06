@@ -22,9 +22,13 @@ def compute_pcs(adata: sc.AnnData, n_pcs: int = 50) -> ndarray:
 
     """
     bdata = adata.copy()
+    print("compute_pcs - normalize_total")
     sc.pp.normalize_total(bdata, target_sum=1e4)
+    print("compute_pcs - log1p")
     sc.pp.log1p(bdata)
+    print("compute_pcs - scale")
     sc.pp.scale(bdata, max_value=10)
+    print("compute_pcs - pca")
     sc.pp.pca(bdata, n_comps=n_pcs)
 
     pcs = bdata.varm["PCs"].copy()
