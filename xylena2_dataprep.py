@@ -42,6 +42,8 @@ XYLENA2_PATH = "data/scdata/xylena"
 XYLENA2_FULL_HVG = "xyl2_full_hvg.csv"
 XYLENA2_TRAIN_HVG = "xyl2_train_hvg.csv"
 
+XYLENA2_FULL_LABELS = "full_labels.csv"
+XYLENA2_FULL_CELLASSIGN = "full_cellassign.pkl"
 
 ## load raw data.
 # In[ ]:
@@ -62,57 +64,61 @@ raw_ad = ad.read_h5ad(raw_filen)
 # In[ ]:
 #  2. copy for cellassign
 #  1. load marker_genes
-markers = pd.read_csv("celltype_marker_table.csv", index_col=0)
-# defensive
-markers = markers[~markers.index.duplicated(keep="first")].rename_axis(index=None)
+filen = raw_data_path / "celltype_marker_table2.csv"
+
+markers = pd.read_csv(filen, index_col=0)
+# # In[ ]:
+
+# # defensive
+# markers = markers[~markers.index.duplicated(keep="first")].rename_axis(index=None)
 
 
-# bdata = adata[:, markers.index].copy() #
-bdata = raw_ad[:, raw_ad.var.index.isin(markers.index)].copy()
+# # bdata = adata[:, markers.index].copy() #
+# bdata = raw_ad[:, raw_ad.var.index.isin(markers.index)].copy()
 
-#  3. get size_factor and noise
+# #  3. get size_factor and noise
 
-lib_size = bdata.X.sum(1)  # type: ignore
-bdata.obs["size_factor"] = lib_size / np.mean(lib_size)
-# In[ ]:
-#  4. model = CellAssign(bdata, marker_genes)
-scvi.external.CellAssign.setup_anndata(
-    bdata,
-    size_factor_key="size_factor",
-    batch_key="sample",
-    layer=None,  #'counts',
-    # continuous_covariate_keys=noise
-)
+# lib_size = bdata.X.sum(1)  # type: ignore
+# bdata.obs["size_factor"] = lib_size / np.mean(lib_size)
+# # In[ ]:
+# #  4. model = CellAssign(bdata, marker_genes)
+# scvi.external.CellAssign.setup_anndata(
+#     bdata,
+#     size_factor_key="size_factor",
+#     batch_key="sample",
+#     layer=None,  #'counts',
+#     # continuous_covariate_keys=noise
+# )
 
-# In[ ]:
-#  5. model.train()
-model = scvi.external.CellAssign(bdata, markers)
-plan_args = {"lr_factor": 0.05, "lr_patience": 20, "reduce_lr_on_plateau": True}
-model.train(
-    max_epochs=1000,
-    accelerator="gpu",
-    early_stopping=True,
-    plan_kwargs=plan_args,
-    early_stopping_patience=40,
-)
-# In[ ]:
-#  6. model.predict()
-bdata.obs["cell_type"] = model.predict().idxmax(axis=1).values
+# # In[ ]:
+# #  5. model.train()
+# model = scvi.external.CellAssign(bdata, markers)
+# plan_args = {"lr_factor": 0.05, "lr_patience": 20, "reduce_lr_on_plateau": True}
+# model.train(
+#     max_epochs=1000,
+#     accelerator="gpu",
+#     early_stopping=True,
+#     plan_kwargs=plan_args,
+#     early_stopping_patience=40,
+# )
+# # In[ ]:
+# #  6. model.predict()
+# bdata.obs["cell_type"] = model.predict().idxmax(axis=1).values
 
-# In[ ]:
-# 7. transfer cell_type to adata
-raw_ad.obs["cell_type"] = bdata.obs["cell_type"]
+# # In[ ]:
+# # 7. transfer cell_type to adata
+# raw_ad.obs["cell_type"] = bdata.obs["cell_type"]
 
-#  8. save model & artificts
-predictions = (
-    bdata.obs[["sample", "cell_type"]].reset_index().rename(columns={"index": "cells"})
-)
-predictions.to_csv(
-    raw_data_path / XYLENA2_GROUND_TRUTH, index=False
-)  # # pred_file = "cellassign_predictions.csv"
+# #  8. save model & artificts
+# predictions = (
+#     bdata.obs[["sample", "cell_type"]].reset_index().rename(columns={"index": "cells"})
+# )
+# predictions.to_csv(
+#     raw_data_path / XYLENA2_GROUND_TRUTH, index=False
+# )  # # pred_file = "cellassign_predictions.csv"
 
 # In[ ]: collect metadata
-ground_truth = pd.read_csv(raw_data_path / XYLENA2_GROUND_TRUTH)
+ground_truth = pd.read_csv(raw_data_path / XYLENA2_FULL_LABELS)  # XYLENA2_GROUND_TRUTH)
 obs = raw_ad.obs
 
 # In[ ]: get the train/test splits
@@ -138,6 +144,13 @@ newmeta["dirty"] = [s in set(dirty_samples["sample"]) for s in newmeta["sample"]
 # In[ ]:
 newmeta["query"] = ~(newmeta["test"] | newmeta["train"])
 
+
+# In[ ]:
+newmeta["_cell_type"] = newmeta["cell_type"]
+newmeta["cell_type"] = newmeta["cellassign_types"]
+
+# In[ ]:
+
 # newmeta["cell_type"] = newmeta["cellassign_types"]
 # In[ ]:
 # update anndata - only keep the metadata we need/want
@@ -161,6 +174,7 @@ raw_ad.obs = newmeta[
         "Phase",
         "sample_other",
         "cell_type",
+        "_cell_type",
         "train",
         "test",
         "query",
@@ -204,10 +218,13 @@ del raw_ad
 
 # In[ ]:
 #####################
+# ns_top_genes = [20_000, 10_000, 5_000, 3_000, 2_000, 1_000]
+# ds_names = ["20k", "10k", "5k", "3k", "2k", "1k"]
 
-n_top_genes = [20_000, 15_000, 10_000, 5_000, 3_000, 2_000]
-ds_names = ["20k", "15k", "10k", "5k", "3k", "2k"]
+ns_top_genes = [10_000, 5_000, 3_000, 2_000, 1_000]
+ds_names = ["10k", "5k", "3k", "2k", "1k"]
 
+marker_genes = markers.index.to_list()
 # In[ ]:
 full_filen = raw_data_path / XYLENA2_FULL
 adata = ad.read_h5ad(full_filen)
@@ -222,9 +239,40 @@ hvgs_full = sc.experimental.pp.highly_variable_genes(
     subset=False,
     inplace=False,
 )
-
+# In[ ]:
+##  loess fails for some batches... so we wil NOT use the desired default below
+# # DEFAULT to seurat_v3 feature selection
+# hvgs_full =  sc.pp.highly_variable_genes(
+#         adata,
+#         batch_key="sample",
+#         flavor="seurat_v3",
+#         n_top_genes=10_000,
+#         subset=False,
+#         inplace=False,
+#     )
+# # process the "train" & "test" AnnData objects
 
 hvgs_full.to_csv(raw_data_path / XYLENA2_FULL_HVG)
+
+
+# In[ ]:
+train_filen = raw_data_path / XYLENA2_TRAIN
+adata = ad.read_h5ad(train_filen)
+
+hvgs_train = sc.experimental.pp.highly_variable_genes(
+    adata,
+    n_top_genes=20_000,
+    batch_key="sample",
+    flavor="pearson_residuals",
+    check_values=True,
+    layer=None,
+    subset=False,
+    inplace=False,
+)
+# process the "train" & "test" AnnData objects
+
+hvgs_train.to_csv(raw_data_path / XYLENA2_TRAIN_HVG)
+
 # In[ ]:
 
 # raw_train_filen = raw_data_path / XYLENA2_TRAIN
@@ -244,18 +292,25 @@ hvgs_full.to_csv(raw_data_path / XYLENA2_FULL_HVG)
 # In[ ]:
 # hvgs_train = pd.read_csv(raw_data_path / XYLENA2_TRAIN_HVG, index_col=0)
 hvgs_full = pd.read_csv(raw_data_path / XYLENA2_FULL_HVG, index_col=0)
+hvgs_train = pd.read_csv(raw_data_path / XYLENA2_TRAIN_HVG, index_col=0)
 
+
+## TODO: update to new marker genes tables....
 
 # In[ ]:
 # curate the gene list with our marker genes at the top.
 # markers = pd.read_csv("celltype_marker_table.csv", index_col=0)
 # mset = set(markers.index)
+# OLD
 markers = pd.read_csv("celltype_marker_table.csv", index_col=0)
-# defensive
-markers = markers[~markers.index.duplicated(keep="first")].rename_axis(index=None)
+# NEW
+markers = pd.read_csv(raw_data_path / "celltype_marker_table2.csv", index_col=0)
+
+# # defensive
+# markers = markers[~markers.index.duplicated(keep="first")].rename_axis(index=None)
 
 # hvgs = set(hvgs_full.index)
-
+# In[ ]:
 # hvgs_full.loc[markers.index, 'highly_variable_rank'] = 1.
 hvgs_full.loc[markers.index, "highly_variable_nbatches"] = 347.0
 
@@ -288,7 +343,7 @@ gene_list.to_csv(raw_data_path / "xyl2_full_hvg.csv")
 gene_list = pd.read_csv(raw_data_path / "xyl2_full_hvg.csv", index_col=0)
 
 gene_cuts = {}
-for ds_name, n_top_gene in zip(ds_names, n_top_genes):
+for ds_name, n_top_gene in zip(ds_names, ns_top_genes):
     gene_cuts[ds_name] = gene_list.iloc[:n_top_gene].index.to_list()
 
 
@@ -298,7 +353,7 @@ raw_train_filen = raw_data_path / XYLENA2_TRAIN
 train_ad = ad.read_h5ad(raw_train_filen)
 
 
-for ds_name, n_top_gene in zip(ds_names, n_top_genes):
+for ds_name, n_top_gene in zip(ds_names, ns_top_genes):
     keep_genes = gene_cuts[ds_name]
     print(f"Keeping {len(keep_genes)} genes")
     # load the raw test_ad
@@ -314,7 +369,7 @@ del train_ad
 raw_test_filen = raw_data_path / XYLENA2_TEST
 test_ad = ad.read_h5ad(raw_test_filen)
 # subset
-for ds_name, n_top_gene in zip(ds_names, n_top_genes):
+for ds_name, n_top_gene in zip(ds_names, ns_top_genes):
     keep_genes = gene_cuts[ds_name]
     print(f"Keeping {len(keep_genes)} genes")
     # load the raw test_ad
@@ -332,7 +387,8 @@ del test_ad
 raw_query_filen = raw_data_path / XYLENA2_QUERY
 query_ad = ad.read_h5ad(raw_query_filen)
 # subset
-for ds_name, n_top_gene in zip(ds_names, n_top_genes):
+# In[ ]:
+for ds_name, n_top_gene in zip(ds_names, ns_top_genes):
     keep_genes = gene_cuts[ds_name]
     print(f"Keeping {len(keep_genes)} genes")
     query_ad = query_ad[:, keep_genes]
@@ -386,7 +442,7 @@ def compare_genes(genes, labels=("genes1", "genes2")):
 # %%
 
 
-for ds_name, n_top_gene in zip(ds_names, n_top_genes):
+for ds_name, n_top_gene in zip(ds_names, ns_top_genes):
     print("gene_cuts")
     print(ds_name)
     compare_genes(gene_cuts[ds_name], labels=["train", "full"])
@@ -394,7 +450,7 @@ for ds_name, n_top_gene in zip(ds_names, n_top_genes):
 # %%
 
 
-for ds_name, n_top_gene in zip(ds_names, n_top_genes):
+for ds_name, n_top_gene in zip(ds_names, ns_top_genes):
     tset = set(gene_cuts[ds_name]["train"])
     fset = set(gene_cuts[ds_name]["full"])
     print(f"mset-tset: {len(mset - tset)}")
