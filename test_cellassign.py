@@ -48,36 +48,29 @@ raw_data_path = root_path / XYLENA2_RAW_PATH
 
 
 # In[ ]: Load raw data
-# raw_filen = raw_data_path / XYLENA2_RAW_ANNDATA
+# raw_filen = data_path / XYLENA2_RAW_ANNDATA
 # raw_ad = ad.read_h5ad(raw_filen)
 
 
 # In[ ]:
 #####################
 
-ns_top_genes = [20_000, 10_000, 5_000, 3_000, 1_000]
-ds_names = ["20k", "10k", "5k", "3k", "1k"]
+ns_top_genes = [20_000, 10_000, 5_000, 3_000, 2_000, 1_000]
+ds_names = ["20k", "10k", "5k", "3k", "2k", "1k"]
 
-ns_top_genes = [5_000, 3_000, 1_000]
-ds_names = ["5k", "3k", "1k"]
 
 # In[ ]:
 
 cell_types = {}
 # In[ ]:
 
+# #  1. load marker_genes
+# markers = pd.read_csv("celltype_marker_table.csv", index_col=0)
+# # defensive
+# markers = markers[~markers.index.duplicated(keep="first")].rename_axis(index=None)
 
-#  1. load marker_genes
-markers = pd.read_csv("celltype_marker_table.csv", index_col=0)
-# defensive
-markers = markers[~markers.index.duplicated(keep="first")].rename_axis(index=None)
 
-
-# genes = {}
-# ds_path = root_path / f"{XYLENA2_PATH}{'10k'}"
-
-# train_filen = ds_path / XYLENA2_TRAIN
-# adata = ad.read_h5ad(train_filen)
+# In[ ]:
 
 
 def get_cell_types(adata, markers):
@@ -90,6 +83,7 @@ def get_cell_types(adata, markers):
     lib_size = bdata.X.sum(1)  # type: ignore
     bdata.obs["size_factor"] = lib_size / np.mean(lib_size)
 
+    print("size_factor", bdata.obs["size_factor"].mean())
     #  4. model = CellAssign(bdata, marker_genes)
     scvi.external.CellAssign.setup_anndata(
         bdata,
@@ -111,7 +105,9 @@ def get_cell_types(adata, markers):
     )
 
     #  6. model.predict()
-    bdata.obs["cellassign_types"] = model.predict().idxmax(axis=1).values
+    preds = model.predict()
+
+    bdata.obs["cellassign_types"] = preds.idxmax(axis=1).values
 
     # 7. transfer cell_type to adata
     adata.obs["cellassign_types"] = bdata.obs["cellassign_types"]
@@ -122,39 +118,203 @@ def get_cell_types(adata, markers):
         .reset_index()
         .rename(columns={"index": "cells"})
     )
-    predictions.to_csv(
-        "train_labels", index=False
-    )  # # pred_file = "cellassign_predictions.csv"
 
-    return predictions, model
+    preds["sample"] = predictions["sample"]
+    preds["cellassign_types"] = predictions["cellassign_types"]
+    preds["cell_type"] = predictions["cell_type"]
+    preds["cells"] = predictions["cells"]
+    preds.index = preds["cells"]
+
+    return preds, model
 
 
 # In[ ]:
+# taxonomy from @nick
 
-filen = raw_data_path / XYLENA2_TRAIN
-adata = ad.read_h5ad(filen)
-train_predictions, train_model = get_cell_types(adata, markers)
+neuron_subs = dict(
+    glutamatergic=["SLC17A6", "NEUROD6", "SATB2"],
+    gabergic=["SLC32A1", "GAD2"],
+    dopaminergic=["SLC6A3", "SLC18A2"],
+)
+astro_sub = dict(protoplasmic=["GJA1"], fibrous=["GFAP"])
+immune_sub = dict(microglia=["P2RY12"], lymphoid=["SKAP1"])
+lymphoid_sub = dict(t_cells=["CD8B", "CD8A"], b_cells=["IGHG1"])
+
+neurons = ["GRIN2A", "RBFOX3"]
+glutamatergic = neurons + neuron_subs["glutamatergic"]
+gabergic = neurons + neuron_subs["gabergic"]
+dopaminergic = neurons + neuron_subs["dopaminergic"]
+
+astrocytes = ["AQP4"]
+astrocyte_proto = astrocytes + astro_sub["protoplasmic"]
+astrocyte_fibro = astrocytes + astro_sub["fibrous"]
+
+oligos = ["CLDN11", "CNP", "PLP1", "ST18"]
+OPCs = ["LHFPL3", "PDGFRA"]
+choroid = ["TTR", "KRT18", "FOLR1"]
+
+immune_cells = ["PTPRC"]
+microglia = immune_cells + immune_sub["microglia"]
+
+lymphoid = immune_cells + immune_sub["lymphoid"]
+t_cells = lymphoid + lymphoid_sub["t_cells"]
+b_cells = lymphoid + lymphoid_sub["b_cells"]
+
+
+cell_types = [
+    "neurons",
+    "glutamatergic",
+    "gabergic",
+    "dopaminergic",
+    "astrocytes",
+    "astrocyte_proto",
+    "astrocyte_fibro",
+    "oligos",
+    "OPCs",
+    "choroid",
+    "immune_cells",
+    "microglia",
+    "lymphoid",
+    "t_cells",
+    "b_cells",
+]
+
 # In[ ]:
 
+colnms = []
+colnms = [eval(ct) for ct in cell_types]
+col = []
+for e in colnms:
+    col += e
+# In[ ]:
+import numpy as np
 
-filen = raw_data_path / XYLENA2_TEST
-adata = ad.read_h5ad(filen)
-test_predictions, test_model = get_cell_types(adata, markers)
+marker = np.unique(col)
+
+
+# In[ ]:
+import pandas as pd
+
+df = pd.DataFrame(index=marker)
+
+df["neurons"] = df.index.isin(neurons)
+df["glutamatergic"] = df.index.isin(glutamatergic)
+df["gabergic"] = df.index.isin(gabergic)
+df["dopaminergic"] = df.index.isin(dopaminergic)
+df["astrocytes"] = df.index.isin(astrocytes)
+df["astrocyte_proto"] = df.index.isin(astrocyte_proto)
+df["astrocyte_fibro"] = df.index.isin(astrocyte_fibro)
+df["oligos"] = df.index.isin(oligos)
+df["OPCs"] = df.index.isin(OPCs)
+df["choroid"] = df.index.isin(choroid)
+df["immune_cells"] = df.index.isin(immune_cells)
+df["microglia"] = df.index.isin(microglia)
+df["lymphoid"] = df.index.isin(lymphoid)
+df["t_cells"] = df.index.isin(t_cells)
+df["b_cells"] = df.index.isin(b_cells)
+
+filen = raw_data_path / "new_taxonomy_table.csv"
+df.to_csv(filen)
+
+# In[ ]:
+filen = raw_data_path / "new_taxonomy_table.csv"
+markers_new = pd.read_csv(filen, index_col=0)
+
+
+markers_bottom_level = markers_new[
+    [
+        "glutamatergic",
+        "gabergic",
+        "dopaminergic",
+        "astrocyte_proto",
+        "astrocyte_fibro",
+        "oligos",
+        "OPCs",
+        "choroid",
+        "microglia",
+        "t_cells",
+        "b_cells",
+    ]
+]
+
 # In[ ]:
 
+# In[ ]:
+markers = markers_bottom_level
+filen = raw_data_path / "celltype_marker_table2.csv"
+markers.to_csv(filen)
+# filen = data_path / XYLENA2_TRAIN
+# adata = ad.read_h5ad(filen)
+# train_predictions, train_model = get_cell_types(adata, markers)
+# train_predictions.to_csv(
+#     "train_labels.csv", index=False
+# )  # # pred_file = "cellassign_predictions.csv"
 
-filen = raw_data_path / XYLENA2_QUERY
-adata = ad.read_h5ad(filen)
-query_predictions, query_model = get_cell_types(adata, markers)
+# # In[ ]:
+# XYLENA2_FULL = "xyl2_full.h5ad"
+# filen = data_path / XYLENA2_FULL
+# adata = ad.read_h5ad(filen)
+
+# tmp2 = probe_model(adata, train_model, markers)
+
+
+# # In[ ]:
+# filen = data_path / XYLENA2_TEST
+# adata = ad.read_h5ad(filen)
+# test_predictions, test_model = get_cell_types(adata, markers)
+# test_predictions.to_csv(
+#     "test_labels.csv", index=False
+# )  # # pred_file = "cellassign_predictions.csv"
+
+# # In[ ]:
+
+
+# filen = data_path / XYLENA2_QUERY
+# adata = ad.read_h5ad(filen)
+# query_predictions, query_model = get_cell_types(adata, markers)
+# query_predictions.to_csv(
+#     "query_labels.csv", index=False
+# )  # # pred_file = "cellassign_predictions.csv"
 # In[ ]:
 
 XYLENA2_FULL = "xyl2_full.h5ad"
-filen = raw_data_path / XYLENA2_FULL
+filen = data_path / XYLENA2_FULL
 adata = ad.read_h5ad(filen)
+
+# In[ ]:
+
 full_predictions, full_model = get_cell_types(adata, markers)
+# In[ ]:
+
+filen = data_path / "full_labels.csv"
+
+full_predictions.to_csv(filen, index=False)
 
 
 # In[ ]:
+
+filen = data_path / "full_cellassign.pkl"
+
+full_model.save(filen)
+
+
+# In[ ]:
+
+# In[ ]:
+
+
+# In[ ]:
+train_predictions = pd.read_csv("train_labels.csv")
+full_predictions = pd.read_csv("full_labels.csv")
+# find the same cells in full and train
+
+idx2 = full_predictions[full_predictions["cells"].isin(train_predictions["cells"])]
+train_predictions["cells2"] = idx2["cellassign_types"].values
+train_predictions.head()
+
+
+# In[ ]:
+
 
 from pandas import crosstab as pd_crosstab
 from sklearn.metrics import precision_score, recall_score, f1_score
@@ -190,7 +350,7 @@ def plot_predictions(
 
     """
 
-    df = adata.obs
+    # df = adata.obs
 
     # HACK:  this is nasty... but it should work.
     # Keep the first 'pred' and all other columns
@@ -223,6 +383,12 @@ def plot_predictions(
     ax.set_title(title_str.split(":"))
 
 
+# In[ ]:
+
+
+# In[ ]:
+
+plot_predictions(train_predictions, pred_key="cellassign_types", cell_type_key="cells2")
 # In[ ]:
 plot_predictions(train_predictions)
 # %%

@@ -53,8 +53,8 @@ XGB_SCVI_LATENT_MODEL_NAME = "scvi_emb_xgb"
 XGB_SCVI_EXPR_PC_MODEL_NAME = "scvi_expr_pcs_xgb"
 
 # LBL8R CNT model names
-RAW_PC_MODEL_NAME = "pcs_lbl8r"
-RAW_COUNT_MODEL_NAME = "raw_lbl8r"
+RAW_PC_MODEL_NAME = "pcs"
+RAW_COUNT_MODEL_NAME = "raw"
 XGB_RAW_PC_MODEL_NAME = "pcs_xgb"
 XGB_RAW_COUNT_MODEL_NAME = "raw_xgb"
 

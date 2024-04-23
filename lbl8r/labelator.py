@@ -12,7 +12,7 @@ from numpy import ndarray
 from .model._lbl8r import (
     LBL8R,
     get_lbl8r,
-    query_lbl8r,
+    query_lbl8r_raw,
     prep_pcs_adata,
     prep_raw_adata,
 )
@@ -48,6 +48,136 @@ MODEL = SCVI | SCANVI | LBL8R | XGB
 
 PRED_KEY = "label"
 INSERT_KEY = "pred"
+
+
+def train_lbl8r(
+    train_path,
+    model_path,
+    model_name,
+    output_data_path,
+    artifacts_path,
+    gen_plots,
+    retrain_model,
+    labels_key,
+    # batch_key,
+):
+    """
+    Command line interface for model processing pipeline.
+    """
+    print(f"{train_path=}:: {model_path=}:: {model_name=}")
+    print(
+        f"{output_data_path=}:: {artifacts_path=}:: {gen_plots=}:: {retrain_model=}:: {labels_key=}"
+    )
+
+    ## LOAD DATA ###################################################################
+    train_data = load_data(train_path, archive_path=output_data_path)
+
+    ## PREP MODEL ###################################################################
+    # gets model and preps Adata
+    # TODO:  add additional training_kwargs to cli
+    training_kwargs = {}  # dict(batch_key=batch_key)
+    print(f"prep_model: {'🛠️ '*25}")
+
+    train_data.labels_key = labels_key
+    model_set, train_data = get_trained_model(
+        train_data,
+        model_name,
+        model_path,
+        labels_key=labels_key,
+        retrain=retrain_model,
+        **training_kwargs,
+    )
+
+    # # WARNING:  BUG.  if train_data is None preping with query data hack won't work for PCs
+    # model_set, train_data = prep_model(
+    #     train_data,  # Note this is actually query_data if train_data arg was None
+    #     model_name=model_name,
+    #     model_path=model_path,
+    #     labels_key=labels_key,
+    #     retrain=retrain_model,
+    #     **training_kwargs,
+    # )
+
+    # In[ ]
+    ## QUERY MODEL ###################################################################
+    print(f"train_model: {'🏋️ '*25}")
+    train_data = query_model(train_data, model_set)
+
+    # In[ ]
+    ## CREATE ARTIFACTS ###################################################################
+    # TODO:  wrap in Models, Figures, and Adata in Artifacts class.
+    #       currently the models are saved as soon as they are trained, but the figures and adata are not saved until the end.
+    # TODO:  export results to tables.  artifacts are currently:  "figures" and "tables" (to be implimented)
+    if gen_plots:
+        print(f"archive training plots and data: {'📈 '*25}")
+        archive_plots(
+            train_data, model_set, "train", fig_path=(artifacts_path / "figs")
+        )
+    print(f"archive train output adata: {'💾 '*25}")
+    archive_data(train_data)
+
+
+# TODO: add logging
+def query_lbl8r(
+    query_path,
+    model_path,
+    model_name,
+    output_data_path,
+    artifacts_path,
+    gen_plots,
+    retrain_model,
+    labels_key,
+    # batch_key,
+):
+    """
+    Command line interface for model processing pipeline.
+    """
+    print(f"{query_path=}:: {model_path=}:: {model_name=}")
+    print(
+        f"{output_data_path=}:: {artifacts_path=}:: {gen_plots=}:: {retrain_model=}:: {labels_key=}"
+    )
+
+    ## LOAD DATA ###################################################################
+    query_data = load_data(query_path, archive_path=output_data_path)
+
+    ## PREP MODEL ###################################################################
+    # gets model and preps Adata
+    # TODO:  add additional training_kwargs to cli
+    training_kwargs = {}  # dict(batch_key=batch_key)
+    print(f"prep_model: {'🛠️ '*25}")
+
+    model_set = load_trained_model(model_name, model_path, labels_key=labels_key)
+    # if no traing data is loaded (just prepping for query) return placeholder data
+
+    # In[ ]
+    ## QUERY MODELs ###################################################################
+    # makes sure the genes correspond to those of the prepped model
+    #     projects counts onto the principle components of the training datas eigenvectors as 'X_pca'
+    # TODO:  add additional training_kwargs to cli
+    print(f"prep query: {'💅 '*25}")
+    # prep query model actually preps data unless its a scANVI model...
+    #
+    model_set, query_data = prep_query_model(
+        query_data,
+        model_set,
+        model_name,
+        labels_key=labels_key,
+        retrain=retrain_model,
+    )
+
+    # In[ ]
+    print(f"query_model: {'🔮 '*25}")
+    query_data = query_model(query_data, model_set)
+    # In[ ]
+    ## CREATE ARTIFACTS ###################################################################
+    if gen_plots:
+        print(f"archive query plots and data: {'📊 '*25}")
+        archive_plots(
+            query_data, model_set, "query", fig_path=(artifacts_path / "figs")
+        )
+
+    print(f"archive query output adata: {'💾 '*25}")
+    archive_data(query_data)
 
 
 def load_data(adata_path: str | Path, archive_path: str | Path) -> Adata:
@@ -142,10 +272,10 @@ def load_trained_model(
 
     # SCANVI MODELS
     if model_name in (SCANVI_MODEL_NAME, SCANVI_BATCH_EQUALIZED_MODEL_NAME):
-        vae_path = model_path / model_name / SCVI_SUB_MODEL_NAME
+        vae_path = model_path / SCVI_SUB_MODEL_NAME
         vae = LazyModel(vae_path)
         # vae = SCVI.load(vae_path.as_posix())
-        scanvi_path = model_path / model_name / SCANVI_SUB_MODEL_NAME
+        scanvi_path = model_path / SCANVI_SUB_MODEL_NAME
         scanvi_model = LazyModel(scanvi_path)
         models = {SCVI_SUB_MODEL_NAME: vae, SCANVI_SUB_MODEL_NAME: scanvi_model}
         model_set = ModelSet(models, (model_path / model_name), labels_key)
@@ -229,11 +359,9 @@ def get_trained_model(
 
     models = {}
     # SCANVI E2E MODELS
-    if model_name in (SCANVI_MODEL_NAME, SCANVI_BATCH_EQUALIZED_MODEL_NAME):
+    if model_name == SCANVI_MODEL_NAME:
         # pop the batch key...
-        batch_key = (
-            "sample" if model_name == SCANVI_BATCH_EQUALIZED_MODEL_NAME else None
-        )
+        batch_key = "sample" if model_path.name == "BATCH_EQ" else None
 
         # put the batch_key back in the training_kwargs
         training_kwargs["batch_key"] = batch_key
@@ -244,26 +372,26 @@ def get_trained_model(
         save_genes(ad, model_path / model_name)
 
         # load teh scvi model, scanvi_model, (qnd query models?)
-        print(f"scanvi getting 0 {(model_path/model_name/SCVI_SUB_MODEL_NAME)}")
+        print(f"scanvi getting 0 {(model_path/SCVI_SUB_MODEL_NAME)}")
         # BUG:  assume that we already have an scvi model... need to delete if we want to retrain
         vae, ad = get_trained_scvi(
             ad,
             labels_key=labels_key,
-            model_path=(model_path / model_name),
-            retrain=False,
+            model_path=model_path,
+            retrain=False,  # only train a new one if we don't already have one... rquires deleting if we want to retrain
             model_name=SCVI_SUB_MODEL_NAME,
             **training_kwargs,
         )
         ad = add_latent_obsm(ad, vae)
 
-        print(f"scanvi getting 1 {(model_path/model_name/SCANVI_SUB_MODEL_NAME)}")
+        print(f"scanvi getting 1 {(model_path/model_name)}")
         model, ad = get_trained_scanvi(
             ad,
             vae,
             labels_key=labels_key,
-            model_path=(model_path / model_name),
+            model_path=model_path,
             retrain=retrain,
-            model_name=SCANVI_SUB_MODEL_NAME,
+            model_name=model_name,
             **training_kwargs,
         )
 
@@ -273,10 +401,10 @@ def get_trained_model(
 
         data.update(ad)
 
-        vae_path = model_path / model_name / SCVI_SUB_MODEL_NAME
+        vae_path = model_path / SCVI_SUB_MODEL_NAME
         vae = LazyModel(vae_path, vae)
         # vae = SCVI.load(vae_path.as_posix())
-        scanvi_path = model_path / model_name / SCANVI_SUB_MODEL_NAME
+        scanvi_path = model_path / model_name
         scanvi_model = LazyModel(scanvi_path, model)
         models = {SCVI_SUB_MODEL_NAME: vae, SCANVI_SUB_MODEL_NAME: scanvi_model}
 
@@ -284,6 +412,7 @@ def get_trained_model(
         model_set.default = SCANVI_SUB_MODEL_NAME
         model_set.batch_key = batch_key
         model_set.basis = SCANVI_LATENT_KEY
+
         return model_set, data
 
     basis = PCA_KEY
@@ -298,14 +427,15 @@ def get_trained_model(
         XGB_SCVI_EXPR_PC_MODEL_NAME,
     ):
         # need vae
-        save_genes(ad, model_path / SCVI_SUB_MODEL_NAME)
+        save_genes(ad, model_path / model_name)
+        # assert genes in model_path/model_name == model_path/SCVI_SUB_MODEL_NAME ?
         print(f"getting scvi: 1 {(model_path/SCVI_SUB_MODEL_NAME)}")
         vae, ad = get_trained_scvi(
             ad,
             labels_key=labels_key,
             batch_key=batch_key,
             model_path=model_path,
-            retrain=retrain,
+            retrain=False,  # only train a new one if we don't already have one... rquires deleting if we want to retrain
             model_name=SCVI_SUB_MODEL_NAME,
             **training_kwargs,
         )
@@ -316,7 +446,7 @@ def get_trained_model(
         models = {SCVI_SUB_MODEL_NAME: vae}
         basis = SCVI_LATENT_KEY
 
-        save_genes(ad, model_path / model_name)
+        # save_genes(ad, model_path / model_name)
         # SCVI LBL8R LazyModel
         if model_name in (SCVI_LATENT_MODEL_NAME, XGB_SCVI_LATENT_MODEL_NAME):
             # 1. make the make_latent_adata
@@ -571,7 +701,7 @@ def query_model(
     if not model.loaded:
         model.load_model(data.adata)
 
-    # TODO: update interface to query_scanvi, query_lbl8r, query_xgb so the predictiosn tables are returned
+    # TODO: update interface to query_scanvi, query_lbl8r_raw, query_xgb so the predictiosn tables are returned
     #   do the merge_into_obs here, and also serialize the tables.
 
     ad = data.adata
@@ -585,7 +715,7 @@ def query_model(
         ad.obs[model_set.labels_key] = ad.obs["ground_truth"].to_list()
     # no prep needed to query these models.
     elif isinstance(model.model, LBL8R):
-        predictions = query_lbl8r(ad, model.model)
+        predictions = query_lbl8r_raw(ad, model.model)
     elif isinstance(model.model, XGB):
         predictions, xgb_report = query_xgb(ad, model.model)
         # TODO: do something with the report...

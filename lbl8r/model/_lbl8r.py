@@ -836,18 +836,10 @@ def get_lbl8r(
         Key for cell type labels. Default is `cell_type`.
     model_path : Path
         Path to save model. Default is `Path.cwd()`.
-    retrain : bool
-        Whether to retrain the model. Default is `False`.
     model_name : str
         Name of the model. Default is `lbl8r`.
-    plot_training : bool
-        Whether to plot training. Default is `False`.
-    save : bool | Path | str
-        Whether to save the model. Default is `False`.
-    show : bool
-        Whether to show the plot. Default is `True`.
-    fig_dir : Path|str|None
-        Path to save the figure. Default is `None`.
+    retrain : bool
+        Whether to retrain the model. Default is `False`.
     **training_kwargs : dict
         Additional arguments to pass to `scvi.model.SCVI.train`.
 
@@ -890,7 +882,7 @@ def get_lbl8r(
     return lat_lbl8r, adata
 
 
-def query_lbl8r(
+def query_lbl8r_raw(
     adata: AnnData,
     labelator: LBL8R,
 ) -> pd.DataFrame:
