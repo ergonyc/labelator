@@ -4,10 +4,30 @@ from pathlib import Path
 import anndata as ad
 import numpy as np
 from scipy.sparse import csr_matrix, hstack, issparse
-from ._pca import transfer_pca
+from ._pca import transfer_pca, compute_pcs, dump_pcs
+from ._mde import mde
+from ._device import get_usable_device
 
 # from scanpy.pp import pca
-from ..._constants import OUT, H5, EMB, EXPR, CNT, PCS, VAE, CELL_TYPE_KEY
+from ..._constants import (
+    OUT,
+    H5,
+    EMB,
+    EXPR,
+    CNT,
+    PCS,
+    VAE,
+    CELL_TYPE_KEY,
+    BATCH_EQUALIZED,
+    RAW_PC_MODEL_NAME,
+    RAW_COUNT_MODEL_NAME,
+    SCVI_LATENT_KEY,
+    SCANVI_LATENT_KEY,
+    SCVI_MDE_KEY,
+    SCANVI_MDE_KEY,
+    MDE_KEY,
+    PCA_KEY,
+)
 
 
 @dataclasses.dataclass
@@ -21,12 +41,19 @@ class Adata:
     is_backed: bool = False
     _adata: ad.AnnData = dataclasses.field(default=None, init=False, repr=False)
     _out_suffix: str = dataclasses.field(default=None, init=False, repr=False)
-    _subdir: str = dataclasses.field(default=None, init=False, repr=False)
-    _loaded: bool = dataclasses.field(default=True, init=True, repr=True)
+    _loaded: bool = dataclasses.field(default=False, init=True, repr=True)
     _adata_path: Path = dataclasses.field(default=None, init=False, repr=False)
     _labels_key: str = dataclasses.field(default=None, init=False, repr=False)
     _ground_truth_key: str = dataclasses.field(default=None, init=False, repr=False)
     _archive_path: Path = dataclasses.field(default=None, init=False, repr=False)
+    _artifact_path: Path = dataclasses.field(default=None, init=False, repr=False)
+    _pcs: Path = dataclasses.field(default=None, init=False, repr=False)
+    _X_pca: Path = dataclasses.field(default=None, init=False, repr=False)
+    _X_mde: Path = dataclasses.field(default=None, init=False, repr=False)
+    _X_scvi: Path = dataclasses.field(default=None, init=False, repr=False)
+    _X_scanvi: Path = dataclasses.field(default=None, init=False, repr=False)
+    _X_scvi_mde: Path = dataclasses.field(default=None, init=False, repr=False)
+    _X_scanvi_mde: Path = dataclasses.field(default=None, init=False, repr=False)
 
     def __init__(self, adata_path: Path, is_backed: bool = False):
         if adata_path is None:
@@ -61,6 +88,138 @@ class Adata:
         return self._adata_path
 
     @property
+    def pcs(self):
+        if self._pcs is None:
+            # try load from disk
+            pcs_path = self.artifact_path / "PCs.npy"
+            if pcs_path.exists():
+                self._pcs = np.load(pcs_path)
+            elif "PCs" in self.adata.varm_keys():
+                self._pcs = self.adata.varm["PCs"]
+                dump_pcs(self._pcs, self.artifact_path)
+            else:
+                print(f"no PCs found at {pcs_path}")
+                # TODO: add compute PCs
+                self._pcs = None
+
+        return self._pcs
+
+    @property
+    def X_pca(self):
+        if self._X_pca is None:
+            # try load from disk
+            x_pca_path = (
+                self.artifact_path / f"X_pca_{self.name.replace('h5ad', 'npy')}"
+            )
+            if x_pca_path.exists():
+                self._X_pca = np.load(x_pca_path)
+            else:
+                # compute!!
+                # see if we have PCs and if so transfer them
+                if self._pcs is None:
+                    print(f"computing pca for {self.name}")
+                    self._pcs, self._X_pca = compute_pcs(self.adata)
+                    # save the PCs and X_pca
+                    dump_pcs(self._pcs, self.artifact_path)
+                    dump_x_repr(self._X_pca, self.artifact_path, x_name=x_pca_path.name)
+                else:
+                    print(f"transferring PCs to {self.name}")
+                    self._X_pca = transfer_pca(self.adata, self._pcs)
+                    # save the X_pca
+                    dump_x_repr(self._X_pca, self.artifact_path, x_name=x_pca_path.name)
+
+        return self._X_pca
+
+    @property
+    def X_mde(self):
+        if self._X_mde is None:
+            # try load from disk
+            x_mde_path = (
+                self.artifact_path / f"X_mde_{self.name.replace('h5ad', 'npy')}"
+            )
+            if x_mde_path.exists():
+                self._X_mde = np.load(x_mde_path)
+            else:
+                # compute!!
+                print(f"computing mde for {self.name} pca latent")
+                self._X_mde = mde(self.X_pca)
+                dump_x_repr(self._X_mde, self.artifact_path, x_name=x_mde_path.name)
+
+        return self._X_mde
+
+    @property
+    def X_scvi(self):
+        if self._X_scvi is None:
+            # try load from disk
+            x_path = self.artifact_path / f"X_scvi_{self.name.replace('h5ad', 'npy')}"
+            if x_path.exists():
+                self._X_scvi = np.load(x_path)
+            else:
+                # get from adata
+                if SCVI_LATENT_KEY in self.adata.obsm_keys():
+                    self._X_scvi = self.adata.obsm[SCVI_LATENT_KEY]
+                    dump_x_repr(self._X_scvi, self.artifact_path, x_name=x_path.name)
+                else:
+                    print(f"no scvi latent found in adata.obs[SCVI_LATENT_KEY]")
+
+        return self._X_scvi
+
+    @property
+    def X_scvi_mde(self):
+        if self._X_scvi_mde is None:
+            # try load from disk
+            x_mde_path = (
+                self.artifact_path / f"X_scvi_mde_{self.name.replace('h5ad', 'npy')}"
+            )
+            if x_mde_path.exists():
+                self._X_scvi_mde = np.load(x_mde_path)
+            else:
+                # compute!!
+                print(f"computing mde for {self.name} scvi latent")
+                self._X_scvi_mde = mde(self.X_scvi)
+                dump_x_repr(
+                    self._X_scvi_mde, self.artifact_path, x_name=x_mde_path.name
+                )
+
+        return self._X_scvi_mde
+
+    @property
+    def X_scanvi(self):
+        if self._X_scanvi is None:
+            # try load from disk
+            x_path = self.artifact_path / f"X_scanvi_{self.name.replace('h5ad', 'npy')}"
+            if x_path.exists():
+                self._X_scanvi = np.load(x_path)
+            else:
+                # get from adata
+                if SCANVI_LATENT_KEY in self.adata.obsm_keys():
+                    self._X_scanvi = self.adata.obsm[SCANVI_LATENT_KEY]
+                    dump_x_repr(self._X_scanvi, self.artifact_path, x_name=x_path.name)
+                else:
+                    print(f"no scanvi latent found in adata.obs[SCANVI_LATENT_KEY]")
+
+        return self._X_scanvi
+
+    @property
+    def X_scanvi_mde(self):
+        if self._X_scanvi_mde is None:
+            # try load from disk
+            x_mde_path = (
+                self.artifact_path / f"X_scanvi_mde_{self.name.replace('h5ad', 'npy')}"
+            )
+            if x_mde_path.exists():
+                self._X_scanvi_mde = np.load(x_mde_path)
+            else:
+                # compute!!
+                print(f"computing mde for {self.name} scanvi latent")
+                self._X_scanvi_mde = mde(self.X_scanvi)
+                dump_x_repr(
+                    self._X_scanvi_mde, self.artifact_path, x_name=x_mde_path.name
+                )
+
+        return self._X_scanvi_mde
+
+    @property
     def loaded(self):
         return self._adata is not None
 
@@ -90,12 +249,17 @@ class Adata:
         if self._archive_path is None and self._adata_path is None:
             print("No adata.  Just a placeholder")
             return None
-        else:
-            return self._archive_path
+        return self._archive_path
 
     @archive_path.setter
     def archive_path(self, archive_path: str | Path):
         self._archive_path = Path(archive_path)
+        if not self._archive_path.exists():
+            self._archive_path.mkdir(parents=True, exist_ok=True)
+
+    @property
+    def artifact_path(self):
+        return self.path if self._archive_path.stem == "count" else self._archive_path
 
     def export(self, out_path: Path | None = None):
         """
@@ -103,12 +267,8 @@ class Adata:
         """
         if out_path is not None:
             self.archive_path = out_path
-
-        out_path = (
-            self.archive_path
-            if self._subdir is None
-            else self.archive_path / self._subdir
-        )
+        else:
+            out_path = self.archive_path
 
         if self._out_suffix is not None:
             out_path = out_path / self.name.replace(H5, self._out_suffix + OUT + H5)
@@ -125,28 +285,18 @@ class Adata:
         """
         self._adata = adata
 
-    def set_output(self, model_name: str):
+    def set_output(self, model_name: str, batch_eq: bool = False):
         """
         Set the output name suffix and subdir based on model_name
         """
+        # TODO: clean this up
 
-        # set path_subdir based on model_name
-        if model_name.startswith("scvi"):
-            self._subdir = "LBL8R" + VAE
-        elif model_name == "scanvi":
-            self._subdir = "SCANVI"
-        elif model_name.startswith("scanvi_"):
-            self._subdir = "SCANV_batch_eq"
-        elif model_name.startswith("xgb"):
-            self._subdir = "XGB"
-        elif model_name.startswith("lbl8r"):
-            # got to LBL8R_pcs, or LBL8R (e2e)
-            if model_name.endswith("_pcs"):
-                self._subdir = "LBL8R" + PCS
-            else:
-                self._subdir = "LBL8R"
-        else:
-            self._subdir = "ERROR"
+        # if model_name in ["scvi_emb", "scvi_expr", "scvi_expr_pcs"]:
+        #     self._subdir = "batch_eq" if batch_eq else "naive"
+        # elif model_name in ["raw", "pcs"]:
+        #     self._subdir = "count"
+        # else:
+        #     self._subdir = "ERROR"
 
         # set suffix based on model_name
         if model_name.endswith(EMB):
@@ -154,15 +304,36 @@ class Adata:
         elif model_name.endswith(EXPR):
             self._out_suffix = EXPR
         elif model_name.endswith(EXPR + PCS):
-            self._out_suffix = EXPR
-        elif model_name.endswith(CNT + PCS):
-            self._out_suffix = PCS
-        elif model_name.startswith("scanvi"):
-            self._out_suffix = "_scanvi"
-        elif model_name.endswith("raw_cnt"):
-            self._out_suffix = ""
+            self._out_suffix = EXPR + PCS
+        elif model_name == RAW_COUNT_MODEL_NAME:
+            self._out_suffix = CNT
+        elif model_name == RAW_PC_MODEL_NAME:
+            self._out_suffix = CNT + PCS
+        elif model_name.endswith("raw"):
+            self._out_suffix = CNT
         else:
             self._out_suffix = ""  # eventually we will disable the other outputs
+
+
+def dump_x_repr(x_repr: np.ndarray, x_path: Path, x_name: str):
+    """
+    dump artifact (X_repr) representation of data.
+
+    Parameters
+    ----------
+    x_repr : ndarray
+        representation of data.
+    x_path : Path
+        Path to save X_repr.
+    x_name : str
+        Name of the file.
+
+    """
+    if not x_path.exists():
+        x_path.mkdir(parents=True, exist_ok=True)
+
+    x_path = x_path / x_name
+    np.save(x_path, x_repr)
 
 
 def add_predictions_to_adata(adata, predictions, insert_key="pred", pred_key="label"):
@@ -349,9 +520,7 @@ def export_ouput_adata(adata: ad.AnnData, file_name: str, out_path: Path):
     return None
 
 
-def make_pc_loading_adata(
-    adata: ad.AnnData, pcs: np.ndarray | None = None, pca_key: str = "X_pca"
-):
+def make_pc_loading_adata(adata: ad.AnnData, x_pca: np.ndarray, pca_key: str = "X_pca"):
     """
     Makes adata with PCA loadings
 
@@ -359,8 +528,8 @@ def make_pc_loading_adata(
     ----------
     adata : AnnData
         Annotated data matrix.
-    pcs : np.ndarray
-        Principal components.
+    x_pca : np.ndarray
+        data projected on Principal components.
     pca_key : str
         Key in `adata.obsm` where PCA loadings are stored. Default is `X_pca`.
         If `X_pca` is not in `adata.obsm`, then it will raise an error.
@@ -372,27 +541,7 @@ def make_pc_loading_adata(
 
     """
 
-    if pcs is not None:
-        loadings = adata.X @ pcs
-    elif pca_key in adata.obsm_keys():
-        # already have the loadings...
-        loadings = adata.obsm[pca_key]
-        if "PCs" in adata.varm_keys():
-            pcs = adata.varm["PCs"]
-        elif "PCs" in adata.uns_keys():
-            print("make_pc_loading_adata pcs from .uns['PCs']")
-            pcs = adata.uns["PCs"]
-        else:
-            print(
-                f"found {pca_key} in adata.obsm but no PCs in adata.varm or adata.uns"
-            )
-            pcs = None
-    else:  #
-        ValueError("Need to get PCA loadings first")
-        print(f"doing nothing: {pca_key} not in {adata.obsm_keys()}")
-        return adata
-
-    loading_adata = ad.AnnData(loadings)
+    loading_adata = ad.AnnData(x_pca)
     var_names = [f"pc_{i}" for i in range(loading_adata.shape[1])]
 
     loading_adata.obs_names = adata.obs_names.copy()
@@ -400,23 +549,18 @@ def make_pc_loading_adata(
     loading_adata.var_names = var_names
 
     obsm = adata.obsm.copy()
-    obsm[pca_key] = loadings
+    obsm[pca_key] = x_pca
     loading_adata.obsm = obsm
 
     loading_adata.uns = adata.uns.copy()
     _ = loading_adata.uns.pop("_scvi_uuid", None)
     _ = loading_adata.uns.pop("_scvi_manager_uuid", None)
 
-    # hold the PCS from varm in uns for transferring to query
-    if pcs is not None:
-        loading_adata.uns["PCs"] = pcs
     print("made `loading_adata` with PCA loadings")
     return loading_adata
 
 
-def add_pc_loadings(
-    adata: ad.AnnData, pcs: np.ndarray | None = None, pca_key: str = "X_pca"
-):
+def add_pc_loadings(adata: ad.AnnData, x_pca: np.ndarray, pca_key: str = "X_pca"):
     """
     Makes adata with PCA loadings
 
@@ -424,8 +568,8 @@ def add_pc_loadings(
     ----------
     adata : AnnData
         Annotated data matrix.
-    pcs : np.ndarray
-        Principal components.
+    x_pca : np.ndarray
+        data projected on Principal components.
     pca_key : str
         Key in `adata.obsm` where PCA loadings are stored. Default is `X_pca`.
         If `X_pca` is not in `adata.obsm`, then it will raise an error.
@@ -437,31 +581,40 @@ def add_pc_loadings(
 
     """
 
-    if pcs is not None:
-        loadings = adata.X @ pcs
-    elif pca_key in adata.obsm_keys():
-        # already have the loadings...
-        loadings = adata.obsm[pca_key]
-        if "PCs" in adata.varm_keys():
-            pcs = adata.varm["PCs"]
-        elif "PCs" in adata.uns_keys():
-            print("getting PCs from ad.uns[PCs']")
-            pcs = adata.uns["PCs"]
-        else:
-            print(
-                f"found {pca_key} in adata.obsm but no PCs in adata.varm or adata.uns"
-            )
-            pcs = None
-    else:  #
-        ValueError("Need to get PCA loadings first")
-        print(f"doing nothing: {pca_key} not in {adata.obsm_keys()}")
-        return adata
-
-    adata.obsm[pca_key] = loadings
-    if pcs is not None:
-        adata.uns["PCs"] = pcs
+    adata.obsm[pca_key] = x_pca
 
     return adata
+
+
+def add_mde_obsm(ad: ad.AnnData, X_mde: np.ndarray, basis: str = "X_pca") -> ad.AnnData:
+    """
+    Add the latent representation from a scVI model into the ad.obsm
+
+    Parameters
+    ----------
+    ad : AnnData
+        Annotated data matrix.
+    basis : str
+        key to apply mde to. Could be: `X_pca`, `X_scVI`,`X_scANVI`
+
+    Returns
+    -------
+    AnnData
+        Annotated data matrix with latent variables.
+
+    """
+    device = get_usable_device()
+
+    if basis == PCA_KEY:
+        ad.obsm[MDE_KEY] = mde(ad.obsm[PCA_KEY], device=device)
+
+    elif basis == SCVI_LATENT_KEY:
+        ad.obsm[SCVI_MDE_KEY] = mde(ad.obsm[SCVI_LATENT_KEY], device=device)
+
+    elif basis == SCANVI_LATENT_KEY:
+        ad.obsm[SCANVI_MDE_KEY] = mde(ad.obsm[SCANVI_LATENT_KEY], device=device)
+
+    return ad
 
 
 def prep_target_genes(adata: ad.AnnData, target_genes: list[str]) -> ad.AnnData:

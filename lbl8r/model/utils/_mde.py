@@ -5,6 +5,7 @@ import pandas as pd
 import torch
 from scipy.sparse import spmatrix
 import pymde
+from pathlib import Path
 
 from ._device import get_usable_device
 from ._timing import Timing
@@ -86,3 +87,18 @@ def mde(
         emb = emb.cpu().numpy()
 
     return emb
+
+
+def dump_x_mde(x_mde: np.ndarray, xmde_path: Path, xmde_name: str = "X_mde.npy"):
+    """
+    Save principal components representation of data.
+
+    Parameters
+    ----------
+    x_mde : ndarray
+        Principal components.
+    xmde_path : Path
+        Path to mde.
+    """
+    xmde_path = xmde_path / xmde_name
+    np.save(xmde_path, x_mde)

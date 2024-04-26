@@ -43,89 +43,89 @@ def _load_pkl(path: Path):
     return obj
 
 
-def dump_pcs(pcs: ndarray, model_path: Path):
-    """
-    Save principal components to adata.
+# def dump_pcs(pcs: ndarray, model_path: Path):
+#     """
+#     Save principal components to adata.
 
-    Parameters
-    ----------
-    pcs : ndarray
-        Principal components.
-    model_path : Path
-        Path to the model.
-
-
-    """
-    pcs_path = model_path / f"pcs.pkl"
-    _dump_pkl(pcs, pcs_path)
+#     Parameters
+#     ----------
+#     pcs : ndarray
+#         Principal components.
+#     model_path : Path
+#         Path to the model.
 
 
-def load_pcs(model_path: Path) -> ndarray:
-    """
-    Load principal components from adata.
-
-    Parameters
-    ----------
-    model_path : Path
-        Path to the model.
-
-    Returns
-    -------
-    pcs : np.ndarray
-        Principal components.
-
-    """
-
-    pcs_path = model_path / f"pcs.pkl"
-
-    if pcs_path.exists():
-        return _load_pkl(pcs_path)
-    else:
-        print(f"no pcs found at {pcs_path}")
-        return None
+#     """
+#     pcs_path = model_path / f"pcs.pkl"
+#     _dump_pkl(pcs, pcs_path)
 
 
-def extract_pcs(ad: AnnData) -> ndarray:
-    """
-    Extract principal components from adata.
+# def load_pcs(model_path: Path) -> ndarray:
+#     """
+#     Load principal components from adata.
 
-    Parameters
-    ----------
-    adata : AnnData
-        Annotated data matrix.
+#     Parameters
+#     ----------
+#     model_path : Path
+#         Path to the model.
 
-    Returns
-    -------
-    pcs : np.ndarray
-        Principal components.
-    """
-    if "PCs" in ad.varm_keys():
-        print("getting PCs from varm")
-        pcs = ad.varm["PCs"].copy()
-    elif "PCs" in ad.uns_keys():
-        print("getting PCs ad.uns")
-        pcs = ad.uns["PCs"].copy()
-    else:
-        print("🚨WARNING: no PCs to extract... computing")
-        pcs = compute_pcs(ad)
+#     Returns
+#     -------
+#     pcs : np.ndarray
+#         Principal components.
 
-    return pcs
+#     """
+
+#     pcs_path = model_path / f"pcs.pkl"
+
+#     if pcs_path.exists():
+#         return _load_pkl(pcs_path)
+#     else:
+#         print(f"no pcs found at {pcs_path}")
+#         return None
 
 
-def save_pcs(ad: AnnData, model_path: Path):
-    """
-    Archive principal components to adata.
+# def extract_pcs(ad: AnnData) -> ndarray:
+#     """
+#     Extract principal components from adata.
 
-    Parameters
-    ----------
-    ad : AnnData
-        Annotated data matrix.
-    model_path : Path
-        Path to the model.
+#     Parameters
+#     ----------
+#     adata : AnnData
+#         Annotated data matrix.
 
-    """
-    pcs = extract_pcs(ad)
-    dump_pcs(pcs, model_path)
+#     Returns
+#     -------
+#     pcs : np.ndarray
+#         Principal components.
+#     """
+#     if "PCs" in ad.varm_keys():
+#         print("getting PCs from varm")
+#         pcs = ad.varm["PCs"].copy()
+#     elif "PCs" in ad.uns_keys():
+#         print("getting PCs ad.uns")
+#         pcs = ad.uns["PCs"].copy()
+#     else:
+#         print("🚨WARNING: no PCs to extract... computing")
+#         pcs = compute_pcs(ad)
+
+#     return pcs
+
+
+# def save_pcs(ad: AnnData, model_path: Path):
+#     """
+#     Archive principal components to adata.
+
+#     Parameters
+#     ----------
+#     ad : AnnData
+#         Annotated data matrix.
+#     model_path : Path
+#         Path to the model.
+
+#     """
+#     pcs = extract_pcs(ad)
+#     dump_pcs(pcs, model_path)
 
 
 def dump_genes(genes: list[str], path: Path):

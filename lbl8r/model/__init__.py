@@ -2,7 +2,7 @@
 #     scviLBL8R,
 #     get_lbl8r,
 #     plot_lbl8r_training,
-#     query_lbl8r,
+#     query_lbl8r_raw,
 #     prep_pcs_adata,
 # )
 
@@ -35,7 +35,7 @@
 #     "make_pc_loading_adata",
 #     "make_scvi_normalized_adata",
 #     "query_scanvi",
-#     "query_lbl8r",
+#     "query_lbl8r_raw",
 #     "query_xgb",
 #     "plot_scvi_training",
 #     "plot_scanvi_training",

@@ -532,23 +532,24 @@ def make_scvi_normalized_adata(
         print("adding raw PCs to exp_adata")
         exp_adata.varm["_PCs"] = PCs
 
-    if "pca" in exp_adata.uns_keys():
-        pca_dict = exp_adata.uns.pop("pca")
-        exp_adata.uns["_pca"] = pca_dict
-        _ = exp_adata.uns.pop("_scvi_uuid", None)
-        _ = exp_adata.uns.pop("_scvi_manager_uuid", None)
+    # if "pca" in exp_adata.uns_keys():
+    # pca_dict = exp_adata.uns.pop("pca")
+    # exp_adata.uns["_pca"] = pca_dict
+    # remove the scvi uuids
+    _ = exp_adata.uns.pop("_scvi_uuid", None)
+    _ = exp_adata.uns.pop("_scvi_manager_uuid", None)
 
     scvi_model.setup_anndata(exp_adata, labels_key=labels_key, batch_key=batch_key)
 
     print(" -> 1 get_normalized_expression")
 
-    denoised = scvi_model.get_normalized_expression(
+    expr = scvi_model.get_normalized_expression(
         exp_adata,
         library_size=1e4,
         return_numpy=True,
     )
 
-    exp_adata.X = denoised
+    exp_adata.X = expr
     print(" -> 2 add_latent_obsm")
 
     exp_adata = add_latent_obsm(exp_adata, scvi_model)

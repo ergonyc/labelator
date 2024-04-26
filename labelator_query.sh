@@ -3,10 +3,11 @@
 # Function to run the Python CLI with given parameters
 query_model() {
     local query_adata=$1
-    local model_names=("${!2}")
-    local model_path=$3
+    local model_path=$2
+    local model_names=("${!3}")
     local output_data_path=$4
     local artifacts_path=$5
+
 
     for model_name in "${model_names[@]}"
     do
@@ -44,81 +45,48 @@ query_model() {
 
     done
 }
+
+
 repr_model_names=("scvi_emb" "scvi_expr" "scvi_expr_pcs")
 count_model_names=("pcs_lbl8r" "raw_lbl8r")
 transfer_model_names=("scanvi_batch_eq" "scanvi" )
 
+set_names = ("10k" "5k" "3k" "2k" "1k")
+model_types = ("count" "naive" "batch_eq")
 
-# # ## 2k
-# adata_output_path='data/scdata/xylena1k/LABELATOR/'
-# artifacts_path='artifacts2k/'
-# query_data="data/scdata/xylena2k/xyl2_query.h5ad"
+# TEST 
+for set_name in "${set_names[@]}"
+do
+    for model_type in "${model_types[@]}"
+    do
+        query_data="data/scdata/xylena/${set_name}/xyl2_test.h5ad"
+        adata_output_path="data/scdata/xylena/${set_name}/LABELATOR/${model_type}/"
+        artifacts_path="artifacts${set_name}/${model_type}/"
 
-# model_path='models2k/REPR/scvi'  
-# query_model $query_data repr_model_names[@] $model_path $adata_output_path $artifacts_path
+        # Call the function 
+        model_path="models${set_name}/${model_type}/" 
+        query_model $query_data $model_path repr_model_names[@] $adata_output_path $artifacts_path
 
-# model_path='models2k/CNT'  
-# query_model $query_data count_model_names[@] $model_path $adata_output_path $artifacts_path
+    done
 
-# model_path='models2k/TRANSFER/'  
-# query_model $query_data transfer_model_names[@] $model_path $adata_output_path $artifacts_path
-
-
-# ## 3k
-# adata_output_path='data/scdata/xylena3k/LABELATOR/'
-# artifacts_path='artifacts3k/'
-# query_data="data/scdata/xylena3k/xyl2_query.h5ad"
-
-# model_path='models3k/REPR/scvi'  
-# query_model $query_data repr_model_names[@] $model_path $adata_output_path $artifacts_path
-
-# model_path='models3k/CNT'  
-# query_model $query_data count_model_names[@] $model_path $adata_output_path $artifacts_path
-
-# model_path='models3k/TRANSFER/'  
-# query_model $query_data transfer_model_names[@] $model_path $adata_output_path $artifacts_path
+done
 
 
-# 5k 
-adata_output_path='data/scdata/xylena5k/LABELATOR/'
-artifacts_path='artifacts5k/'
-query_data="data/scdata/xylena5k/xyl2_query.h5ad"
+# QUERY 
+for set_name in "${set_names[@]}"
+do
+    for model_type in "${model_types[@]}"
+    do
+        query_data="data/scdata/xylena/${set_name}/xyl2_query.h5ad"
+        adata_output_path="data/scdata/xylena/${set_name}/LABELATOR/${model_type}/"
+        artifacts_path="artifacts${set_name}/${model_type}/"
 
-model_path='models5k/REPR/scvi'  
-query_model $query_data repr_model_names[@] $model_path $adata_output_path $artifacts_path
+        # Call the function 
+        model_path="models${set_name}/${model_type}/" 
+        query_model $query_data $model_path repr_model_names[@] $adata_output_path $artifacts_path
 
-model_path='models5k/CNT'  
-query_model $query_data count_model_names[@] $model_path $adata_output_path $artifacts_path
+    done
 
-model_path='models5k/TRANSFER/'  
-query_model $query_data transfer_model_names[@] $model_path $adata_output_path $artifacts_path
-
-# # 10k
-# adata_output_path='data/scdata/xylena10k/LABELATOR/'
-# artifacts_path='artifacts10k/'
-# query_data="data/scdata/xylena10k/xyl2_query.h5ad"
-
-# model_path='models10k/REPR/scvi'  
-# query_model $query_data repr_model_names[@] $model_path $adata_output_path $artifacts_path
-
-# model_path='models10k/CNT'  
-# query_model $query_data count_model_names[@] $model_path $adata_output_path $artifacts_path
-
-# model_path='models10k/TRANSFER/'  
-# query_model $query_data transfer_model_names[@] $model_path $adata_output_path $artifacts_path
-
-# # 20k
-# adata_output_path='data/scdata/xylena20k/LABELATOR/'
-# artifacts_path='artifacts20k/'
-# query_data="data/scdata/xylena20k/xyl2_query.h5ad"
-
-# model_path='models20k/REPR/scvi'  
-# query_model $query_data repr_model_names[@] $model_path $adata_output_path $artifacts_path
-
-# model_path='models20k/CNT'  
-# query_model $query_data count_model_names[@] $model_path $adata_output_path $artifacts_path
-
-# model_path='models20k/TRANSFER/'  
-# query_model $query_data transfer_model_names[@] $model_path $adata_output_path $artifacts_path
+done
 
 
