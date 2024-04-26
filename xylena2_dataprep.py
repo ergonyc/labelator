@@ -691,7 +691,7 @@ for ds_name, n_top_gene in zip(ds_names, ns_top_genes):
     ds_path = data_path / ds_name
     ds_path.mkdir(exist_ok=True)
 
-    compute_pcs(train_ad, save_path=ds_path, set_name="train")
+    compute_pcs(train_ad, save_path=ds_path, set_name=raw_train_filen.stem)
 
     train_filen = ds_path / XYLENA2_TRAIN
     train_ad.write_h5ad(train_filen)
@@ -715,8 +715,8 @@ for ds_name, n_top_gene in zip(ds_names, ns_top_genes):
     # get loadings
     pcs = load_pcs(ds_path)
     X_pca = transfer_pca(test_ad, pcs)
-
-    dump_x_pca(X_pca, ds_path, pcs_name=f"X_pca_test.npy")
+    pcs_name = f"X_pca_{raw_test_filen.stem}.npy"
+    dump_x_pca(X_pca, ds_path, pcs_name=pcs_name)
 
     test_filen = ds_path / XYLENA2_TEST
     test_ad.write_h5ad(test_filen)
@@ -742,7 +742,8 @@ for ds_name, n_top_gene in zip(ds_names, ns_top_genes):
     pcs = load_pcs(ds_path)
     X_pca = transfer_pca(query_ad, pcs)
 
-    dump_x_pca(X_pca, ds_path, pcs_name=f"X_pca_query.npy")
+    pcs_name = f"X_pca_{raw_query_filen.stem}.npy"
+    dump_x_pca(X_pca, ds_path, pcs_name=pcs_name)
 
     query_filen = ds_path / XYLENA2_QUERY
     query_ad.write_h5ad(query_filen)
@@ -750,6 +751,8 @@ for ds_name, n_top_gene in zip(ds_names, ns_top_genes):
 del query_ad
 
 # In[ ]:
+
+
 # # In[ ]:
 # # use default scanpy for the pca
 # sc.pp.pca(train_ad)

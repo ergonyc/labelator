@@ -126,7 +126,16 @@ def cli(
     """
     Command line interface for model training processing pipeline.
     """
-    train_lbl8r()
+    train_lbl8r(
+        train_path,
+        model_path,
+        model_name,
+        output_data_path,
+        artifacts_path,
+        gen_plots,
+        retrain_model,
+        labels_key,
+    )
 
 
 if __name__ == "__main__":

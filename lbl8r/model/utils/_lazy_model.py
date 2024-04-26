@@ -10,7 +10,7 @@ from anndata import AnnData
 
 from .._lbl8r import LBL8R
 from .._xgb import XGB
-from ._artifact import load_pcs, load_genes
+from ._artifact import load_genes
 from dataclasses import dataclass, field
 from pathlib import Path
 from scvi.model import SCVI, SCANVI
@@ -120,7 +120,7 @@ class ModelSet:
     labels_key: str = "cell_type"
     batch_key: str | None = None
     _prepped: bool = field(default=False, init=False, repr=False)
-    _pcs: ndarray | None = field(default=None, init=False, repr=False)
+    _X_pca: ndarray | None = field(default=None, init=False, repr=False)
     _default: str | None = field(default=None, init=False, repr=False)
     _genes: list[str] | None = field(default_factory=list, init=False, repr=False)
     _basis: str | None = field(default=None, init=False, repr=False)
@@ -138,9 +138,9 @@ class ModelSet:
         self.path = Path(self.path)
         # load saved pcs if they exist
         self._name = self.path.name
-        if "pcs" in self.path.name or "raw" in self.path.name:
-            print(f"pre init load_pcs: {self.path.name}")
-            self._pcs = load_pcs(self.path)
+        # if "pcs" in self.path.name or "raw" in self.path.name:
+        #     print(f"pre init load_pcs: {self.path.name}")
+        #     self._pcs = load_pcs(self.path)
         # print(f"loaded pcs: {self.pcs}")
         print("post init load_genes")
         self._genes = load_genes(self.path)
@@ -192,14 +192,16 @@ class ModelSet:
         self._prepped = value
 
     @property
-    def pcs(self):
-        if self._pcs is None:
-            self._pcs = load_pcs(self.path)
-        return self._pcs
+    def X_pca(self):
+        if self._X_pca is None:
+            # self._X_pca = load_pcs(self.path)
+            print(f"no X_pca.  needs to be set")
+        return self._X_pca
 
-    @pcs.setter
-    def pcs(self, pcs: ndarray):
-        self._pcs = pcs
+    @X_pca.setter
+    def X_pca(self, x_pca: ndarray):
+        self._X_pca = x_pca
+        # dump_pcs(x_pca, self.path)
 
     @property
     def default(self):
@@ -213,3 +215,9 @@ class ModelSet:
 
     # def load_model(self, model_name: str, adata: AnnData):
     #     self.model[model_name].load_model(adata)
+
+    # elif basis == SCVI_LATENT_KEY:
+    # ad.obsm[SCVI_MDE_KEY] = mde(ad.obsm[SCVI_LATENT_KEY], device=device)
+
+    #     elif basis == SCANVI_LATENT_KEY:
+    # ad.obsm[SCANVI_MDE_KEY] = mde(ad.obsm[SCANVI_LATENT_KEY], device=device)

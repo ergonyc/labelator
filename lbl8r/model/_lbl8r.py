@@ -45,7 +45,7 @@ LABELS_KEY = "cell_type"
 
 def prep_pcs_adata(
     adata: AnnData,
-    pcs: np.ndarray | None = None,
+    x_pca: np.ndarray,
     pca_key: str = "X_pca",
 ) -> AnnData:
     """
@@ -55,6 +55,8 @@ def prep_pcs_adata(
     ----------
     adata : AnnData
         Annotated data matrix.
+    x_pca : np.ndarray
+        data projected on Principal components.
     pca_key : str
         Key for pca loadings. Default is `X_pca`.
 
@@ -65,25 +67,24 @@ def prep_pcs_adata(
 
     """
 
-    if pcs is None:
-        pcs = compute_pcs(adata)
-
-    loadings_ad = make_pc_loading_adata(adata, pcs=pcs, pca_key=pca_key)
+    loadings_ad = make_pc_loading_adata(adata, x_pca=x_pca, pca_key=pca_key)
     return loadings_ad
 
 
 def prep_raw_adata(
     adata: AnnData,
-    pcs: np.ndarray | None = None,
+    x_pca: np.ndarray,
     pca_key: str = "X_pca",
 ) -> AnnData:
     """
-    make an adata with PCs copied to adata.X.
+    make an adata with PCs copied to adata.X.sxxs
 
     Parameters
     ----------
     adata : AnnData
         Annotated data matrix.
+    x_pca : np.ndarray
+        data projected on Principal components.
     pca_key : str
         Key for pca loadings. Default is `X_pca`.
 
@@ -94,10 +95,7 @@ def prep_raw_adata(
 
     """
 
-    if pcs is None:
-        pcs = compute_pcs(adata)
-
-    adata = add_pc_loadings(adata, pcs=pcs, pca_key=pca_key)
+    adata = add_pc_loadings(adata, x_pca=x_pca, pca_key=pca_key)
     return adata
 
 
