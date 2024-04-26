@@ -1,8 +1,8 @@
 # interfrace for cli to lbl8 module
 # %%
-from anndata import AnnData
-from scvi.model import SCVI, SCANVI
 from pathlib import Path
+import torch
+import scvi
 
 # from xgboost import Booster
 from sklearn.preprocessing import LabelEncoder
@@ -33,11 +33,9 @@ from .model._xgb import get_xgb2, query_xgb, XGB
 
 from .model.utils._data import (
     Adata,
-    transfer_pcs,
     prep_target_genes,
     merge_into_obs,
     add_pc_loadings,
-    add_mde_obsm,
 )
 from .model.utils._lazy_model import LazyModel, ModelSet
 from .model.utils._plot import (
@@ -53,7 +51,12 @@ from .model.utils._artifact import (
 )
 from ._constants import *
 
-MODEL = SCVI | SCANVI | LBL8R | XGB
+
+torch.set_float32_matmul_precision("medium")
+scvi.settings.dl_num_workers = 15
+
+
+MODEL = scvi.model.SCVI | scvi.model.SCANVI | LBL8R | XGB
 
 PRED_KEY = "label"
 INSERT_KEY = "pred"
@@ -444,12 +447,16 @@ def get_trained_model(
         save_genes(ad, model_path / model_name)
         # assert genes in model_path/model_name == model_path/SCVI_MODEL_NAME ?
         print(f"getting scvi: 1 {(model_path/SCVI_MODEL_NAME)}")
+
+        # HACK:  we call scvi_emb model first... so retrain that but not the others.
+        vae_retrain = True if model_name == SCVI_LATENT_MODEL_NAME else False
+
         vae, ad = get_trained_scvi(
             ad,
             labels_key=labels_key,
             batch_key=batch_key,
             model_path=model_path,
-            retrain=False,  # only train a new one if we don't already have one... rquires deleting if we want to retrain
+            retrain=vae_retrain,  # only train a new one if we don't already have one... rquires deleting if we want to retrain
             model_name=SCVI_MODEL_NAME,
             **training_kwargs,
         )
@@ -708,7 +715,7 @@ def query_model(
     ad = data.adata
 
     xgb_report = None
-    if isinstance(model.model, SCANVI):
+    if isinstance(model.model, scvi.model.SCANVI):
         # "transfer learning" query models which need to be trained
         predictions = query_scanvi(ad, model.model)
         # fix the labels_key with "ground_truth"
@@ -728,8 +735,9 @@ def query_model(
     data.update(ad)
     # TODO: load the predictions into the model_set.. need to keep "train" validation and "query" predictions separate
     # TODO: naming convention for saving datat
-    model_set.predictions[data.name] = predictions
-    model_set.report[data.name] = xgb_report
+    # model_set.predictions = predictions
+    # model_set.report = xgb_report
+    data.predictions = predictions
 
     return data
 

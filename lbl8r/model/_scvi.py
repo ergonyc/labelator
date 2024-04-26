@@ -86,7 +86,7 @@ def get_trained_scvi(
 
     """
     scvi_epochs = 200
-    batch_size = 512
+    batch_size = 512 * 2
 
     layer = None
     categorical_covariate_keys = (
@@ -180,7 +180,7 @@ def get_trained_scanvi(
 
     """
     scvi_epochs = 200
-    batch_size = 512
+    batch_size = 512 * 2
 
     # n_labels = len(adata.obs[labels_key].cat.categories)
     # this should work to extract batch_key for batch corrected scvi
