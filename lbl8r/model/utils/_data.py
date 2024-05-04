@@ -290,9 +290,10 @@ class Adata:
 
         if self._predictions is not None:
             preds_path = (
-                self.archive_path / f"predictions_{self.name.rstrip('h5ad','feather')}"
+                self.archive_path / f"predictions_{self.name.replace('h5ad','feather')}"
             )
-            self._predictions.to_feather(preds_path)
+            preds = self._predictions.reset_index()
+            preds.to_feather(preds_path)
             print(f"wrote: {preds_path}")
         else:
             print("No predictions to export ? ")
@@ -639,6 +640,7 @@ def prep_target_genes(adata: ad.AnnData, target_genes: list[str]) -> ad.AnnData:
     """
     Expand AnnData object to include all target_genes.  Missing target_genes will be added as zeros.
     """
+    print("                prepping target genes")
     # Identify missing variables
     missing_vars = list(set(target_genes) - set(adata.var_names))
     # Create a dataframe/matrix of zeros for missing variables

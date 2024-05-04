@@ -267,8 +267,10 @@ def get_query_scvi(
 
     """
     surgery_epochs = 150
+    batch_size = 512 * 2
+    training_kwargs.update({"batch_size": batch_size})
 
-    qscvi_path = model_path / model_name
+    qscvi_path = model_path.parent / model_name
     # failing here... ?!?
     SCVI.prepare_query_anndata(adata, vae)
     # the query model might exist if we are not batch correcting... need to fix...
@@ -281,6 +283,7 @@ def get_query_scvi(
 
     elif model_exists(qscvi_path) and not retrain:
         scvi_query = SCVI.load(qscvi_path.as_posix(), adata)
+        print(f"loaded query scvi model from {qscvi_path}")
     else:
         scvi_query = SCVI.load_query_data(adata, vae)
         scvi_query.train(
@@ -289,12 +292,13 @@ def get_query_scvi(
             early_stopping=True,
             plan_kwargs=dict(weight_decay=0.0),
             # datasplitter_kwargs=dict(num_workers=15),
-            # **training_kwargs,
+            **training_kwargs,
         )
 
     adata.obsm[SCVI_LATENT_KEY] = scvi_query.get_latent_representation(adata)
     if retrain or not model_exists(qscvi_path):
         scvi_query.save(qscvi_path, overwrite=True)
+        print(f"saved query model to {qscvi_path}")
 
     return scvi_query, adata
 
@@ -340,8 +344,10 @@ def get_query_scanvi(
 
     """
     surgery_epochs = 150
+    batch_size = 512 * 2
+    training_kwargs.update({"batch_size": batch_size})
 
-    qscanvi_path = model_path / model_name
+    qscanvi_path = model_path.parent / model_name
 
     # should the reference be teh scvi_model or the scanvi_model?
     SCANVI.prepare_query_anndata(adata, scanvi_model)
@@ -356,6 +362,8 @@ def get_query_scanvi(
 
     elif model_exists(qscanvi_path) and not retrain:
         scanvi_query = SCANVI.load(qscanvi_path.as_posix(), adata)
+        print(f"loaded query scanvi model from {qscanvi_path}")
+
     else:
         scanvi_query = SCANVI.load_query_data(adata, scanvi_model)
         scanvi_query.train(
@@ -364,6 +372,7 @@ def get_query_scanvi(
             early_stopping=True,
             plan_kwargs=dict(weight_decay=0.0),
             # datasplitter_kwargs=dict(num_workers=15),
+            **training_kwargs,
         )
 
     adata.obsm[SCVI_LATENT_KEY] = scanvi_query.get_latent_representation(adata)
@@ -371,6 +380,7 @@ def get_query_scanvi(
     if retrain or not model_exists(qscanvi_path):
         # save the reference model
         scanvi_query.save(qscanvi_path, overwrite=True)
+        print(f"saved query model to {qscanvi_path}")
 
     return scanvi_query, adata
 
@@ -547,6 +557,7 @@ def make_scvi_normalized_adata(
         exp_adata,
         library_size=1e4,
         return_numpy=True,
+        batch_size=2048,
     )
 
     exp_adata.X = expr

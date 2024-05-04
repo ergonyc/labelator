@@ -25,8 +25,9 @@ train_test_model() {
                 --output-data-path $output_data_path \
                 --artifacts-path $artifacts_path \
                 --gen-plots \
-                --labels-key "cell_type" \
-                --retrain-model
+                --labels-key "cell_type" 
+                # \
+                # --retrain-model
             
             if [ $? -ne 0 ]; then
                 echo "🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 "
@@ -66,13 +67,13 @@ do
         train_data="data/scdata/xylena/${set_name}/xyl2_train.h5ad"
         # query_data="data/scdata/xylena/${set_name}/xyl2_test.h5ad"
         adata_output_path="data/scdata/xylena/${set_name}/LABELATOR/${model_type}/"
-        artifacts_path="artifacts${set_name}/${model_type}/"
+        artifacts_path="artifacts/${set_name}/${model_type}/"
 
         # Call the function 
         models_path="models/${set_name}/${model_type}/" 
         train_test_model $train_data $models_path model_list[@] $adata_output_path $artifacts_path
 
-        # echo "##### $set_name $model_type $models_path "
+        # echo "##### $set_name $model_type $models_path $artifacts_path "
         
         # for model in "${model_list[@]}"
         # do

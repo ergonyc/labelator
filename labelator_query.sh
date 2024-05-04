@@ -41,6 +41,9 @@ query_model() {
         echo "##### ⏫⏫⏫⏫⏫⏫⏫⏫⏫⏫  #############"
         echo "#  🏁 🏁 🏁  Model $model_name completed in $((end_time - start_time)) seconds. 🏁 🏁 🏁 "
         echo "## 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 🏁 "
+        echo "##         "
+        echo "##         "
+        echo "##         "
 
 
     done
@@ -50,10 +53,17 @@ query_model() {
 count_model_names=("raw" "pcs")
 scvi_model_names=("scvi_emb" "scvi_expr" "scvi_expr_pcs" "scanvi")
 # set_names=("10k" "5k" "3k" "2k" "1k")
-set_names=("1k" "2k" "3k" "5k" "10k")
+set_names=("1k" "2k" "3k" "5k")
 model_types=("naive" "count" "batch_eq")
 
 queries=("xyl2_test" "xyl2_query")
+ 
+# model_types=("naive" "batch_eq")
+# scvi_model_names=("scvi_expr" "scvi_expr_pcs")
+# count_model_names=("raw" "pcs")
+# # queries=("xyl2_test")
+# queries=("xyl2_query")
+# set_names=("10k")
 
 for query in "${queries[@]}"
 do
@@ -73,10 +83,10 @@ do
 
             query_data="data/scdata/xylena/${set_name}/${query}.h5ad"
             adata_output_path="data/scdata/xylena/${set_name}/LABELATOR/${model_type}/"
-            artifacts_path="artifacts${set_name}/${model_type}/"
+            artifacts_path="artifacts/${set_name}/${model_type}/"
 
             # Call the function 
-            models_path="models${set_name}/${model_type}/" 
+            models_path="models/${set_name}/${model_type}/" 
 
             echo "🚀 🚀 🚀 🚀 Querying $query data for $set_name $model_type 🚀 🚀 🚀 🚀 🚀 🚀 🚀 🚀"
 
