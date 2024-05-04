@@ -20,7 +20,7 @@ torch.set_float32_matmul_precision("medium")
 
 
 def validate_model_name(ctx, param, value):
-    valid_name = [v for v in VALID_MODEL_NAMES if v in value]
+    valid_name = [v for v in VALID_MODEL_NAMES if v == value]
 
     if len(valid_name) < 1:
         err_msg = (

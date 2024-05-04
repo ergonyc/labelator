@@ -47,6 +47,7 @@ class Adata:
     _ground_truth_key: str = dataclasses.field(default=None, init=False, repr=False)
     _archive_path: Path = dataclasses.field(default=None, init=False, repr=False)
     _artifact_path: Path = dataclasses.field(default=None, init=False, repr=False)
+    _predictions: Path = dataclasses.field(default=None, init=False, repr=False)
     _pcs: Path = dataclasses.field(default=None, init=False, repr=False)
     _X_pca: Path = dataclasses.field(default=None, init=False, repr=False)
     _X_mde: Path = dataclasses.field(default=None, init=False, repr=False)
@@ -94,15 +95,23 @@ class Adata:
             pcs_path = self.artifact_path / "PCs.npy"
             if pcs_path.exists():
                 self._pcs = np.load(pcs_path)
-            elif "PCs" in self.adata.varm_keys():
-                self._pcs = self.adata.varm["PCs"]
-                dump_pcs(self._pcs, self.artifact_path)
+            # elif "PCs" in self.adata.varm_keys():
+            #     self._pcs = self.adata.varm["PCs"]
+            #     dump_pcs(self._pcs, self.artifact_path)
             else:
                 print(f"no PCs found at {pcs_path}")
                 # TODO: add compute PCs
                 self._pcs = None
 
         return self._pcs
+
+    @property
+    def predictions(self):
+        return self._predictions
+
+    @predictions.setter
+    def predictions(self, predictions: pd.DataFrame):
+        self._predictions = predictions
 
     @property
     def X_pca(self):
@@ -116,7 +125,7 @@ class Adata:
             else:
                 # compute!!
                 # see if we have PCs and if so transfer them
-                if self._pcs is None:
+                if self.pcs is None:
                     print(f"computing pca for {self.name}")
                     self._pcs, self._X_pca = compute_pcs(self.adata)
                     # save the PCs and X_pca
@@ -124,7 +133,7 @@ class Adata:
                     dump_x_repr(self._X_pca, self.artifact_path, x_name=x_pca_path.name)
                 else:
                     print(f"transferring PCs to {self.name}")
-                    self._X_pca = transfer_pca(self.adata, self._pcs)
+                    self._X_pca = transfer_pca(self.adata, self.pcs)
                     # save the X_pca
                     dump_x_repr(self._X_pca, self.artifact_path, x_name=x_pca_path.name)
 
@@ -278,6 +287,16 @@ class Adata:
             print(f"wrote: {out_path}")
         else:
             print("This model doesn't need to export AnnData")
+
+        if self._predictions is not None:
+            preds_path = (
+                self.archive_path / f"predictions_{self.name.replace('h5ad','feather')}"
+            )
+            preds = self._predictions.reset_index()
+            preds.to_feather(preds_path)
+            print(f"wrote: {preds_path}")
+        else:
+            print("No predictions to export ? ")
 
     def update(self, adata: ad.AnnData):
         """
@@ -621,6 +640,7 @@ def prep_target_genes(adata: ad.AnnData, target_genes: list[str]) -> ad.AnnData:
     """
     Expand AnnData object to include all target_genes.  Missing target_genes will be added as zeros.
     """
+    print("                prepping target genes")
     # Identify missing variables
     missing_vars = list(set(target_genes) - set(adata.var_names))
     # Create a dataframe/matrix of zeros for missing variables

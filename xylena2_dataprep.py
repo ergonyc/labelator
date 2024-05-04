@@ -801,7 +801,7 @@ for ds_name, n_top_gene in zip(ds_names, ns_top_genes):
 
 # %%
 
-
+mset = set(gene_list.index)
 for ds_name, n_top_gene in zip(ds_names, ns_top_genes):
     tset = set(gene_cuts[ds_name]["train"])
     fset = set(gene_cuts[ds_name]["full"])

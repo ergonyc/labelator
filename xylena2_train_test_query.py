@@ -18,6 +18,8 @@ from lbl8r.labelator import (
     CELL_TYPE_KEY,
     load_data,
     get_trained_model,
+    load_trained_model,
+    prep_query_model,
 )
 
 torch.set_float32_matmul_precision("medium")
@@ -165,7 +167,7 @@ model_type = "naive"
 
 set_name = "1k"
 n_top_gene = 1_000
-train_path = Path(XYLENA2_PATH) / set_name / XYLENA2_TRAIN
+train_path = Path(XYLENA2_PATH) / set_name / XYLENA2_QUERY
 
 model = model_names[model_type][1]
 model_path = MODEL_ROOT / set_name / model_type
@@ -183,6 +185,31 @@ print(
 train_data = load_data(train_path, archive_path=output_data_path)
 
 # In[ ]:
+
+training_kwargs = {}  # dict(batch_key=batch_key)
+print(f"prep_model: {'🛠️ '*25}")
+
+model_set = load_trained_model(model_name, model_path, labels_key=labels_key)
+# if no traing data is loaded (just prepping for query) return placeholder data
+
+# In[ ]
+## QUERY MODELs ###################################################################
+# makes sure the genes correspond to those of the prepped model
+#     projects counts onto the principle components of the training datas eigenvectors as 'X_pca'
+# TODO:  add additional training_kwargs to cli
+print(f"prep query: {'💅 '*25}")
+# prep query model actually preps data unless its a scANVI model...
+#
+model_set, query_data = prep_query_model(
+    query_data,
+    model_set,
+    model_name,
+    labels_key=labels_key,
+    retrain=retrain_model,
+)
+
+# In[ ]:
+
 
 ## PREP MODEL ###################################################################
 # gets model and preps Adata

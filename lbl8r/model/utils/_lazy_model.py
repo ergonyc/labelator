@@ -120,16 +120,16 @@ class ModelSet:
     labels_key: str = "cell_type"
     batch_key: str | None = None
     _prepped: bool = field(default=False, init=False, repr=False)
-    _X_pca: ndarray | None = field(default=None, init=False, repr=False)
+    # _X_pca: ndarray | None = field(default=None, init=False, repr=False)
     _default: str | None = field(default=None, init=False, repr=False)
     _genes: list[str] | None = field(default_factory=list, init=False, repr=False)
     _basis: str | None = field(default=None, init=False, repr=False)
     _name: str | None = field(default=None, init=False, repr=True)
 
-    predictions: dict[str, pd.DataFrame] = field(
-        default_factory=dict, init=True, repr=False
-    )
-    report: dict[str, dict] = field(default_factory=dict, init=True, repr=False)
+    predictions: pd.DataFrame | None = field(default=None, init=False, repr=False)
+
+    # TODO: depricate report (only xbgoost)
+    report: dict = field(default_factory=dict, init=False, repr=False)
 
     # _labels_key: str = field(init=False, repr=False)
 
@@ -191,17 +191,17 @@ class ModelSet:
     def prepped(self, value: bool):
         self._prepped = value
 
-    @property
-    def X_pca(self):
-        if self._X_pca is None:
-            # self._X_pca = load_pcs(self.path)
-            print(f"no X_pca.  needs to be set")
-        return self._X_pca
+    # @property
+    # def X_pca(self):
+    #     if self._X_pca is None:
+    #         # self._X_pca = load_pcs(self.path)
+    #         print(f"no X_pca.  needs to be set")
+    #     return self._X_pca
 
-    @X_pca.setter
-    def X_pca(self, x_pca: ndarray):
-        self._X_pca = x_pca
-        # dump_pcs(x_pca, self.path)
+    # @X_pca.setter
+    # def X_pca(self, x_pca: ndarray):
+    #     self._X_pca = x_pca
+    #     # dump_pcs(x_pca, self.path)
 
     @property
     def default(self):

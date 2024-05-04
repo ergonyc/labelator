@@ -1,5 +1,5 @@
 import click
-import torch
+
 from pathlib import Path
 
 from lbl8r.labelator import (
@@ -15,7 +15,6 @@ from lbl8r.labelator import (
 )
 
 # setup
-torch.set_float32_matmul_precision("medium")
 
 
 def validate_model_name(ctx, param, value):

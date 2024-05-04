@@ -372,7 +372,7 @@ class scviLBL8R(BaseModelClass):
         train_size: float = 0.9,
         validation_size: float | None = None,
         shuffle_set_split: bool = True,
-        batch_size: int = 128,
+        batch_size: int = 512,
         datasplitter_kwargs: dict | None = None,
         plan_kwargs: dict | None = None,
         early_stopping: bool = True,
@@ -721,7 +721,7 @@ class LBL8R(BaseModelClass):
         train_size: float = 0.9,
         validation_size: float | None = None,
         shuffle_set_split: bool = True,
-        batch_size: int = 128,
+        batch_size: int = 512,
         datasplitter_kwargs: dict | None = None,
         plan_kwargs: dict | None = None,
         early_stopping: bool = True,
@@ -853,7 +853,7 @@ def get_lbl8r(
     n_labels = len(adata.obs[labels_key].cat.categories)
 
     lbl8r_epochs = 200
-    batch_size = 512
+    batch_size = 512 * 2
 
     # TODO: test. not sure I need this step
     LBL8R.setup_anndata(adata, labels_key=labels_key)
