@@ -3,10 +3,11 @@ from numpy import ndarray
 from ._timing import Timing
 import numpy as np
 from pathlib import Path
+from ..._constants import N_PCS
 
 
 @Timing(prefix="compute_pcs: ")
-def compute_pcs(adata: sc.AnnData, n_pcs: int = 50) -> ndarray:
+def compute_pcs(adata: sc.AnnData, n_pcs: int = N_PCS) -> ndarray:
     """
     Compute principal components.  This function is a wrapper around scanpy.pp.pca.  Only used if we don't already have them saved. (e.g. scvi_expr training data)
 
@@ -76,7 +77,7 @@ def transfer_pca(
     col_means = bdata.X.sum(axis=0)
     col_means /= bdata.X.shape[0]
 
-    if bdata.X.shape[0] < 700_000:
+    if bdata.X.shape[0] < 600_000:
         X_pca = (bdata.X - col_means) @ pcs
     else:
         chunk_size = 10_000

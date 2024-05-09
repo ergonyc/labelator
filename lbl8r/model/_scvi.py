@@ -118,6 +118,7 @@ def get_trained_scvi(
         vae = SCVI(
             adata,
             n_layers=2,
+            n_latent=N_LATENTS,
             encode_covariates=False,  # True
             deeply_inject_covariates=False,
             use_layer_norm="both",

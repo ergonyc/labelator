@@ -364,8 +364,7 @@ def get_trained_model(
     """
     ad = data.adata
 
-    # BUG. this coudl really be query data.  need to set to None and load adata from model? during prep?
-    #  otherwise we need to load PCs artifacts so we can properly prep the query data.
+    # This is only called for traing data.
     print(f"get_trained_model: 0. ngenes = {ad.n_vars} ncells = {ad.n_obs}")
     # genes = ad.var_names.to_list()  # or should we leave as an Index?
     # TODO: the saving of genes should happen with the model... not here

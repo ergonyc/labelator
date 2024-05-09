@@ -81,6 +81,10 @@ VALID_MODEL_NAMES = [
 ]
 
 
+N_LATENTS = 30
+N_PCS = 30
+
+
 __all__ = [
     "SCVI_LATENT_KEY",
     "SCVI_LATENT_KEY_Z",
@@ -122,6 +126,8 @@ __all__ = [
     "XGB_SCVI_EXPRESION_MODEL_NAME",
     "XGB_RAW_COUNT_MODEL_NAME",
     "VALID_MODEL_NAMES",
+    "N_LATENTS",
+    "N_PCS",
 ]
 
 
