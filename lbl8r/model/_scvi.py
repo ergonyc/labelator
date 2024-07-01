@@ -208,6 +208,7 @@ def get_trained_scanvi(
         scanvi_model = SCANVI.from_scvi_model(vae, "Unknown", labels_key=labels_key)
         scanvi_model.train(
             max_epochs=scvi_epochs,
+            n_samples_per_label=20,
             train_size=0.85,
             batch_size=batch_size,
             early_stopping=True,
@@ -308,10 +309,7 @@ def get_query_scvi(
 def get_query_scanvi(
     adata: AnnData,
     scanvi_model: SCANVI,
-    labels_key: str = "cell_type",
-    batch_key: str | None = None,
     model_path: Path = Path.cwd(),
-    batch_eq: bool = False,
     retrain: bool = False,
     model_name: str = "query_scanvi",
     **training_kwargs,
@@ -325,12 +323,8 @@ def get_query_scanvi(
         Annotated data matrix.
     scanvi_model : SCANVI
         A scANVI model.
-    labels_key : str
-        Key for cell type labels. Default is `cell_type`.
     model_path : Path
         Path to save model. Default is `Path.cwd()`.
-    batch_eq : bool
-        Whether to use batch equalization. Default is `False`.
     retrain : bool
         Whether to retrain the model. Default is `False`.
     model_name : str
@@ -353,15 +347,7 @@ def get_query_scanvi(
     # should the reference be teh scvi_model or the scanvi_model?
     SCANVI.prepare_query_anndata(adata, scanvi_model)
 
-    # the query model might exist if we are not batch correcting... need to fix...
-    if batch_eq:
-        # just use the scanvi_model.
-        if isinstance(scanvi_model, SCANVI):
-            scvi_query = scanvi_model
-        else:
-            scvi_query = SCVI.load(scanvi_model, adata)
-
-    elif model_exists(qscanvi_path) and not retrain:
+    if model_exists(qscanvi_path) and not retrain:
         scanvi_query = SCANVI.load(qscanvi_path.as_posix(), adata)
         print(f"loaded query scanvi model from {qscanvi_path}")
 
@@ -369,6 +355,7 @@ def get_query_scanvi(
         scanvi_query = SCANVI.load_query_data(adata, scanvi_model)
         scanvi_query.train(
             max_epochs=surgery_epochs,
+            n_samples_per_label=20,
             train_size=0.85,
             early_stopping=True,
             plan_kwargs=dict(weight_decay=0.0),

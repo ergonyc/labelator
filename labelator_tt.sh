@@ -25,9 +25,8 @@ train_test_model() {
                 --output-data-path $output_data_path \
                 --artifacts-path $artifacts_path \
                 --gen-plots \
-                --labels-key "cell_type" 
-                # \
-                # --retrain-model
+                --labels-key "cell_type" \
+                --retrain-model
             
             if [ $? -ne 0 ]; then
                 echo "🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 "

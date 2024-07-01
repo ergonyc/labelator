@@ -94,3 +94,10 @@ _training_ might be split into **prep** and **train**, with **prep** creating th
 
 wrinkles:
 - the `scvi` family of 
+
+## SEA-AD 
+model_args = {
+    "n_layers": 2,
+    "n_latent": 20,
+    "dispersion": "gene-label"
+}

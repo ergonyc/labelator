@@ -62,183 +62,73 @@ raw_ad = ad.read_h5ad(raw_filen)
 # 1. CELLTYPES FROM MARKER GENES
 ########################
 
-#  2. copy for cellassign
-#  1. load marker_genes
-filen = raw_data_path / "celltype_marker_table2.csv"
 
-markers = pd.read_csv(filen, index_col=0)
-# # In[ ]:
-cell_types = {}
+# In[ ]:
+markers = pd.read_csv("new_taxonomy_table.csv", index_col=0)
+
 # In[ ]:
 
 
-def get_cell_types(adata, markers):
+def get_cell_types(adata, markers, batch_key=None, noise=None):
 
     #  2. copy for cellassign
     # bdata = adata[:, markers.index].copy() #
     bdata = adata[:, adata.var.index.isin(markers.index)].copy()
 
     #  3. get size_factor and noise
-    lib_size = bdata.X.sum(1)  # type: ignore
+    lib_size = adata.X.sum(1)  # type: ignore
     bdata.obs["size_factor"] = lib_size / np.mean(lib_size)
 
     print("size_factor", bdata.obs["size_factor"].mean())
     #  4. model = CellAssign(bdata, marker_genes)
+
     scvi.external.CellAssign.setup_anndata(
         bdata,
         size_factor_key="size_factor",
-        batch_key="sample",
+        # batch_key="sample",
+        batch_key=batch_key,
         layer=None,  #'counts',
-        # continuous_covariate_keys=noise
+        continuous_covariate_keys=noise,
     )
 
     #  5. model.train()
     model = scvi.external.CellAssign(bdata, markers)
-    plan_args = {"lr_factor": 0.05, "lr_patience": 20, "reduce_lr_on_plateau": True}
-    model.train(
-        max_epochs=1000,
-        accelerator="gpu",
-        early_stopping=True,
-        plan_kwargs=plan_args,
-        early_stopping_patience=40,
-    )
+    model.train()
+    # plan_args = {"lr_factor": 0.05, "lr_patience": 20, "reduce_lr_on_plateau": True}
+    # model.train(
+    #     max_epochs=1000,
+    #     accelerator="gpu",
+    #     early_stopping=True,
+    #     plan_kwargs=plan_args,
+    #     early_stopping_patience=40,
+    # )
 
     #  6. model.predict()
     preds = model.predict()
 
-    bdata.obs["cellassign_types"] = preds.idxmax(axis=1).values
+    preds["cellassign_types"] = preds.idxmax(axis=1).values
 
-    # 7. transfer cell_type to adata
-    adata.obs["cellassign_types"] = bdata.obs["cellassign_types"]
+    # # 7. transfer cell_type to adata
+    # adata.obs["cellassign_types"] = preds["cellassign_types"]
 
-    if "cell_type" not in bdata.obs.columns:
-        bdata.obs["cell_type"] = "NONE"
-    #  8. save model & artificts
-    predictions = (
-        bdata.obs[["sample", "cellassign_types", "cell_type"]]
-        .reset_index()
-        .rename(columns={"index": "cells"})
-    )
+    if "cell_type" not in bdata.obs_keys():
+        preds["cell_type"] = "NONE"
+    else:
+        preds["cell_type"] = bdata.obs["cell_type"].values
 
-    preds["sample"] = predictions["sample"]
-    preds["cellassign_types"] = predictions["cellassign_types"]
-    preds["cell_type"] = predictions["cell_type"]
-    preds["cells"] = predictions["cells"]
-    preds.index = preds["cells"]
+    preds["sample"] = bdata.obs["sample"].values
+    preds["cell"] = bdata.obs.index.values
+    preds.index = preds["cell"].values
 
     return preds, model
 
 
 # In[ ]:
-# taxonomy from @nick
+noise = ["doublet_score", "pct_counts_mt", "pct_counts_rb"]  # aka "noise"
 
-neuron_subs = dict(
-    glutamatergic=["SLC17A6", "NEUROD6", "SATB2"],
-    gabergic=["SLC32A1", "GAD2"],
-    dopaminergic=["SLC6A3", "SLC18A2"],
+full_predictions, full_model = get_cell_types(
+    raw_ad, markers, noise=noise, batch_key="sample"
 )
-astro_sub = dict(protoplasmic=["GJA1"], fibrous=["GFAP"])
-immune_sub = dict(microglia=["P2RY12"], lymphoid=["SKAP1"])
-lymphoid_sub = dict(t_cells=["CD8B", "CD8A"], b_cells=["IGHG1"])
-
-neurons = ["GRIN2A", "RBFOX3"]
-glutamatergic = neurons + neuron_subs["glutamatergic"]
-gabergic = neurons + neuron_subs["gabergic"]
-dopaminergic = neurons + neuron_subs["dopaminergic"]
-
-astrocytes = ["AQP4"]
-astrocyte_proto = astrocytes + astro_sub["protoplasmic"]
-astrocyte_fibro = astrocytes + astro_sub["fibrous"]
-
-oligos = ["CLDN11", "CNP", "PLP1", "ST18"]
-OPCs = ["LHFPL3", "PDGFRA"]
-choroid = ["TTR", "KRT18", "FOLR1"]
-
-immune_cells = ["PTPRC"]
-microglia = immune_cells + immune_sub["microglia"]
-
-lymphoid = immune_cells + immune_sub["lymphoid"]
-t_cells = lymphoid + lymphoid_sub["t_cells"]
-b_cells = lymphoid + lymphoid_sub["b_cells"]
-
-
-cell_types = [
-    "neurons",
-    "glutamatergic",
-    "gabergic",
-    "dopaminergic",
-    "astrocytes",
-    "astrocyte_proto",
-    "astrocyte_fibro",
-    "oligos",
-    "OPCs",
-    "choroid",
-    "immune_cells",
-    "microglia",
-    "lymphoid",
-    "t_cells",
-    "b_cells",
-]
-
-# In[ ]:
-
-colnms = []
-colnms = [eval(ct) for ct in cell_types]
-col = []
-for e in colnms:
-    col += e
-# In[ ]:
-marker = np.unique(col)
-
-# In[ ]:
-df = pd.DataFrame(index=marker)
-
-df["neurons"] = df.index.isin(neurons)
-df["glutamatergic"] = df.index.isin(glutamatergic)
-df["gabergic"] = df.index.isin(gabergic)
-df["dopaminergic"] = df.index.isin(dopaminergic)
-df["astrocytes"] = df.index.isin(astrocytes)
-df["astrocyte_proto"] = df.index.isin(astrocyte_proto)
-df["astrocyte_fibro"] = df.index.isin(astrocyte_fibro)
-df["oligos"] = df.index.isin(oligos)
-df["OPCs"] = df.index.isin(OPCs)
-df["choroid"] = df.index.isin(choroid)
-df["immune_cells"] = df.index.isin(immune_cells)
-df["microglia"] = df.index.isin(microglia)
-df["lymphoid"] = df.index.isin(lymphoid)
-df["t_cells"] = df.index.isin(t_cells)
-df["b_cells"] = df.index.isin(b_cells)
-
-
-df.to_csv("new_taxonomy_table.csv")
-
-# In[ ]:
-markers_new = pd.read_csv("new_taxonomy_table.csv", index_col=0)
-
-markers_bottom_level = markers_new[
-    [
-        "glutamatergic",
-        "gabergic",
-        "dopaminergic",
-        "astrocyte_proto",
-        "astrocyte_fibro",
-        "oligos",
-        "OPCs",
-        "choroid",
-        "microglia",
-        "t_cells",
-        "b_cells",
-    ]
-]
-
-# In[ ]:
-# In[ ]:
-markers = markers_bottom_level
-filen = "celltype_marker_table2.csv"
-
-markers.to_csv(filen)
-# In[ ]:
-full_predictions, full_model = get_cell_types(raw_ad, markers)
 
 # In[ ]:
 
@@ -268,7 +158,7 @@ train_samples_path = raw_data_path / "Model Combinations - training_set_98.csv"
 train_samples = pd.read_csv(train_samples_path)
 
 # In[ ]:
-newmeta = obs.join(ground_truth.set_index("cells"), lsuffix="", rsuffix="_other")
+newmeta = obs.join(ground_truth.set_index("cell"), lsuffix="", rsuffix="_other")
 
 newmeta["clean"] = [s in set(clean_samples["sample"]) for s in newmeta["sample"]]
 newmeta["test"] = [s in set(test_samples["sample"]) for s in newmeta["sample"]]
@@ -355,8 +245,12 @@ del raw_ad
 ########################
 # ns_top_genes = [20_000, 10_000, 5_000, 3_000, 2_000, 1_000]
 # ds_names = ["20k", "10k", "5k", "3k", "2k", "1k"]
-filen = "celltype_marker_table2.csv"
+# filen = "celltype_marker_table2.csv"
+filen = "new_taxonomy_table.csv"
+
 markers = pd.read_csv(filen, index_col=0)
+
+
 ns_top_genes = [10_000, 5_000, 3_000, 2_000, 1_000]
 ds_names = ["10k", "5k", "3k", "2k", "1k"]
 
@@ -441,7 +335,10 @@ hvgs_full = pd.read_csv(data_path / XYLENA2_FULL_HVG, index_col=0)
 # # OLD
 # markers = pd.read_csv("celltype_marker_table.csv", index_col=0)
 # NEW
-markers = pd.read_csv("celltype_marker_table2.csv", index_col=0)
+# markers = pd.read_csv("celltype_marker_table2.csv", index_col=0)
+
+filen = "new_taxonomy_table.csv"
+markers = pd.read_csv(filen, index_col=0)
 
 # # defensive
 # markers = markers[~markers.index.duplicated(keep="first")].rename_axis(index=None)
@@ -494,7 +391,7 @@ del adata
 
 # In[ ]:
 def compute_pcs(
-    adata: sc.AnnData, n_pcs: int = 50, save_path: Path | None = None, set_name="train"
+    adata: sc.AnnData, n_pcs: int = 30, save_path: Path | None = None, set_name="train"
 ) -> np.ndarray:
     """
     Compute principal components.
@@ -691,7 +588,7 @@ for ds_name, n_top_gene in zip(ds_names, ns_top_genes):
     ds_path = data_path / ds_name
     ds_path.mkdir(exist_ok=True)
 
-    compute_pcs(train_ad, save_path=ds_path, set_name=raw_train_filen.stem)
+    # compute_pcs(train_ad, save_path=ds_path, set_name=raw_train_filen.stem)
 
     train_filen = ds_path / XYLENA2_TRAIN
     train_ad.write_h5ad(train_filen)
@@ -712,11 +609,11 @@ for ds_name, n_top_gene in zip(ds_names, ns_top_genes):
     # ds_path = data_path.parent / f"{data_path.name}{ds_name}"
     ds_path = data_path / ds_name
 
-    # get loadings
-    pcs = load_pcs(ds_path)
-    X_pca = transfer_pca(test_ad, pcs)
-    pcs_name = f"X_pca_{raw_test_filen.stem}.npy"
-    dump_x_pca(X_pca, ds_path, pcs_name=pcs_name)
+    # # get loadings
+    # pcs = load_pcs(ds_path)
+    # X_pca = transfer_pca(test_ad, pcs)
+    # pcs_name = f"X_pca_{raw_test_filen.stem}.npy"
+    # dump_x_pca(X_pca, ds_path, pcs_name=pcs_name)
 
     test_filen = ds_path / XYLENA2_TEST
     test_ad.write_h5ad(test_filen)
@@ -738,12 +635,12 @@ for ds_name, n_top_gene in zip(ds_names, ns_top_genes):
     # ds_path = data_path.parent / f"{data_path.name}{ds_name}"
     ds_path = data_path / ds_name
 
-    # get loadings
-    pcs = load_pcs(ds_path)
-    X_pca = transfer_pca(query_ad, pcs)
+    # # get loadings
+    # pcs = load_pcs(ds_path)
+    # X_pca = transfer_pca(query_ad, pcs)
 
-    pcs_name = f"X_pca_{raw_query_filen.stem}.npy"
-    dump_x_pca(X_pca, ds_path, pcs_name=pcs_name)
+    # pcs_name = f"X_pca_{raw_query_filen.stem}.npy"
+    # dump_x_pca(X_pca, ds_path, pcs_name=pcs_name)
 
     query_filen = ds_path / XYLENA2_QUERY
     query_ad.write_h5ad(query_filen)

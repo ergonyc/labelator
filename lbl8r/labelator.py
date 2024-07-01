@@ -995,7 +995,6 @@ def prep_query_scanvi(
     ad = data.adata
 
     labels_key = model_set.labels_key
-    batch_key = model_set.batch_key
     trained_genes = model_set.genes
 
     # the query data doesn't automatically know the batch_key.  ADD IT
@@ -1035,8 +1034,6 @@ def prep_query_scanvi(
     q_scanvi, ad = get_query_scanvi(
         ad,
         scanvi_model,
-        labels_key=labels_key,
-        batch_key=batch_key,
         model_path=model_set.path,
         retrain=retrain,
         model_name=f"{QUERY_SCANVI_MODEL_NAME}_{data.name.rstrip('.h5ad')}",
