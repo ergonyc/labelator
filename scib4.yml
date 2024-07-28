@@ -1,0 +1,33 @@
+#conda env create -f lbl8r.yaml 
+# versions wrong...
+name: scib4
+channels:
+- conda-forge
+- pytorch
+- nvidia
+dependencies:
+- python=3.11
+- pytorch
+- torchvision
+- torchaudio
+- pytorch-cuda=12.1
+- jaxlib=*=*cuda* 
+- jax 
+- cuda-nvcc
+- faiss-gpu=1.8.0
+- ipykernel
+- ipywidgets
+- notebook
+- xgboost
+- click
+- pip
+- pip:
+  - scvi-tools
+  - scib-metrics
+  - scanpy
+  - harmonypy
+  - anndata
+  - numpy
+  - pandas
+  - pymde
+  - scikit-misc
