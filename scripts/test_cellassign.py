@@ -17,7 +17,7 @@ import numpy as np
 import scvi
 
 
-sys.path.append(os.path.abspath("/media/ergonyc/Projects/SingleCell/labelator/"))
+sys.path.append(os.path.abspath("/home/ergonyc/Projects/SingleCell/labelator/"))
 
 from lbl8r.model.utils._data import transfer_pcs
 
@@ -41,17 +41,18 @@ XYLENA2_PATH = "data/scdata/xylena"
 ## load raw data.
 
 # In[ ]:
-root_path = Path.cwd()
+root_path = Path.cwd().parent
 data_path = root_path / XYLENA2_PATH
 raw_data_path = root_path / XYLENA2_RAW_PATH
 
 # In[ ]:
-markers = pd.read_csv("new_taxonomy_table.csv", index_col=0)
+markers_path = root_path / "taxonomy/cellassign_markers.csv"
+markers = pd.read_csv(markers_path, index_col=0)
 
 # In[ ]:
 
 
-def get_cell_types(adata, markers, batch_key=None, noise=None):
+def get_cell_types(adata, markers, batch_key=None, noise=None, seed=9627):
 
     #  2. copy for cellassign
     # bdata = adata[:, markers.index].copy() #
@@ -74,6 +75,7 @@ def get_cell_types(adata, markers, batch_key=None, noise=None):
     )
 
     #  5. model.train()
+    scvi.settings.seed = seed
     model = scvi.external.CellAssign(bdata, markers)
     model.train()
     # plan_args = {"lr_factor": 0.05, "lr_patience": 20, "reduce_lr_on_plateau": True}
@@ -164,28 +166,28 @@ adata = ad.read_h5ad(filen)
 train_test_samp = adata.obs["train"] | adata.obs["test"]
 noise = ["doublet_score", "pct_counts_mt", "pct_counts_rb"]  # aka "noise"
 
-for samp_set in ["full", "clean"]:
+for samp_set in ["full"]:  # ["full", "clean"]:
     bdata = adata[train_test_samp] if samp_set == "clean" else adata
 
-    for rep in range(2):
+    for rep in [5, 6, 7]:
         predictions, model = get_cell_types(
             bdata, markers, batch_key="sample", noise=noise
         )
 
-        filen = f"{samp_set}{rep}_noise_predictions.feather"
+        filen = root_path / "testing" / f"{samp_set}{rep}_noise_predictions.feather"
         predictions.reset_index(drop=True).to_feather(filen)
 
-        modelname = f"{samp_set}{rep}_noise_cellassign"
+        modelname = root_path / f"{samp_set}{rep}_noise_cellassign"
         model.save(modelname, overwrite=True)
 
         predictions, model = get_cell_types(
             bdata, markers, batch_key="sample", noise=None
         )
 
-        filen = f"{samp_set}{rep}_predictions.feather"
+        filen = root_path / "testing" / f"{samp_set}{rep}_predictions.feather"
         predictions.reset_index(drop=True).to_feather(filen)
 
-        modelname = f"{samp_set}{rep}_cellassign"
+        modelname = root_path / f"{samp_set}{rep}_cellassign"
         model.save(modelname, overwrite=True)
 
 
@@ -225,18 +227,18 @@ for samp_set in ["full", "clean"]:
 
 
 samp_set = "full"
-samp_set = "clean"
+# samp_set = "clean"
 noise = "_noise"
-noise = ""
-rep = 0
+# noise = ""
+rep = 5
 
 A = f"{samp_set}{rep}{noise}"
-filenA = f"{A}_predictions.feather"
+filenA = root_path / f"testing/{A}_predictions.feather"
 predictionsA = pd.read_feather(filenA)
 
-rep = 1
+rep = 6
 B = f"{samp_set}{rep}{noise}"
-filenB = f"{B}_predictions.feather"
+filenB = root_path / f"testing/{B}_predictions.feather"
 predictionsB = pd.read_feather(filenB)
 
 
@@ -245,6 +247,23 @@ print(100 * predictionsA.cellassign_types.value_counts() / predictionsA.shape[0]
 
 print(f"\n{B} percentages\n____________________")
 print(100 * predictionsB.cellassign_types.value_counts() / predictionsB.shape[0])
+
+
+rep = 7
+C = f"{samp_set}{rep}{noise}"
+filenC = root_path / f"testing/{C}_predictions.feather"
+predictionsC = pd.read_feather(filenC)
+print(f"\n{C} percentages\n____________________")
+print(100 * predictionsC.cellassign_types.value_counts() / predictionsC.shape[0])
+
+
+print(f"\n{A} counts\n____________________")
+print(predictionsA.cellassign_types.value_counts())
+print(f"\n{B} counts\n____________________")
+print(predictionsB.cellassign_types.value_counts())
+print(f"\n{C} counts\n____________________")
+print(predictionsC.cellassign_types.value_counts())
+
 
 # In[ ]:
 
@@ -326,35 +345,106 @@ def plot_confusion(
 
 # %%
 
-plot_confusion(merged_predictions)
+
+def print_count_subset(
+    predictionsA: pd.DataFrame, predictionsB: pd.DataFrame, labs: list = ["A", "B"]
+):
+
+    merged_predictions = pd.merge(
+        predictionsA, predictionsB, on="cell", how="left", suffixes=("_A", "_B")
+    )
+
+    summary = pd.DataFrame()
+    key = f"{labs[0]}pct"
+    summary[key] = (
+        100 * predictionsA.cellassign_types.value_counts() / predictionsA.shape[0]
+    )
+    key = f"{labs[1]}pct"
+    summary[key] = (
+        100 * predictionsB.cellassign_types.value_counts() / predictionsB.shape[0]
+    )
+
+    # summary["Apct_"] = (
+    #     100
+    #     * merged_predictions.cellassign_types_A.value_counts()
+    #     / merged_predictions.shape[0]
+    # )
+    key = f"{labs[1]}pct_"
+    summary[key] = (
+        100
+        * merged_predictions.cellassign_types_B.value_counts()
+        / merged_predictions.shape[0]
+    )
+    key = f"{labs[0]}"
+    summary[key] = predictionsA.cellassign_types.value_counts()
+
+    key = f"{labs[1]}_"
+    summary[key] = merged_predictions.cellassign_types_B.value_counts()
+
+    print(
+        f" N samples {labs[0]}= {predictionsA.shape[0]}, N samples {labs[1]}= {predictionsB.shape[0]}"
+    )
+    print(summary)
+
+    return summary
+
+
+def print_count_group(
+    predictionsA: pd.DataFrame, predictionsB: pd.DataFrame, labs: list = ["A", "B"]
+):
+
+    summary = pd.DataFrame()
+    key = f"{labs[0]}pct"
+    summary[key] = (
+        100 * predictionsA.cellassign_types.value_counts() / predictionsA.shape[0]
+    )
+    key = f"{labs[1]}pct"
+    summary[key] = (
+        100 * predictionsB.cellassign_types.value_counts() / predictionsB.shape[0]
+    )
+
+    key = f"{labs[0]}"
+    summary[key] = predictionsA.cellassign_types.value_counts()
+    key = f"{labs[1]}"
+    summary[key] = predictionsB.cellassign_types.value_counts()
+
+    print(
+        f" N samples {labs[0]}= {predictionsA.shape[0]}, N samples {labs[1]}= {predictionsB.shape[0]}"
+    )
+    print(summary)
+
+    return summary
+
+
 # %%
 # 2000 words two figures
 # brief report
 # # %%
 
-samp_set = "full"
-samp_set = "clean"
-noise = "_noise"
-noise = ""
-rep = 0
+# samp_set = "full"
+# samp_set = "clean"
+# noise = "_noise"
+# noise = ""
+# rep = 0
 
-for samp_set in ["full", "clean"]:
-    for noise in ["_noise", ""]:
-        rep = 0
-        A = f"{samp_set}{rep}{noise}"
-        filenA = f"{A}_predictions.feather"
-        predictionsA = pd.read_feather(filenA)
+# for samp_set in ["full", "clean"]:
+#     for noise in ["_noise", ""]:
+#         rep = 5
+#         A = f"{samp_set}{rep}{noise}"
+#         filenA = root_path / f"testing/{A}_predictions.feather"
+#         predictionsA = pd.read_feather(filenA)
 
-        rep = 1
-        B = f"{samp_set}{rep}{noise}"
-        filenB = f"{B}_predictions.feather"
-        predictionsB = pd.read_feather(filenB)
+#         rep = 6
+#         B = f"{samp_set}{rep}{noise}"
+#         filenB = root_path / f"testing/{B}_predictions.feather"
+#         predictionsB = pd.read_feather(filenB)
 
-        merged_predictions = pd.merge(
-            predictionsA, predictionsB, on="cell", how="right", suffixes=("_A", "_B")
-        )
+#         merged_predictions = pd.merge(
+#             predictionsA, predictionsB, on="cell", how="right", suffixes=("_A", "_B")
+#         )
 
-        plot_confusion(merged_predictions, title_caption=f"{A} vs. {B}")
+#         summary = print_counts(predictionsA, predictionsB)
+#         plot_confusion(merged_predictions, title_caption=f"{A} vs. {B}")
 
 # %%
 
@@ -362,17 +452,68 @@ samp_set = "full"
 samp_set = "clean"
 noise = "_noise"
 noise = ""
-rep = 0
+rep = 6
 
 for samp_set in ["full", "clean"]:
     noise = "_noise"
     A = f"{samp_set}{rep}{noise}"
-    filenA = f"{A}_predictions.feather"
+    filenA = root_path / f"testing/{A}_predictions.feather"
     predictionsA = pd.read_feather(filenA)
 
     noise = ""
     B = f"{samp_set}{rep}{noise}"
-    filenB = f"{B}_predictions.feather"
+    filenB = root_path / f"testing/{B}_predictions.feather"
+    predictionsB = pd.read_feather(filenB)
+
+    merged_predictions = pd.merge(
+        predictionsA, predictionsB, on="cell", how="right", suffixes=("_A", "_B")
+    )
+    print_count_group(predictionsA, predictionsB, labs=[A, B])
+    plot_confusion(merged_predictions, title_caption=f"{A} vs. {B}")
+
+# %%
+
+samp_set = "full"
+samp_set = "clean"
+noise = "_noise"
+noise = ""
+rep = 6
+
+for noise in ["_noise", ""]:
+    samp_set = "clean"
+    A = f"{samp_set}{rep}{noise}"
+    filenA = root_path / f"testing/{A}_predictions.feather"
+    predictionsA = pd.read_feather(filenA)
+
+    samp_set = "full"
+    B = f"{samp_set}{rep}{noise}"
+    filenB = root_path / f"testing/{B}_predictions.feather"
+    predictionsB = pd.read_feather(filenB)
+
+    merged_predictions = pd.merge(
+        predictionsA, predictionsB, on="cell", how="left", suffixes=("_A", "_B")
+    )
+    print_count_subset(predictionsA, predictionsB, labs=[A, B])
+    plot_confusion(merged_predictions, title_caption=f"{A} vs. {B}")
+
+
+# %%
+
+samp_set = "full"
+samp_set = "clean"
+noise = "_noise"
+noise = ""
+rep = 1
+
+for samp_set in ["full", "clean"]:
+    noise = "_noise"
+    A = f"{samp_set}{rep}{noise}"
+    filenA = root_path / f"testing/{A}_predictions.feather"
+    predictionsA = pd.read_feather(filenA)
+
+    noise = ""
+    B = f"{samp_set}{rep}{noise}"
+    filenB = root_path / f"testing/{B}_predictions.feather"
     predictionsB = pd.read_feather(filenB)
 
     merged_predictions = pd.merge(
@@ -387,67 +528,17 @@ samp_set = "full"
 samp_set = "clean"
 noise = "_noise"
 noise = ""
-rep = 0
-
-for noise in ["_noise", ""]:
-    samp_set = "clean"
-    A = f"{samp_set}{rep}{noise}"
-    filenA = f"{A}_predictions.feather"
-    predictionsA = pd.read_feather(filenA)
-
-    samp_set = "full"
-    B = f"{samp_set}{rep}{noise}"
-    filenB = f"{B}_predictions.feather"
-    predictionsB = pd.read_feather(filenB)
-
-    merged_predictions = pd.merge(
-        predictionsA, predictionsB, on="cell", how="left", suffixes=("_A", "_B")
-    )
-
-    plot_confusion(merged_predictions, title_caption=f"{A} vs. {B}")
-
-# %%
-
-samp_set = "full"
-samp_set = "clean"
-noise = "_noise"
-noise = ""
-rep = 1
-
-for samp_set in ["full", "clean"]:
-    noise = "_noise"
-    A = f"{samp_set}{rep}{noise}"
-    filenA = f"{A}_predictions.feather"
-    predictionsA = pd.read_feather(filenA)
-
-    noise = ""
-    B = f"{samp_set}{rep}{noise}"
-    filenB = f"{B}_predictions.feather"
-    predictionsB = pd.read_feather(filenB)
-
-    merged_predictions = pd.merge(
-        predictionsA, predictionsB, on="cell", how="right", suffixes=("_A", "_B")
-    )
-
-    plot_confusion(merged_predictions, title_caption=f"{A} vs. {B}")
-
-# %%
-
-samp_set = "full"
-samp_set = "clean"
-noise = "_noise"
-noise = ""
 rep = 1
 
 for noise in ["_noise", ""]:
     samp_set = "clean"
     A = f"{samp_set}{rep}{noise}"
-    filenA = f"{A}_predictions.feather"
+    filenA = root_path / f"testing/{A}_predictions.feather"
     predictionsA = pd.read_feather(filenA)
 
     samp_set = "full"
     B = f"{samp_set}{rep}{noise}"
-    filenB = f"{B}_predictions.feather"
+    filenB = root_path / f"testing/{B}_predictions.feather"
     predictionsB = pd.read_feather(filenB)
 
     merged_predictions = pd.merge(
@@ -458,14 +549,67 @@ for noise in ["_noise", ""]:
 
 
 # %%
+
+samp_set = "clean"
+noise = "_noise"
+rep = 6
 
 A = f"{samp_set}{rep}{noise}"
-filenA = f"{A}_predictions.feather"
+filenA = root_path / f"testing/{A}_predictions.feather"
+predictionsA = pd.read_feather(filenA)
+
+
+samp_set = "full"
+rep = 6
+B = f"{samp_set}{rep}{noise}"
+filenB = root_path / f"testing/{B}_predictions.feather"
+predictionsB = pd.read_feather(filenB)
+
+merged_predictions = pd.merge(
+    predictionsA, predictionsB, on="cell", how="left", suffixes=("_A", "_B")
+)
+plot_confusion(merged_predictions, title_caption=f"{A} vs. {B}")
+
+# %%
+
+
+print(f"\n{A} percentages\n____________________")
+print(100 * predictionsA.cellassign_types.value_counts() / predictionsA.shape[0])
+
+print(f"\n{B} percentages\n____________________")
+print(100 * predictionsB.cellassign_types.value_counts() / predictionsB.shape[0])
+
+
+print(f"\n{A} counts\n____________________")
+print(predictionsA.cellassign_types.value_counts())
+print(f"\n{B} counts\n____________________")
+print(predictionsB.cellassign_types.value_counts())
+
+
+# %%
+merged_predictions = pd.merge(
+    predictionsA, predictionsB, on="cell", how="left", suffixes=("_A", "_B")
+)
+plot_confusion(merged_predictions, title_caption=f"{A} vs. {B}")
+
+# %%
+samp_set = "clean"
+noise = ""
+rep = 6
+
+A = f"{samp_set}{rep}{noise}"
+filenA = root_path / f"testing/{A}_predictions.feather"
 predictionsA = pd.read_feather(filenA)
 
 rep = 1
 B = f"{samp_set}{rep}{noise}"
-filenB = f"{B}_predictions.feather"
+filenB = root_path / f"testing/{B}_predictions.feather"
 predictionsB = pd.read_feather(filenB)
+
+
+merged_predictions = pd.merge(
+    predictionsA, predictionsB, on="cell", how="left", suffixes=("_A", "_B")
+)
+plot_confusion(merged_predictions, title_caption=f"{A} vs. {B}")
 
 # %%
