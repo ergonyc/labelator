@@ -16,9 +16,9 @@ import pandas as pd
 import numpy as np
 import scvi
 
+sys.path.append(os.path.abspath("/media/ergonyc/Projects/SingleCell/labelator/"))
 
-sys.path.append(Path.cwd().parent.as_posix())
-
+from lbl8r.model.utils._data import transfer_pcs
 
 from lbl8r._constants import *
 
@@ -48,90 +48,134 @@ XYLENA2_FULL_CELLASSIGN = "full_cellassign_model"
 ## load raw data.
 
 # In[ ]:
-root_path = Path.cwd().parent
+root_path = Path.cwd()
 data_path = root_path / XYLENA2_PATH
 raw_data_path = root_path / XYLENA2_RAW_PATH
 # In[ ]: Load raw data
 ########################
-# 0. LOAD RAW DATAgit a
+# 0. LOAD RAW DATA
 ########################
 raw_filen = raw_data_path / XYLENA2_RAW_ANNDATA
 raw_ad = ad.read_h5ad(raw_filen)
 
 # In[ ]:
-# it looks like the unlabeled samples (ie. no ground truth labels) are for total count < 500
+########################
+# 1. CELLTYPES FROM MARKER GENES
+########################
 
 
 # In[ ]:
-# load ground truth labels
-filen = raw_data_path / XYLENA2_GROUNDTRUTH_LABELS
-ground_truth = pd.read_csv(filen)
-ground_truth.set_index("barcodes", inplace=True)
+markers = pd.read_csv("new_taxonomy_table.csv", index_col=0)
+
+# In[ ]:
+
+
+def get_cell_types(adata, markers, batch_key=None, noise=None):
+
+    #  2. copy for cellassign
+    # bdata = adata[:, markers.index].copy() #
+    bdata = adata[:, adata.var.index.isin(markers.index)].copy()
+
+    #  3. get size_factor and noise
+    lib_size = adata.X.sum(1)  # type: ignore
+    bdata.obs["size_factor"] = lib_size / np.mean(lib_size)
+
+    print("size_factor", bdata.obs["size_factor"].mean())
+    #  4. model = CellAssign(bdata, marker_genes)
+
+    scvi.external.CellAssign.setup_anndata(
+        bdata,
+        size_factor_key="size_factor",
+        # batch_key="sample",
+        batch_key=batch_key,
+        layer=None,  #'counts',
+        continuous_covariate_keys=noise,
+    )
+
+    #  5. model.train()
+    model = scvi.external.CellAssign(bdata, markers)
+    model.train()
+    # plan_args = {"lr_factor": 0.05, "lr_patience": 20, "reduce_lr_on_plateau": True}
+    # model.train(
+    #     max_epochs=1000,
+    #     accelerator="gpu",
+    #     early_stopping=True,
+    #     plan_kwargs=plan_args,
+    #     early_stopping_patience=40,
+    # )
+
+    #  6. model.predict()
+    preds = model.predict()
+
+    preds["cellassign_types"] = preds.idxmax(axis=1).values
+
+    # # 7. transfer cell_type to adata
+    # adata.obs["cellassign_types"] = preds["cellassign_types"]
+
+    if "cell_type" not in bdata.obs_keys():
+        preds["cell_type"] = "NONE"
+    else:
+        preds["cell_type"] = bdata.obs["cell_type"].values
+
+    preds["sample"] = bdata.obs["sample"].values
+    preds["cell"] = bdata.obs.index.values
+    preds.index = preds["cell"].values
+
+    return preds, model
+
+
+# In[ ]:
+noise = ["doublet_score", "pct_counts_mt", "pct_counts_rb"]  # aka "noise"
+
+full_predictions, full_model = get_cell_types(
+    raw_ad, markers, noise=noise, batch_key="sample"
+)
+
+# In[ ]:
+
+filen = raw_data_path / XYLENA2_FULL_LABELS
+full_predictions.reset_index(drop=True).to_feather(filen)
+# In[ ]:
+filen = raw_data_path / XYLENA2_FULL_CELLASSIGN
+full_model.save(filen, overwrite=True)
+
+del full_model
 # In[ ]: collect metadata
-raw_ad.var_names_make_unique()
+ground_truth = pd.read_feather(
+    raw_data_path / XYLENA2_FULL_LABELS
+)  # XYLENA2_GROUND_TRUTH)
 obs = raw_ad.obs
 
 # In[ ]: get the train/test splits
-newmeta = obs.join(ground_truth, lsuffix="", rsuffix="_other")
+clean_samples_path = raw_data_path / "Model Combinations - clean_samples_138.csv"
+clean_samples = pd.read_csv(clean_samples_path)
+# all_samples_path = "/content/drive/MyDrive/SingleCellModel/Model Combinations - all_samples_199.csv"
+# all_samples = pd.read_csv(all_samples_path)
+dirty_samples_path = raw_data_path / "Model Combinations - dirty_samples_61.csv"
+dirty_samples = pd.read_csv(dirty_samples_path)
+test_samples_path = raw_data_path / "Model Combinations - testing_set_41.csv"
+test_samples = pd.read_csv(test_samples_path)
+train_samples_path = raw_data_path / "Model Combinations - training_set_98.csv"
+train_samples = pd.read_csv(train_samples_path)
 
 # In[ ]:
-newmeta["unlabeled"] = newmeta["celltype"].isna()
-newmeta["labeled"] = newmeta["celltype"].notna()
+newmeta = obs.join(ground_truth.set_index("cell"), lsuffix="", rsuffix="_other")
+
+newmeta["clean"] = [s in set(clean_samples["sample"]) for s in newmeta["sample"]]
+newmeta["test"] = [s in set(test_samples["sample"]) for s in newmeta["sample"]]
+newmeta["train"] = [s in set(train_samples["sample"]) for s in newmeta["sample"]]
+newmeta["dirty"] = [s in set(dirty_samples["sample"]) for s in newmeta["sample"]]
 
 # In[ ]:
-newmeta["labeled_sample"] = False
-newmeta["unlabeled_sample"] = False
-newmeta["partlabeled_sample"] = False
-# In[ ]:
-usamples = newmeta["sample"].unique()
-# df = pd.DataFrame(index=usamples)
-
-for samp in usamples:
-    subset = newmeta[newmeta["sample"] == samp]
-
-    newmeta.loc[subset.index, "labeled_sample"] = subset["labeled"].all()
-    newmeta.loc[subset.index, "unlabeled_sample"] = subset["unlabeled"].all()
-    newmeta.loc[subset.index, "partlabeled_sample"] = (
-        subset["unlabeled"].any() & subset["labeled"].any()
-    )
-    newmeta.loc[subset.index, "frac_labeled"] = (
-        subset["labeled"].sum() / subset.shape[0]
-    )
-    newmeta.loc[subset.index, "n_cells"] = subset.shape[0]
-
+newmeta["query"] = ~(newmeta["test"] | newmeta["train"])
 
 # In[ ]:
-# arbitrarily choose the samples with > 55% labeled cells as the training set
-newmeta["tt"] = newmeta["frac_labeled"] > 0.55
-
-newmeta["query"] = ~newmeta["tt"]
+newmeta["_cell_type"] = newmeta["cell_type"]
+newmeta["cell_type"] = newmeta["cellassign_types"]
 
 # In[ ]:
-# do train test split...
-tt_samples = newmeta.loc[newmeta["tt"], "sample"].unique().tolist()
-n_tt_samp = int(len(tt_samples) * 0.7)
 
-train_samples = tt_samples[:n_tt_samp]
-test_samples = tt_samples[n_tt_samp:]
-# In[ ]:
-newmeta["train"] = newmeta["sample"].isin(train_samples)
-newmeta["test"] = newmeta["sample"].isin(test_samples)
-
-# In[ ]:
-newmeta["cell_type"] = newmeta["celltype"]
-
-# In[ ]:
-newmeta["cell_type"].fillna("UNKNOWN", inplace=True)
 # newmeta["cell_type"] = newmeta["cellassign_types"]
-
-# In[ ]:
-newmeta["n_counts"] = newmeta["nCount_RNA"]
-newmeta["n_genes"] = newmeta["nFeature_RNA"]
-newmeta["s_score"] = newmeta["S.Score"]
-newmeta["g2m_score"] = newmeta["G2M.Score"]
-newmeta["phase"] = newmeta["Phase"]
-
-
 # In[ ]:
 # update anndata - only keep the metadata we need/want
 raw_ad.obs = newmeta[
@@ -142,30 +186,24 @@ raw_ad.obs = newmeta[
         "total_counts_mt",
         "pct_counts_mt",
         "doublet_score",
-        "n_cells",
         "batch",
         "cohort",
         "sample",
         "n_genes_by_counts",
         "counts_deviation_score",
-        "n_counts",
-        "n_genes",
-        "s_score",
-        "g2m_score",
-        "phase",
-        # "nCount_RNA",
-        # "nFeature_RNA",
-        # "S.Score",
-        # "G2M.Score",
-        # "Phase",
+        "nCount_RNA",
+        "nFeature_RNA",
+        "S.Score",
+        "G2M.Score",
+        "Phase",
         "sample_other",
         "cell_type",
-        "celltype",
+        "_cell_type",
         "train",
         "test",
         "query",
     ]
-].copy()
+]
 
 # In[ ]: save updated full AnnData object with updated metadata (obs)
 outfilen = data_path / XYLENA2_FULL
@@ -208,10 +246,16 @@ del raw_ad
 ########################
 # ns_top_genes = [20_000, 10_000, 5_000, 3_000, 2_000, 1_000]
 # ds_names = ["20k", "10k", "5k", "3k", "2k", "1k"]
+# filen = "celltype_marker_table2.csv"
+filen = "new_taxonomy_table.csv"
+
+markers = pd.read_csv(filen, index_col=0)
+
 
 ns_top_genes = [10_000, 5_000, 3_000, 2_000, 1_000]
 ds_names = ["10k", "5k", "3k", "2k", "1k"]
 
+marker_genes = markers.index.to_list()
 # In[ ]:
 full_filen = data_path / XYLENA2_FULL
 adata = ad.read_h5ad(full_filen)
@@ -229,13 +273,105 @@ hvgs_full = sc.experimental.pp.highly_variable_genes(
 
 
 # In[ ]:
+##  loess fails for some batches... so we wil NOT use the desired default below
+# # DEFAULT to seurat_v3 feature selection
+# hvgs_full =  sc.pp.highly_variable_genes(
+#         adata,
+#         batch_key="sample",
+#         flavor="seurat_v3",
+#         n_top_genes=10_000,
+#         subset=False,
+#         inplace=False,
+#     )
+# # process the "train" & "test" AnnData objects
 
 hvgs_full.to_csv(data_path / XYLENA2_FULL_HVG)
 
 
+# # In[ ]:
+# train_filen = data_path / XYLENA2_TRAIN
+# adata = ad.read_h5ad(train_filen)
+
+# hvgs_train = sc.experimental.pp.highly_variable_genes(
+#     adata,
+#     n_top_genes=20_000,
+#     batch_key="sample",
+#     flavor="pearson_residuals",
+#     check_values=True,
+#     layer=None,
+#     subset=False,
+#     inplace=False,
+# )
+# # process the "train" & "test" AnnData objects
+
+# hvgs_train.to_csv(data_path / XYLENA2_TRAIN_HVG)
+
+# In[ ]:
+
+# raw_train_filen = raw_data_path / XYLENA2_TRAIN
+# adata = ad.read_h5ad(raw_train_filen)
+
+# hvgs_train = sc.experimental.pp.highly_variable_genes(
+#     adata,
+#     n_top_genes=20_000,
+#     batch_key="sample",
+#     flavor="pearson_residuals",
+#     check_values=True,
+#     layer=None,
+#     subset=False,
+#     inplace=False,
+# )
+# hvgs_train.to_csv(raw_data_path / XYLENA2_TRAIN_HVG)
 # In[ ]:
 # hvgs_train = pd.read_csv(raw_data_path / XYLENA2_TRAIN_HVG, index_col=0)
 hvgs_full = pd.read_csv(data_path / XYLENA2_FULL_HVG, index_col=0)
+
+
+## TODO: update to new marker genes tables....
+
+# # In[ ]:
+# # curate the gene list with our marker genes at the top.
+# # markers = pd.read_csv("celltype_marker_table.csv", index_col=0)
+# # mset = set(markers.index)
+# # OLD
+# markers = pd.read_csv("celltype_marker_table.csv", index_col=0)
+# NEW
+# markers = pd.read_csv("celltype_marker_table2.csv", index_col=0)
+
+filen = "new_taxonomy_table.csv"
+markers = pd.read_csv(filen, index_col=0)
+
+# # defensive
+# markers = markers[~markers.index.duplicated(keep="first")].rename_axis(index=None)
+
+# hvgs = set(hvgs_full.index)
+# In[ ]:
+# hvgs_full.loc[markers.index, 'highly_variable_rank'] = 1.
+hvgs_full.loc[markers.index, "highly_variable_nbatches"] = 347.0
+
+# In[ ]:
+# Sort genes by how often they selected as hvg within each batch and
+# break ties with median rank of residual variance across batches
+hvgs_full.sort_values(
+    ["highly_variable_nbatches", "highly_variable_rank"],
+    ascending=[False, True],
+    na_position="last",
+    inplace=True,
+)
+
+# hvgs_train.sort_values(
+#     ["highly_variable_nbatches", "highly_variable_rank"],
+#     ascending=[False, True],
+#     na_position="last",
+#     inplace=True,
+# )
+# In
+gene_list = hvgs_full.iloc[:20_000].copy()
+
+gene_list["marker"] = False
+gene_list.loc[markers.index, "marker"] = True
+
+gene_list.to_csv(data_path / XYLENA2_FULL_HVG)
 
 
 # In[ ]:
