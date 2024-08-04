@@ -83,7 +83,8 @@ raw_data_path = root_path / XYLENA2_RAW_PATH
 # 0. LOAD RAW DATAgit a
 ########################
 raw_filen = raw_data_path / XYLENA2_RAW_ANNDATA
-raw_ad = ad.read_h5ad(raw_filen)
+# raw_ad = ad.read_h5ad(raw_filen)
+raw_ad = ad.read_h5ad("/data/scdata/xylena_raw/full_anndata_object.h5ad", backed='r')
 
 # # Replace with your bucket name and file paths
 # bucket_name = "gs://sc-labelator-data/"
@@ -99,7 +100,7 @@ filen = raw_data_path / XYLENA2_GROUNDTRUTH_LABELS
 ground_truth = pd.read_csv(filen)
 ground_truth.set_index("barcodes", inplace=True)
 # In[ ]: collect metadata
-raw_ad.var_names_make_unique()
+# raw_ad.var_names_make_unique()
 obs = raw_ad.obs
 
 # In[ ]: get the train/test splits
@@ -203,13 +204,23 @@ outfilen = data_path / XYLENA2_FULL
 
 raw_ad.write_h5ad(outfilen)
 
+# In[ ]:  read full anndata
+
+full_filen = data_path / XYLENA2_FULL
+raw_ad = ad.read_h5ad(full_filen, backed="r")
+
 # In[ ]:  make the train adata
 train_ad = raw_ad[raw_ad.obs["train"]]
-
+# In[ ]:
 raw_train_filen = data_path / XYLENA2_TRAIN
+# train_ad = raw_ad[raw_ad.obs["train"]].copy(raw_train_filen)
+
 train_ad.write_h5ad(raw_train_filen)
 del train_ad
 
+# In[ ]:  read full anndata
+full_filen = data_path / XYLENA2_FULL
+raw_ad = ad.read_h5ad(full_filen, backed="r")
 # In[ ]:  make test anndata
 test_ad = raw_ad[raw_ad.obs["test"]]
 
@@ -245,7 +256,9 @@ ds_names = ["10k", "5k", "3k", "2k", "1k"]
 
 # In[ ]:
 full_filen = data_path / XYLENA2_FULL
+# adata = ad.read_h5ad(full_filen,backed='r+')
 adata = ad.read_h5ad(full_filen)
+
 # In[ ]:
 hvgs_full = sc.experimental.pp.highly_variable_genes(
     adata,
