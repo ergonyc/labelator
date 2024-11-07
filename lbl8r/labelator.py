@@ -79,7 +79,7 @@ def train_lbl8r(
     print(
         f"{output_data_path=}:: {artifacts_path=}:: {gen_plots=}:: {retrain_model=}:: {labels_key=}"
     )
-    scvi.settings.dl_num_workers = 15
+    scvi.settings.dl_num_workers = 10
 
     ## LOAD DATA ###################################################################
     train_data = load_data(train_path, archive_path=output_data_path)
@@ -120,11 +120,12 @@ def train_lbl8r(
     # TODO:  wrap in Models, Figures, and Adata in Artifacts class.
     #       currently the models are saved as soon as they are trained, but the figures and adata are not saved until the end.
     # TODO:  export results to tables.  artifacts are currently:  "figures" and "tables" (to be implimented)
+    print(f"archive train output adata: {'💾 '*25}")
+    archive_data(train_data)
+
     if gen_plots:
         print(f"archive training plots and data: {'📈 '*25}")
         archive_plots(train_data, model_set, "train", fig_path=artifacts_path)
-    print(f"archive train output adata: {'💾 '*25}")
-    archive_data(train_data)
 
 
 # TODO: add logging
@@ -151,7 +152,7 @@ def query_lbl8r(
     #     scvi.settings.dl_num_workers = 15
     # else:
     #     scvi.settings.dl_num_workers = 0
-    scvi.settings.dl_num_workers = 15
+    scvi.settings.dl_num_workers = 10
 
     ## LOAD DATA ###################################################################
     query_data = load_data(query_path, archive_path=output_data_path)
@@ -1128,12 +1129,13 @@ def archive_plots(
     elif main_model.type == "lbl8r":
         # plot training history with scvi_emb
         if main_model.name == "scvi_emb":
-            file_nm = f"{train_or_query.upper()}_{QUERY_SCVI_MODEL_NAME}_{data.name.rstrip('.h5ad')}"
+            file_nm = f"{train_or_query.upper()}_{SCVI_MODEL_NAME}_{data.name.rstrip('.h5ad')}"
             fig_kwargs = dict(fig_dir=fig_dir, fig_nm=file_nm, show=False)
-            fg = plot_scvi_training(
-                model_set.model[QUERY_SCVI_MODEL_NAME].model.history, **fig_kwargs
-            )
-            figs.extend(fg)
+            if model_set.model[SCVI_MODEL_NAME].model is not None:
+                fg = plot_scvi_training(
+                    model_set.model[SCVI_MODEL_NAME].model.history, **fig_kwargs
+                )
+                figs.extend(fg)
 
         file_nm = (
             f"{train_or_query.upper()}_{main_model.name}_{data.name.rstrip('.h5ad')}"

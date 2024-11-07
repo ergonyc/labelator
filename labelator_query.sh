@@ -56,8 +56,17 @@ scvi_model_names=("scvi_emb" "scvi_expr" "scvi_expr_pcs" "scanvi")
 set_names=("1k" "2k" "3k" "5k")
 model_types=("naive" "count" "batch_eq")
 
+count_model_names=("raw" "pcs")
+scvi_model_names=("scvi_emb" "scvi_expr" "scvi_expr_pcs" "scanvi")
+# set_names=("10k" "5k" "3k" "2k" "1k")
+set_names=("1k" "2k" "3k" "5k" "10k")
+# model_types=("count" "naive" "batch_eq")
+model_types=("naive" "count" "batch_eq")
+
 queries=("xyl2_test" "xyl2_query")
  
+queries=("xyl2_test")
+
 # model_types=("naive" "batch_eq")
 # scvi_model_names=("scvi_expr" "scvi_expr_pcs")
 # count_model_names=("raw" "pcs")
