@@ -270,6 +270,34 @@ class Adata:
     def artifact_path(self):
         return self.path if self._archive_path.stem == "count" else self._archive_path
 
+    # def export(self, out_path: Path | None = None):
+    #     """
+    #     Write adata to disk.
+    #     """
+    #     if out_path is not None:
+    #         self.archive_path = out_path
+    #     else:
+    #         out_path = self.archive_path
+
+    #     if self._out_suffix is not None:
+    #         out_path = out_path / self.name.replace(H5, self._out_suffix + OUT + H5)
+
+    #         out_path.parent.mkdir(parents=True, exist_ok=True)
+    #         self.adata.write(out_path)
+    #         print(f"wrote: {out_path}")
+    #     else:
+    #         print("This model doesn't need to export AnnData")
+
+    #     if self._predictions is not None:
+    #         preds_path = (
+    #             self.archive_path / f"predictions_{self.name.replace('h5ad','feather')}"
+    #         )
+    #         preds = self._predictions.reset_index()
+    #         preds.to_feather(preds_path)
+    #         print(f"wrote: {preds_path}")
+    #     else:
+    #         print("No predictions to export ? ")
+
     def export(self, out_path: Path | None = None):
         """
         Write adata to disk.
@@ -290,10 +318,11 @@ class Adata:
 
         if self._predictions is not None:
             preds_path = (
-                self.archive_path / f"predictions_{self.name.replace('h5ad','feather')}"
+                self.archive_path
+                / f"predictions_{self.name.replace('h5ad','parquet]')}"
             )
             preds = self._predictions.reset_index()
-            preds.to_feather(preds_path)
+            preds.to_parquet(preds_path, compression="snappy")
             print(f"wrote: {preds_path}")
         else:
             print("No predictions to export ? ")

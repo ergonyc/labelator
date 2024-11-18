@@ -173,25 +173,70 @@ def load_genes(path: Path) -> list[str]:
         return None
 
 
-def save_genes(ad: AnnData, model_path: Path):
+# def save_genes(ad: AnnData, model_path: Path):
+#     """
+#     Archive genes to adata.
+
+#     Parameters
+#     ----------
+#     ad : AnnData
+#         Annotated data matrix.
+#     model_path : Path
+#         Path to the model.
+
+#     """
+#     genes = ad.var_names.tolist()
+#     dump_genes(genes, model_path)
+
+
+# def save_predictions(preds: pd.DataFrame, model_path: Path):
+#     """
+#     Save predictions to feather file.
+
+#     Parameters
+#     ----------
+#     preds : pandas DataFrame
+#         Predictions.
+#     model_path : Path
+#         Path to the model.
+
+#     """
+#     preds_path = model_path / f"predictions.feather"
+#     preds.to_feather(preds_path)
+#     print(f"wrote: {preds_path}")
+
+
+# def load_predictions(model_path: Path) -> pd.DataFrame:
+#     """
+#     Load predictions from feather file.
+
+#     Parameters
+#     ----------
+#     model_path : Path
+#         Path to the model.
+
+#     Returns
+#     -------
+#     preds : pandas DataFrame
+#         Predictions.
+
+#     """
+#     preds_path = model_path / f"predictions.feather"
+
+#     if preds_path.exists():
+#         preds = pd.read_feather(preds_path)
+#         print(f"loaded n={len(preds)} predictions from {preds_path}")
+#         return preds
+#     else:
+#         print(f"no predictions found at {preds_path}")
+#         return None
+
+
+def save_predictions(
+    preds: pd.DataFrame, model_path: Path, compression: str = "snappy"
+):
     """
-    Archive genes to adata.
-
-    Parameters
-    ----------
-    ad : AnnData
-        Annotated data matrix.
-    model_path : Path
-        Path to the model.
-
-    """
-    genes = ad.var_names.tolist()
-    dump_genes(genes, model_path)
-
-
-def save_predictions(preds: pd.DataFrame, model_path: Path):
-    """
-    Save predictions to feather file.
+    Save predictions to a Parquet file.
 
     Parameters
     ----------
@@ -199,16 +244,18 @@ def save_predictions(preds: pd.DataFrame, model_path: Path):
         Predictions.
     model_path : Path
         Path to the model.
+    compression : str, optional
+        Compression algorithm to use (e.g., 'snappy', 'gzip', 'zstd'). Default is 'snappy'.
 
     """
-    preds_path = model_path / f"predictions.feather"
-    preds.to_feather(preds_path)
-    print(f"wrote: {preds_path}")
+    preds_path = model_path / f"predictions.parquet"
+    preds.to_parquet(preds_path, compression=compression)
+    print(f"wrote: {preds_path} with compression={compression}")
 
 
 def load_predictions(model_path: Path) -> pd.DataFrame:
     """
-    Load predictions from feather file.
+    Load predictions from a Parquet file.
 
     Parameters
     ----------
@@ -218,13 +265,13 @@ def load_predictions(model_path: Path) -> pd.DataFrame:
     Returns
     -------
     preds : pandas DataFrame
-        Predictions.
+        Predictions, or None if the file does not exist.
 
     """
-    preds_path = model_path / f"predictions.feather"
+    preds_path = model_path / f"predictions.parquet"
 
     if preds_path.exists():
-        preds = pd.read_feather(preds_path)
+        preds = pd.read_parquet(preds_path)
         print(f"loaded n={len(preds)} predictions from {preds_path}")
         return preds
     else:
