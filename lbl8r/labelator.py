@@ -67,7 +67,6 @@ def train_lbl8r(
     model_name,
     output_data_path,
     artifacts_path,
-    gen_plots,
     retrain_model,
     labels_key,
     # batch_key,
@@ -76,13 +75,11 @@ def train_lbl8r(
     Command line interface for model processing pipeline.
     """
     print(f"{train_path=}:: {model_path=}:: {model_name=}")
-    print(
-        f"{output_data_path=}:: {artifacts_path=}:: {gen_plots=}:: {retrain_model=}:: {labels_key=}"
-    )
-    scvi.settings.dl_num_workers = 15
+    print(f"{output_data_path=}:: {artifacts_path=}:: {retrain_model=}:: {labels_key=}")
+    scvi.settings.dl_num_workers = 10
 
     ## LOAD DATA ###################################################################
-    train_data = load_data(train_path, archive_path=output_data_path)
+    train_data = load_training_data(train_path, archive_path=output_data_path)
 
     ## PREP MODEL ###################################################################
     # gets model and preps Adata
@@ -100,16 +97,6 @@ def train_lbl8r(
         **training_kwargs,
     )
 
-    # # WARNING:  BUG.  if train_data is None preping with query data hack won't work for PCs
-    # model_set, train_data = prep_model(
-    #     train_data,  # Note this is actually query_data if train_data arg was None
-    #     model_name=model_name,
-    #     model_path=model_path,
-    #     labels_key=labels_key,
-    #     retrain=retrain_model,
-    #     **training_kwargs,
-    # )
-
     # In[ ]
     ## QUERY MODEL ###################################################################
     print(f"train_model: {'🏋️ '*25}")
@@ -120,11 +107,11 @@ def train_lbl8r(
     # TODO:  wrap in Models, Figures, and Adata in Artifacts class.
     #       currently the models are saved as soon as they are trained, but the figures and adata are not saved until the end.
     # TODO:  export results to tables.  artifacts are currently:  "figures" and "tables" (to be implimented)
-    if gen_plots:
-        print(f"archive training plots and data: {'📈 '*25}")
-        archive_plots(train_data, model_set, "train", fig_path=artifacts_path)
     print(f"archive train output adata: {'💾 '*25}")
     archive_data(train_data)
+
+    print(f"archive training plots and data: {'📈 '*25}")
+    archive_plots(train_data, model_set, "train", fig_path=artifacts_path)
 
 
 # TODO: add logging
@@ -134,7 +121,6 @@ def query_lbl8r(
     model_name,
     output_data_path,
     artifacts_path,
-    gen_plots,
     retrain_model,
     labels_key,
     # batch_key,
@@ -143,15 +129,13 @@ def query_lbl8r(
     Command line interface for model processing pipeline.
     """
     print(f"{query_path=}:: {model_path=}:: {model_name=}")
-    print(
-        f"{output_data_path=}:: {artifacts_path=}:: {gen_plots=}:: {retrain_model=}:: {labels_key=}"
-    )
+    print(f"{output_data_path=}:: {artifacts_path=}:: {retrain_model=}:: {labels_key=}")
     print(f"model_path.parent.name = {model_path.parent.name}")
     # if model_path.parent.name != "10k":
     #     scvi.settings.dl_num_workers = 15
     # else:
     #     scvi.settings.dl_num_workers = 0
-    scvi.settings.dl_num_workers = 15
+    scvi.settings.dl_num_workers = 10
 
     ## LOAD DATA ###################################################################
     query_data = load_data(query_path, archive_path=output_data_path)
@@ -186,12 +170,26 @@ def query_lbl8r(
     query_data = query_model(query_data, model_set)
     # In[ ]
     ## CREATE ARTIFACTS ###################################################################
-    if gen_plots:
-        print(f"archive query plots and data: {'📊 '*25}")
-        archive_plots(query_data, model_set, "query", fig_path=artifacts_path)
+    print(f"archive query plots and data: {'📊 '*25}")
+    archive_plots(query_data, model_set, "query", fig_path=artifacts_path)
 
     print(f"archive query output adata: {'💾 '*25}")
     archive_data(query_data)
+
+
+def load_training_data(adata_path: str | Path, archive_path: str | Path) -> Adata:
+    """
+    Load training data.
+    """
+
+    if adata_path is None:
+        return Adata(None)
+
+    adata_path = Path(adata_path)
+    data = Adata(adata_path, training=True)
+    data.archive_path = archive_path
+
+    return data
 
 
 def load_data(adata_path: str | Path, archive_path: str | Path) -> Adata:
@@ -1128,12 +1126,13 @@ def archive_plots(
     elif main_model.type == "lbl8r":
         # plot training history with scvi_emb
         if main_model.name == "scvi_emb":
-            file_nm = f"{train_or_query.upper()}_{QUERY_SCVI_MODEL_NAME}_{data.name.rstrip('.h5ad')}"
+            file_nm = f"{train_or_query.upper()}_{SCVI_MODEL_NAME}_{data.name.rstrip('.h5ad')}"
             fig_kwargs = dict(fig_dir=fig_dir, fig_nm=file_nm, show=False)
-            fg = plot_scvi_training(
-                model_set.model[QUERY_SCVI_MODEL_NAME].model.history, **fig_kwargs
-            )
-            figs.extend(fg)
+            if model_set.model[SCVI_MODEL_NAME].model is not None:
+                fg = plot_scvi_training(
+                    model_set.model[SCVI_MODEL_NAME].model.history, **fig_kwargs
+                )
+                figs.extend(fg)
 
         file_nm = (
             f"{train_or_query.upper()}_{main_model.name}_{data.name.rstrip('.h5ad')}"

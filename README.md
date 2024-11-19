@@ -101,3 +101,11 @@ model_args = {
     "n_latent": 20,
     "dispersion": "gene-label"
 }
+
+
+## Data Preparation
+It is assumed that any testing or query data will be reasonably QC-ed.  However during _dataprep_ the 'Train', 'Test', and other _query_ datasets need to be composed such that:
+
+1. there are *not* any empty cells.   e.g. `sc.pp.filter_cells(adata, min_genes=1)`  Note that this is only sometimes the case after subsetting to _highly variable genes_.
+2. PCs for the data are computed so that query data for `scvi_emb_pcs` and `count_pcs` models can be projected onto these vectors.
+3. adata input objects contain raw counts in the .X field.

@@ -25,9 +25,8 @@ query_model() {
             --model-name $model_name \
             --output-data-path $output_data_path \
             --artifacts-path $artifacts_path \
-            --gen-plots \
-            --labels-key "cell_type" 
-            # --retrain-model
+            --labels-key "cell_type" \
+            --retrain-model
         
         if [ $? -ne 0 ]; then
             echo "🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 🚨 "
@@ -49,21 +48,16 @@ query_model() {
     done
 }
 
-
 count_model_names=("raw" "pcs")
 scvi_model_names=("scvi_emb" "scvi_expr" "scvi_expr_pcs" "scanvi")
-# set_names=("10k" "5k" "3k" "2k" "1k")
+
+# set_names=("1k" "2k" "3k" "5k" "10k")
 set_names=("1k" "2k" "3k" "5k")
 model_types=("naive" "count" "batch_eq")
 
 queries=("xyl2_test" "xyl2_query")
  
-# model_types=("naive" "batch_eq")
-# scvi_model_names=("scvi_expr" "scvi_expr_pcs")
-# count_model_names=("raw" "pcs")
-# # queries=("xyl2_test")
-# queries=("xyl2_query")
-# set_names=("10k")
+queries=("xyl2_test")
 
 for query in "${queries[@]}"
 do
@@ -81,8 +75,8 @@ do
                 model_list=("${scvi_model_names[@]}")
             fi
 
-            query_data="data/scdata/xylena/${set_name}/${query}.h5ad"
-            adata_output_path="data/scdata/xylena/${set_name}/LABELATOR/${model_type}/"
+            query_data="scdata/xylena/${set_name}/${query}.h5ad"
+            adata_output_path="scdata/xylena/${set_name}/LABELATOR/${model_type}/"
             artifacts_path="artifacts/${set_name}/${model_type}/"
 
             # Call the function 

@@ -19,6 +19,33 @@ import scvi
 
 sys.path.append(Path.cwd().parent.as_posix())
 
+# gs://sc-labelator-data/full_anndata_object.h5ad
+# from google.cloud import storage
+
+# def upload_blob(bucket_name, source_file_name, destination_blob_name):
+#     """Uploads a file to the bucket."""
+#     storage_client = storage.Client()
+#     bucket = storage_client.bucket(bucket_name)
+#     blob = bucket.blob(destination_blob_name)
+#     blob.upload_from_filename(source_file_name)
+#     print(f"File {source_file_name} uploaded to {destination_blob_name}.")
+
+# def download_blob(bucket_name, source_blob_name, destination_file_name):
+#     """Downloads a blob from the bucket."""
+#     storage_client = storage.Client()
+#     bucket = storage_client.bucket(bucket_name)
+#     blob = bucket.blob(source_blob_name)
+#     blob.download_to_filename(destination_file_name)
+#     print(f"Blob {source_blob_name} downloaded to {destination_file_name}.")
+
+# # upload_blob(bucket_name, upload_file, blob_name)
+# # download_blob(bucket_name, blob_name, download_file)
+
+# def load_ad_bucket(bucket_name, blob_name):
+#     storage_client = storage.Client()
+#     bucket = storage_client.bucket(bucket_name)
+#     blob = bucket.blob(blob_name)
+#     return ad.read_h5ad(blob.download_as_bytes())
 
 from lbl8r._constants import *
 
@@ -58,9 +85,13 @@ raw_data_path = root_path / XYLENA2_RAW_PATH
 raw_filen = raw_data_path / XYLENA2_RAW_ANNDATA
 raw_ad = ad.read_h5ad(raw_filen)
 
+# # Replace with your bucket name and file paths
+# bucket_name = "gs://sc-labelator-data/"
+# download_file = "full_anndata_object.h5ad"
+# raw_ad = load_ad_bucket(bucket_name, download_file)
+
 # In[ ]:
 # it looks like the unlabeled samples (ie. no ground truth labels) are for total count < 500
-
 
 # In[ ]:
 # load ground truth labels

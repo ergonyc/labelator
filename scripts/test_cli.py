@@ -11,6 +11,11 @@ from lbl8r.labelator import (
     archive_artifacts,
     CELL_TYPE_KEY,
 )
+
+
+sys.path.append(Path.cwd().parent.as_posix())
+
+
 # In[ ]
 
 # #

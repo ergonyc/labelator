@@ -1,8 +1,9 @@
 import dataclasses
 import pandas as pd
 from pathlib import Path
-import anndata as ad
+from anndata import AnnData, read_h5ad, concat as ad_concat
 import numpy as np
+from numpy import ndarray, load as np_load, save as np_save
 from scipy.sparse import csr_matrix, hstack, issparse
 from ._pca import transfer_pca, compute_pcs, dump_pcs
 from ._mde import mde
@@ -39,7 +40,7 @@ class Adata:
     path: str
     name: str
     is_backed: bool = False
-    _adata: ad.AnnData = dataclasses.field(default=None, init=False, repr=False)
+    _adata: AnnData = dataclasses.field(default=None, init=False, repr=False)
     _out_suffix: str = dataclasses.field(default=None, init=False, repr=False)
     _loaded: bool = dataclasses.field(default=False, init=True, repr=True)
     _adata_path: Path = dataclasses.field(default=None, init=False, repr=False)
@@ -55,8 +56,11 @@ class Adata:
     _X_scanvi: Path = dataclasses.field(default=None, init=False, repr=False)
     _X_scvi_mde: Path = dataclasses.field(default=None, init=False, repr=False)
     _X_scanvi_mde: Path = dataclasses.field(default=None, init=False, repr=False)
+    _training: bool = False
 
-    def __init__(self, adata_path: Path, is_backed: bool = False):
+    def __init__(
+        self, adata_path: Path, is_backed: bool = False, training: bool = False
+    ):
         if adata_path is None:
             # instantiate an empty adata object
             self.path = None
@@ -66,6 +70,11 @@ class Adata:
             self.path = adata_path.parent
             self.name = adata_path.name
             self.is_backed = is_backed
+            self._training = training
+
+    @property
+    def training(self):
+        return self._training
 
     @property
     def adata(self):
@@ -75,9 +84,12 @@ class Adata:
         if self._adata is None:
             if self.is_backed:
                 print(f"WARNING::: untested loading backed adata: {self.adata_path}")
-                self._adata = ad.read_h5ad(self.adata_path, backed="r+")
+                self._adata = read_h5ad(self.adata_path, backed="r+")
             else:
-                self._adata = ad.read_h5ad(self.adata_path)
+                self._adata = read_h5ad(self.adata_path)
+
+            # need to make sure that we don't have empty cells.
+
         self._loaded = True
 
         self.ground_truth_key = CELL_TYPE_KEY
@@ -94,13 +106,9 @@ class Adata:
             # try load from disk
             pcs_path = self.artifact_path / "PCs.npy"
             if pcs_path.exists():
-                self._pcs = np.load(pcs_path)
-            # elif "PCs" in self.adata.varm_keys():
-            #     self._pcs = self.adata.varm["PCs"]
-            #     dump_pcs(self._pcs, self.artifact_path)
+                self._pcs = np_load(pcs_path)
             else:
                 print(f"no PCs found at {pcs_path}")
-                # TODO: add compute PCs
                 self._pcs = None
 
         return self._pcs
@@ -121,21 +129,25 @@ class Adata:
                 self.artifact_path / f"X_pca_{self.name.replace('h5ad', 'npy')}"
             )
             if x_pca_path.exists():
-                self._X_pca = np.load(x_pca_path)
+                self._X_pca = np_load(x_pca_path)
             else:
                 # compute!!
                 # see if we have PCs and if so transfer them
-                if self.pcs is None:
+
+                if self.pcs is None and self.training:
                     print(f"computing pca for {self.name}")
                     self._pcs, self._X_pca = compute_pcs(self.adata)
                     # save the PCs and X_pca
                     dump_pcs(self._pcs, self.artifact_path)
                     dump_x_repr(self._X_pca, self.artifact_path, x_name=x_pca_path.name)
-                else:
+                elif self.pcs is not None:
+                    # error
                     print(f"transferring PCs to {self.name}")
                     self._X_pca = transfer_pca(self.adata, self.pcs)
                     # save the X_pca
                     dump_x_repr(self._X_pca, self.artifact_path, x_name=x_pca_path.name)
+                else:
+                    print(f"no PCs found for {self.name} and not training")
 
         return self._X_pca
 
@@ -147,7 +159,7 @@ class Adata:
                 self.artifact_path / f"X_mde_{self.name.replace('h5ad', 'npy')}"
             )
             if x_mde_path.exists():
-                self._X_mde = np.load(x_mde_path)
+                self._X_mde = np_load(x_mde_path)
             else:
                 # compute!!
                 print(f"computing mde for {self.name} pca latent")
@@ -162,7 +174,7 @@ class Adata:
             # try load from disk
             x_path = self.artifact_path / f"X_scvi_{self.name.replace('h5ad', 'npy')}"
             if x_path.exists():
-                self._X_scvi = np.load(x_path)
+                self._X_scvi = np_load(x_path)
             else:
                 # get from adata
                 if SCVI_LATENT_KEY in self.adata.obsm_keys():
@@ -181,7 +193,7 @@ class Adata:
                 self.artifact_path / f"X_scvi_mde_{self.name.replace('h5ad', 'npy')}"
             )
             if x_mde_path.exists():
-                self._X_scvi_mde = np.load(x_mde_path)
+                self._X_scvi_mde = np_load(x_mde_path)
             else:
                 # compute!!
                 print(f"computing mde for {self.name} scvi latent")
@@ -198,7 +210,7 @@ class Adata:
             # try load from disk
             x_path = self.artifact_path / f"X_scanvi_{self.name.replace('h5ad', 'npy')}"
             if x_path.exists():
-                self._X_scanvi = np.load(x_path)
+                self._X_scanvi = np_load(x_path)
             else:
                 # get from adata
                 if SCANVI_LATENT_KEY in self.adata.obsm_keys():
@@ -217,7 +229,7 @@ class Adata:
                 self.artifact_path / f"X_scanvi_mde_{self.name.replace('h5ad', 'npy')}"
             )
             if x_mde_path.exists():
-                self._X_scanvi_mde = np.load(x_mde_path)
+                self._X_scanvi_mde = np_load(x_mde_path)
             else:
                 # compute!!
                 print(f"computing mde for {self.name} scanvi latent")
@@ -268,6 +280,9 @@ class Adata:
 
     @property
     def artifact_path(self):
+        """
+        The "count" models PCs are stored with the source adata i.e. self.path
+        """
         return self.path if self._archive_path.stem == "count" else self._archive_path
 
     def export(self, out_path: Path | None = None):
@@ -290,15 +305,16 @@ class Adata:
 
         if self._predictions is not None:
             preds_path = (
-                self.archive_path / f"predictions_{self.name.replace('h5ad','feather')}"
+                self.archive_path
+                / f"predictions_{self.name.replace('h5ad','parquet]')}"
             )
             preds = self._predictions.reset_index()
-            preds.to_feather(preds_path)
+            preds.to_parquet(preds_path, compression="snappy")
             print(f"wrote: {preds_path}")
         else:
             print("No predictions to export ? ")
 
-    def update(self, adata: ad.AnnData):
+    def update(self, adata: AnnData):
         """
         Update the adata object.
         """
@@ -334,7 +350,7 @@ class Adata:
             self._out_suffix = ""  # eventually we will disable the other outputs
 
 
-def dump_x_repr(x_repr: np.ndarray, x_path: Path, x_name: str):
+def dump_x_repr(x_repr: ndarray, x_path: Path, x_name: str):
     """
     dump artifact (X_repr) representation of data.
 
@@ -352,7 +368,7 @@ def dump_x_repr(x_repr: np.ndarray, x_path: Path, x_name: str):
         x_path.mkdir(parents=True, exist_ok=True)
 
     x_path = x_path / x_name
-    np.save(x_path, x_repr)
+    np_save(x_path, x_repr)
 
 
 def add_predictions_to_adata(adata, predictions, insert_key="pred", pred_key="label"):
@@ -393,10 +409,10 @@ def add_predictions_to_adata(adata, predictions, insert_key="pred", pred_key="la
 
 # TODO: remove ref_ad input
 def transfer_pcs(
-    query_ad: ad.AnnData,
-    ref_ad: ad.AnnData | None = None,
-    pcs: np.ndarray | None = None,
-) -> ad.AnnData:
+    query_ad: AnnData,
+    ref_ad: AnnData | None = None,
+    pcs: ndarray | None = None,
+) -> AnnData:
     """Transfer PCs from training data to get "loadings" (`X_pca`)
 
     Parameters
@@ -491,12 +507,12 @@ def merge_into_obs(adata, source_table, insert_keys=None, prefix=None):
     return adata
 
 
-def sparsify_adata(adata: ad.AnnData):
+def sparsify_adata(adata: AnnData):
     """replace the adata.X with a sparse matrix
 
     Parameters
     ----------
-    adata : ad.AnnData
+    adata : AnnData
         Annotated data matrix.
 
     Returns
@@ -510,7 +526,7 @@ def sparsify_adata(adata: ad.AnnData):
     return adata
 
 
-def export_ouput_adata(adata: ad.AnnData, file_name: str, out_path: Path):
+def export_ouput_adata(adata: AnnData, file_name: str, out_path: Path):
     """
     Export the AnnData object with the model name and file name appended to the file name.
 
@@ -539,7 +555,7 @@ def export_ouput_adata(adata: ad.AnnData, file_name: str, out_path: Path):
     return None
 
 
-def make_pc_loading_adata(adata: ad.AnnData, x_pca: np.ndarray, pca_key: str = "X_pca"):
+def make_pc_loading_adata(adata: AnnData, x_pca: ndarray, pca_key: str = "X_pca"):
     """
     Makes adata with PCA loadings
 
@@ -547,7 +563,7 @@ def make_pc_loading_adata(adata: ad.AnnData, x_pca: np.ndarray, pca_key: str = "
     ----------
     adata : AnnData
         Annotated data matrix.
-    x_pca : np.ndarray
+    x_pca : ndarray
         data projected on Principal components.
     pca_key : str
         Key in `adata.obsm` where PCA loadings are stored. Default is `X_pca`.
@@ -560,7 +576,7 @@ def make_pc_loading_adata(adata: ad.AnnData, x_pca: np.ndarray, pca_key: str = "
 
     """
 
-    loading_adata = ad.AnnData(x_pca)
+    loading_adata = AnnData(x_pca)
     var_names = [f"pc_{i}" for i in range(loading_adata.shape[1])]
 
     loading_adata.obs_names = adata.obs_names.copy()
@@ -579,7 +595,7 @@ def make_pc_loading_adata(adata: ad.AnnData, x_pca: np.ndarray, pca_key: str = "
     return loading_adata
 
 
-def add_pc_loadings(adata: ad.AnnData, x_pca: np.ndarray, pca_key: str = "X_pca"):
+def add_pc_loadings(adata: AnnData, x_pca: ndarray, pca_key: str = "X_pca"):
     """
     Makes adata with PCA loadings
 
@@ -587,7 +603,7 @@ def add_pc_loadings(adata: ad.AnnData, x_pca: np.ndarray, pca_key: str = "X_pca"
     ----------
     adata : AnnData
         Annotated data matrix.
-    x_pca : np.ndarray
+    x_pca : ndarray
         data projected on Principal components.
     pca_key : str
         Key in `adata.obsm` where PCA loadings are stored. Default is `X_pca`.
@@ -605,7 +621,7 @@ def add_pc_loadings(adata: ad.AnnData, x_pca: np.ndarray, pca_key: str = "X_pca"
     return adata
 
 
-def add_mde_obsm(ad: ad.AnnData, X_mde: np.ndarray, basis: str = "X_pca") -> ad.AnnData:
+def add_mde_obsm(ad: AnnData, X_mde: ndarray, basis: str = "X_pca") -> AnnData:
     """
     Add the latent representation from a scVI model into the ad.obsm
 
@@ -636,7 +652,7 @@ def add_mde_obsm(ad: ad.AnnData, X_mde: np.ndarray, basis: str = "X_pca") -> ad.
     return ad
 
 
-def prep_target_genes(adata: ad.AnnData, target_genes: list[str]) -> ad.AnnData:
+def prep_target_genes(adata: AnnData, target_genes: list[str]) -> AnnData:
     """
     Expand AnnData object to include all target_genes.  Missing target_genes will be added as zeros.
     """
@@ -647,18 +663,18 @@ def prep_target_genes(adata: ad.AnnData, target_genes: list[str]) -> ad.AnnData:
     if len(missing_vars) > 0:
         if issparse(adata.X):
             zeros = csr_matrix((adata.n_obs, len(missing_vars)))
-        elif isinstance(ad.X, np.ndarray):
+        elif isinstance(adata.X, ndarray):
             zeros = np.zeros((adata.n_obs, len(missing_vars)))
         else:
             raise ValueError("X must be a numpy array or a sparse matrix")
 
         # Create an AnnData object for the missing variables
-        missing_ad = ad.AnnData(
+        missing_ad = AnnData(
             X=zeros, var=pd.DataFrame(index=missing_vars), obs=adata.obs
         )
         print(missing_ad)
         # Concatenate the original and the missing AnnData objects along the variables axis
-        expanded_ad = ad.concat([adata, missing_ad], axis=1, join="outer")
+        expanded_ad = ad_concat([adata, missing_ad], axis=1, join="outer")
         expanded_ad.obs = adata.obs.copy()
         print(expanded_ad)
     else:
