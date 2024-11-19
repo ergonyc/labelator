@@ -17,7 +17,7 @@ import numpy as np
 import scvi
 
 
-sys.path.append(os.path.abspath("/home/ergonyc/Projects/SingleCell/labelator/"))
+sys.path.append(os.path.abspath(".."))
 
 from lbl8r.model.utils._data import transfer_pcs
 
@@ -37,6 +37,10 @@ XYLENA2_QUERY = "xyl2_query.h5ad"
 XYLENA2_RAW_PATH = "data/scdata/xylena_raw"
 XYLENA2_PATH = "data/scdata/xylena"
 
+CELLASSIGN_SIMPLE_MARKERS_TABLE = "cellassign_simple_markers.csv"
+CELLASSIGN_SIMPLE2_MARKERS_TABLE = "cellassign_simple2_markers.csv"
+CELLASSIGN_SIMPLE3_MARKERS_TABLE = "cellassign_simple3_markers.csv"
+
 
 ## load raw data.
 
@@ -46,7 +50,7 @@ data_path = root_path / XYLENA2_PATH
 raw_data_path = root_path / XYLENA2_RAW_PATH
 
 # In[ ]:
-markers_path = root_path / "taxonomy/cellassign_markers.csv"
+markers_path = raw_data_path / CELLASSIGN_SIMPLE3_MARKERS_TABLE
 markers = pd.read_csv(markers_path, index_col=0)
 
 # In[ ]:
