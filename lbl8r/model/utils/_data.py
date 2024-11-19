@@ -305,8 +305,7 @@ class Adata:
 
         if self._predictions is not None:
             preds_path = (
-                self.archive_path
-                / f"predictions_{self.name.replace('h5ad','parquet]')}"
+                self.archive_path / f"predictions_{self.name.replace('h5ad','parquet')}"
             )
             preds = self._predictions.reset_index()
             preds.to_parquet(preds_path, compression="snappy")
