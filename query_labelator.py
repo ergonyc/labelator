@@ -4,12 +4,6 @@ from pathlib import Path
 
 from lbl8r.labelator import (
     query_lbl8r,
-    # load_data,
-    # query_model,
-    # prep_query_model,
-    # archive_data,
-    # archive_plots,
-    # load_trained_model,
     CELL_TYPE_KEY,
     VALID_MODEL_NAMES,
 )
@@ -36,7 +30,6 @@ def validate_model_name(ctx, param, value):
 
 
 @click.command()
-
 # model paths / names
 @click.option(
     "--model-path",
@@ -58,7 +51,6 @@ def validate_model_name(ctx, param, value):
         + VALID_MODEL_NAMES[-1]
     ),
 )
-
 # data paths / names
 @click.option(
     "--query-path",
@@ -68,8 +60,6 @@ def validate_model_name(ctx, param, value):
     required=False,
     help="Full Path to query data. Will skip query if not provided",
 )
-
-
 # artifacts (figures, data outputs, etc)
 @click.option(
     "--output-data-path",
@@ -90,15 +80,6 @@ def validate_model_name(ctx, param, value):
         make-plots` is True) and results tables will be saved to '`artifacts-path`/results/`model-name`' 
         """,
 )
-@click.option(
-    "--gen-plots/--no-plots",
-    is_flag=True,
-    default=True,
-    show_default=True,
-    required=False,
-    help="Flag to generate plots.",
-)
-
 # Training options
 @click.option(
     "--retrain-model",
@@ -120,7 +101,6 @@ def cli(
     model_name,
     output_data_path,
     artifacts_path,
-    gen_plots,
     retrain_model,
     labels_key,
 ):
@@ -133,7 +113,6 @@ def cli(
         model_name,
         output_data_path,
         artifacts_path,
-        gen_plots,
         retrain_model,
         labels_key,
     )

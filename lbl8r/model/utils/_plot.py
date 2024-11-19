@@ -264,7 +264,10 @@ def plot_predictions(
         rownames=[f"Prediction {pred_key}"],
         colnames=[f"Ground truth {cell_type_key}"],
     )
+    # TODO: Series.ravel is deprecated. The underlying array is already 1D, so ravel is not necessary.  Use `to_numpy()` for conversion to a numpy array instead.
     confusion_matrix /= confusion_matrix.sum(1).ravel().reshape(-1, 1)
+    # confusion_matrix /= confusion_matrix.sum(1).to_numpy().reshape(-1, 1)
+
     fig, ax = plt.subplots(figsize=(5, 4))
     sns.heatmap(
         confusion_matrix,

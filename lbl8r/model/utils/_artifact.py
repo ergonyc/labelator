@@ -128,7 +128,7 @@ def _load_pkl(path: Path):
 #     dump_pcs(pcs, model_path)
 
 
-def dump_genes(genes: list[str], path: Path):
+def save_genes(genes: list[str], path: Path):
     """
     Save genes to pickle file.
 

@@ -25,7 +25,6 @@ query_model() {
             --model-name $model_name \
             --output-data-path $output_data_path \
             --artifacts-path $artifacts_path \
-            --gen-plots \
             --labels-key "cell_type" 
             # --retrain-model
         
@@ -49,47 +48,40 @@ query_model() {
     done
 }
 
-
 count_model_names=("raw" "pcs")
 scvi_model_names=("scvi_emb" "scvi_expr" "scvi_expr_pcs" "scanvi")
-# set_names=("10k" "5k" "3k" "2k" "1k")
-set_names=("1k" "2k" "3k" "5k" "10k")
-# model_types=("count" "naive" "batch_eq")
+
+# set_names=("1k" "2k" "3k" "5k" "10k")
+set_names=("1k" "2k" "3k" "5k")
 model_types=("naive" "count" "batch_eq")
 
-
-queries=("xyl2_test")
-
-
-for query in "${queries[@]}"
+query="xyl2_test"
+ 
+for set_name in "${set_names[@]}"
 do
-
-    for set_name in "${set_names[@]}"
+    for model_type in "${model_types[@]}"
     do
-        for model_type in "${model_types[@]}"
-        do
 
-            if [ $model_type == "count" ]; then
-                model_list=("${count_model_names[@]}")
-            elif [ $model_type == "naive" ]; then
-                model_list=("${scvi_model_names[@]}")
-            elif [ $model_type == "batch_eq" ]; then
-                model_list=("${scvi_model_names[@]}")
-            fi
+        if [ $model_type == "count" ]; then
+            model_list=("${count_model_names[@]}")
+        elif [ $model_type == "naive" ]; then
+            model_list=("${scvi_model_names[@]}")
+        elif [ $model_type == "batch_eq" ]; then
+            model_list=("${scvi_model_names[@]}")
+        fi
 
-            query_data="data/scdata/xylena/${set_name}/${query}.h5ad"
-            adata_output_path="data/scdata/xylena/${set_name}/LABELATOR/${model_type}/"
-            artifacts_path="artifacts/${set_name}/${model_type}/"
+        query_data="scdata/xylena/${set_name}/${query}.h5ad"
+        adata_output_path="scdata/xylena/${set_name}/LABELATOR/${model_type}/"
+        artifacts_path="artifacts/${set_name}/${model_type}/"
 
-            # Call the function 
-            models_path="models/${set_name}/${model_type}/" 
+        # Call the function 
+        models_path="models/${set_name}/${model_type}/" 
 
-            echo "🚀 🚀 🚀 🚀 Querying $query data for $set_name $model_type 🚀 🚀 🚀 🚀 🚀 🚀 🚀 🚀"
+        echo "🚀 🚀 🚀 🚀 Querying $query data for $set_name $model_type 🚀 🚀 🚀 🚀 🚀 🚀 🚀 🚀"
 
-            query_model $query_data $models_path model_list[@] $adata_output_path $artifacts_path
-
-        done
+        query_model $query_data $models_path model_list[@] $adata_output_path $artifacts_path
 
     done
 
 done
+
