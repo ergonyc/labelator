@@ -1,0 +1,57 @@
+#mamba env create -f lbl8r_py12.yml 
+
+name: lbl8r-nb-cuda12.4
+channels:
+- pytorch
+- nvidia
+- conda-forge
+dependencies:
+- python=3.12
+- pytorch
+- torchvision
+- torchaudio
+- pytorch-cuda=12.4
+- jax 
+- jaxlib #=*=*cuda*
+- scvi-tools
+- scanpy
+- pandas
+- anndata
+- pyarrow
+- ipykernel
+- ipywidgets
+- notebook
+- xgboost
+- click
+- pip
+- pip:
+  - pymde
+  - scikit-misc
+  - tables
+  - scib-metrics
+  - harmonypy
+  - muon
+  - faiss-gpu-cu12
+  - muon 
+  - leidenalg
+
+
+
+# mamba create -n scvi0 python=3.12 pip
+
+# mamba activate scvi0
+# mamba install pytorch torchvision torchaudio pytorch-cuda=12.4 -c pytorch -c nvidia
+# mamba install -c conda-forge scvi-tools 
+
+# mamba install -c conda-forge jax jaxlib scanpy scikit-learn pandas anndata pyarrow
+
+# mamba install -c conda-forge click xgboost
+
+# pip install pymde
+
+# pip install scikit-misc 
+# pip install tables
+# pip install scib-metrics
+# pip install harmonypy
+# pip install muon
+# pip install faiss-gpu-cu12 

@@ -60,8 +60,8 @@ XYLENA2_TRAIN = "xyl2_train.h5ad"
 XYLENA2_TEST = "xyl2_test.h5ad"
 XYLENA2_QUERY = "xyl2_query.h5ad"
 
-XYLENA2_RAW_PATH = "data/scdata/xylena_raw"
-XYLENA2_PATH = "data/scdata/xylena"
+XYLENA2_RAW_PATH = "scdata/xylena_raw"
+XYLENA2_PATH = "scdata/xylena"
 
 XYLENA2_FULL_HVG = "xyl2_full_hvg.csv"
 XYLENA2_TRAIN_HVG = "xyl2_train_hvg.csv"
@@ -83,7 +83,8 @@ raw_data_path = root_path / XYLENA2_RAW_PATH
 # 0. LOAD RAW DATAgit a
 ########################
 raw_filen = raw_data_path / XYLENA2_RAW_ANNDATA
-raw_ad = ad.read_h5ad(raw_filen)
+# raw_ad = ad.read_h5ad(raw_filen)
+raw_ad = ad.read_h5ad("/data/scdata/xylena_raw/full_anndata_object.h5ad", backed="r")
 
 # # Replace with your bucket name and file paths
 # bucket_name = "gs://sc-labelator-data/"
@@ -99,7 +100,7 @@ filen = raw_data_path / XYLENA2_GROUNDTRUTH_LABELS
 ground_truth = pd.read_csv(filen)
 ground_truth.set_index("barcodes", inplace=True)
 # In[ ]: collect metadata
-raw_ad.var_names_make_unique()
+# raw_ad.var_names_make_unique()
 obs = raw_ad.obs
 
 # In[ ]: get the train/test splits
@@ -203,13 +204,23 @@ outfilen = data_path / XYLENA2_FULL
 
 raw_ad.write_h5ad(outfilen)
 
+# In[ ]:  read full anndata
+
+full_filen = data_path / XYLENA2_FULL
+raw_ad = ad.read_h5ad(full_filen, backed="r")
+
 # In[ ]:  make the train adata
 train_ad = raw_ad[raw_ad.obs["train"]]
-
+# In[ ]:
 raw_train_filen = data_path / XYLENA2_TRAIN
+# train_ad = raw_ad[raw_ad.obs["train"]].copy(raw_train_filen)
+
 train_ad.write_h5ad(raw_train_filen)
 del train_ad
 
+# In[ ]:  read full anndata
+full_filen = data_path / XYLENA2_FULL
+raw_ad = ad.read_h5ad(full_filen, backed="r")
 # In[ ]:  make test anndata
 test_ad = raw_ad[raw_ad.obs["test"]]
 
@@ -245,7 +256,12 @@ ds_names = ["10k", "5k", "3k", "2k", "1k"]
 
 # In[ ]:
 full_filen = data_path / XYLENA2_FULL
+# adata = ad.read_h5ad(full_filen,backed='r+')
 adata = ad.read_h5ad(full_filen)
+adata.var_names_make_unique()
+
+# Assume that the input data is reasonably QC-ed
+
 # In[ ]:
 hvgs_full = sc.experimental.pp.highly_variable_genes(
     adata,
@@ -286,188 +302,6 @@ del adata
 
 
 # In[ ]:
-def compute_pcs(
-    adata: sc.AnnData, n_pcs: int = 30, save_path: Path | None = None, set_name="train"
-) -> np.ndarray:
-    """
-    Compute principal components.
-
-    Parameters
-    ----------
-    adata : AnnData
-        Annotated data matrix.
-    n_pcs : int
-        Number of principal components to compute.
-
-    Returns
-    -------
-    pcs : ndarray
-        Principal components.
-
-    """
-    bdata = adata.copy()
-    print("compute_pcs - normalize_total")
-    sc.pp.normalize_total(bdata, target_sum=1e4)
-    print("compute_pcs - log1p")
-    sc.pp.log1p(bdata)
-    print(f"compute_pcs - pca: n_comps={n_pcs}")
-    sc.pp.pca(bdata, n_comps=n_pcs, use_highly_variable=False)
-    print("extracting pcs")
-    pcs = bdata.varm["PCs"].copy()
-    X_pca = bdata.obsm["X_pca"].copy()
-
-    if save_path is not None:
-        dump_pcs(pcs, save_path)
-        print(f"Saved PCs to {save_path}")
-        pcs_name = f"X_pca_{set_name}.npy"
-        dump_x_pca(X_pca, save_path, pcs_name=pcs_name)
-        print(f"Saved X_pca to {save_path}")
-
-        return
-    else:
-        return pcs
-
-
-def transfer_pca(
-    adata: sc.AnnData,
-    pcs: np.ndarray,
-) -> sc.AnnData:
-    """
-    Transfer principal components.
-
-    Parameters
-    ----------
-    adata : AnnData
-        Annotated data matrix.
-    pcs : ndarray
-        Principal components (eigenvectors) of training set.
-
-    Returns
-    -------
-    x_pca : ndarray
-        projection of data onto PCs.
-
-    """
-    bdata = adata.copy()
-    # scale values.
-    print("compute_pcs - normalize_total")
-    sc.pp.normalize_total(bdata, target_sum=1e4)
-    print("compute_pcs - log1p")
-    sc.pp.log1p(bdata)
-    X = bdata.X
-    del bdata
-    # Calculate the mean of each column
-    col_means = X.sum(axis=0)
-    col_means /= X.shape[0]
-
-    # now chunk the X to get the x_pca.
-    chunk_size = 10_000
-    n_chunks = X.shape[0] // chunk_size
-
-    X_pca = np.zeros((X.shape[0], pcs.shape[1]))
-    for chunk in range(n_chunks):
-        start = chunk * chunk_size
-        end = start + chunk_size
-        X_pca[start:end] = (X[start:end] - col_means) @ pcs
-
-    # now do the last chunk
-    start = n_chunks * chunk_size
-    X_pca[start:] = (X[start:] - col_means) @ pcs
-
-    # # Subtract the column means from each column
-    # # col_means is 1x3 matrix; we use np.array to ensure proper broadcasting
-    # adjusted_X = X - csr_matrix(np.ones((X.shape[0], 1))) @ csr_matrix(col_means)
-
-    #     del bdata
-    #     x_pca = np.matmul(X, pcs)
-    #     # x_pca = bdata.X @ pcs
-    return X_pca
-
-
-def dump_pcs(pcs: np.ndarray, pcs_path: Path):
-    """
-    Save principal components (eigenvectors) of data.
-
-    Parameters
-    ----------
-    pcs : ndarray
-        Principal components.
-    pcs_path : Path
-        Path to save the PCs.
-
-
-    """
-
-    pcs_path = pcs_path / f"PCs.npy"
-    np.save(pcs_path, pcs)
-
-
-def dump_x_pca(x_pca: np.ndarray, pcs_path: Path, pcs_name: str = "X_pca.npy"):
-    """
-    Save principal components representation of data.
-
-    Parameters
-    ----------
-    x_pca : ndarray
-        Principal components.
-    pcs_path : Path
-        Path to save the PCs.
-
-
-    """
-    pcs_path = pcs_path / pcs_name
-    np.save(pcs_path, x_pca)
-
-
-def load_pcs(pcs_path: Path) -> np.ndarray:
-    """
-    Load principal components from adata.
-
-    Parameters
-    ----------
-    pcs_path : Path
-        Path to save the PCs.
-
-    Returns
-    -------
-    pcs : np.ndarray
-        Principal components.
-
-    """
-
-    pcs_path = pcs_path / f"PCs.npy"
-    if pcs_path.exists():
-        return np.load(pcs_path)
-    else:
-        print(f"no PCs found at {pcs_path}")
-        return None
-
-
-def load_x_pca(pcs_path: Path) -> np.ndarray:
-    """
-    Load principal components from adata.
-
-    Parameters
-    ----------
-    pcs_path : Path
-        Path to save the PCs.
-
-    Returns
-    -------
-    X_pca : np.ndarray
-        Principal components.
-
-    """
-
-    pcs_path = pcs_path / f"X_pca.npy"
-    if pcs_path.exists():
-        return np.load(pcs_path)
-    else:
-        print(f"no X_pca found at {pcs_path}")
-        return None
-
-
-# In[ ]:
 
 
 raw_train_filen = data_path / XYLENA2_TRAIN
@@ -479,6 +313,8 @@ for ds_name, n_top_gene in zip(ds_names, ns_top_genes):
     print(f"Keeping {len(keep_genes)} genes")
     # load the raw test_ad
     train_ad = train_ad[:, keep_genes]
+    # guard against empty cells as we filter down genes...
+    sc.pp.filter_cells(train_ad, min_genes=1)
 
     # ds_path = data_path.parent / f"{data_path.name}{ds_name}"
     ds_path = data_path / ds_name
@@ -488,7 +324,7 @@ for ds_name, n_top_gene in zip(ds_names, ns_top_genes):
 
     train_filen = ds_path / XYLENA2_TRAIN
     train_ad.write_h5ad(train_filen)
-    print(f"Saved {train_filen}")
+    print(f"Saved {train_filen}, size={train_ad.shape}")
 
 # del train_ad
 # In[ ]:
@@ -500,6 +336,8 @@ for ds_name, n_top_gene in zip(ds_names, ns_top_genes):
     print(f"Keeping {len(keep_genes)} genes")
     # load the raw test_ad
     test_ad = test_ad[:, keep_genes]
+    # guard against empty cells as we filter down genes...
+    sc.pp.filter_cells(test_ad, min_genes=1)
 
     # save the test_ad with the highly variable genes
     # ds_path = data_path.parent / f"{data_path.name}{ds_name}"
@@ -513,7 +351,7 @@ for ds_name, n_top_gene in zip(ds_names, ns_top_genes):
 
     test_filen = ds_path / XYLENA2_TEST
     test_ad.write_h5ad(test_filen)
-    print(f"Saved {test_filen}")
+    print(f"Saved {test_filen}, size={test_ad.shape}")
 
 del test_ad
 # In[ ]:
@@ -526,6 +364,8 @@ for ds_name, n_top_gene in zip(ds_names, ns_top_genes):
     keep_genes = gene_cuts[ds_name]
     print(f"Keeping {len(keep_genes)} genes")
     query_ad = query_ad[:, keep_genes]
+    # guard against empty cells as we filter down genes...
+    sc.pp.filter_cells(query_ad, min_genes=1)
 
     # save the query_ad with the highly variable genes
     # ds_path = data_path.parent / f"{data_path.name}{ds_name}"
@@ -540,66 +380,7 @@ for ds_name, n_top_gene in zip(ds_names, ns_top_genes):
 
     query_filen = ds_path / XYLENA2_QUERY
     query_ad.write_h5ad(query_filen)
-    print(f"Saved {query_filen}")
+    print(f"Saved {query_filen}, size={query_ad.shape}")
 del query_ad
-
-# In[ ]:
-
-
-# # In[ ]:
-# # use default scanpy for the pca
-# sc.pp.pca(train_ad)
-# train_filen = data_path / XYLENA2_TRAIN
-# train_ad.write_h5ad(train_filen)
-
-# # In[ ]:
-# # load the raw test_ad
-# raw_test_filen = raw_data_path / XYLENA2_TEST
-# test_ad = ad.read_h5ad(raw_test_filen)
-
-# # In[ ]: # now we need to copy the PCs to the test set and compute loadings.
-# test_ad = transfer_pcs(test_ad, train_ad)
-# # In[ ]:
-# test_ad.write_h5ad(test_filen)
-
-# # In[ ]:
-# del test_ad
-# del train_ad
-
-# # Optional save memory/disk space by using sparse matrices.  Models will train / infer slower
-# # In[ ]:
-# train_ad = ad.read_h5ad(train_filen)
-
-
-# In[ ]:
-def compare_genes(genes, labels=("genes1", "genes2")):
-    g1 = set(genes[labels[0]])
-    g2 = set(genes[labels[1]])
-    print(f"number of genes in {labels[0]}: {len(g1)}")
-    print(f"number of genes in {labels[1]}: {len(g2)}")
-
-    print(f"{labels[0]} - {labels[1]}: {len(g1 - g2)}")
-    print(f"{labels[1]} - {labels[0]} {len(g2 - g1)}")
-    print(f"{labels[0]} & {labels[1]}: {len(g1 & g2)}")
-    print(f"{labels[0]} | {labels[1]}: {len(g1 | g2)}")
-
-
-# %%
-
-
-for ds_name, n_top_gene in zip(ds_names, ns_top_genes):
-    print("gene_cuts")
-    print(ds_name)
-    compare_genes(gene_cuts[ds_name], labels=["train", "full"])
-
-# %%
-
-mset = set(gene_list.index)
-for ds_name, n_top_gene in zip(ds_names, ns_top_genes):
-    tset = set(gene_cuts[ds_name]["train"])
-    fset = set(gene_cuts[ds_name]["full"])
-    print(f"mset-tset: {len(mset - tset)}")
-    print(f"mset-fset: {len(mset - fset)}")
-
 
 # %%

@@ -1,0 +1,34 @@
+#mamba env create -f lbl8r_py12.yml 
+
+name: lbl8r-py12
+channels:
+- conda-forge
+- pytorch
+- nvidia
+dependencies:
+- python=3.12
+- ipykernel
+- ipywidgets
+- notebook
+- xgboost
+- click
+- pip:
+  - pytorch --extra-index-url https://download.pytorch.org/whl/cu126  
+  - torchvision --extra-index-url https://download.pytorch.org/whl/cu126 
+  - torchaudio --extra-index-url https://download.pytorch.org/whl/cu126 
+  - "jax[cuda12]"
+  - scvi-tools
+  - scib-metrics
+  - scanpy
+  - anndata
+  - harmonypy
+  - numpy
+  - pandas
+  - pymde
+  - scikit-misc
+  - muon
+  - tables
+  - leidenalg
+  - pyarrow
+# post:
+#   - pip install --upgrade "jax[cuda12]"  # This uses the upgrade flag

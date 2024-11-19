@@ -85,7 +85,7 @@ raw_data_path = root_path / XYLENA2_RAW_PATH
 ########################
 raw_filen = raw_data_path / XYLENA2_RAW_ANNDATA
 # raw_ad = ad.read_h5ad(raw_filen)
-raw_ad = ad.read_h5ad("/data/scdata/xylena_raw/full_anndata_object.h5ad", backed='r')
+raw_ad = ad.read_h5ad("/data/scdata/xylena_raw/full_anndata_object.h5ad", backed="r")
 
 # # Replace with your bucket name and file paths
 # bucket_name = "gs://sc-labelator-data/"
@@ -181,45 +181,46 @@ newmeta["phase"] = newmeta["Phase"]
 # In[ ]:
 # update anndata - only keep the metadata we need/want
 raw_ad.obs = newmeta[
-    [        'total_counts', 
-        'total_counts_rb', 
-        'pct_counts_rb', 
-        'total_counts_mt',
-        'pct_counts_mt', 
-        'doublet_score', 
-        'batch', 
-        'cohort', 
-        'sample',
-        'n_genes_by_counts', 
-        'counts_deviation_score', 
+    [
+        "total_counts",
+        "total_counts_rb",
+        "pct_counts_rb",
+        "total_counts_mt",
+        "pct_counts_mt",
+        "doublet_score",
+        "batch",
+        "cohort",
+        "sample",
+        "n_genes_by_counts",
+        "counts_deviation_score",
         # 'nCount_RNA',
-        # 'nFeature_RNA', 
-        # 'S.Score', 
-        # 'G2M.Score', 
-        # 'Phase', 
-        'sample_other', # what is this?
-        'celltype', 
-        # 'unlabeled', 
-        # 'labeled', 
+        # 'nFeature_RNA',
+        # 'S.Score',
+        # 'G2M.Score',
+        # 'Phase',
+        "sample_other",  # what is this?
+        "celltype",
+        # 'unlabeled',
+        # 'labeled',
         # 'labeled_sample',
-        'unlabeled_sample', 
-        'partlabeled_sample', 
-        'frac_labeled', 
-        'n_cells',
-        # 'tt', 
-        'query', 
-        'train', 
-        'test', 
-        'train_sample', 
-        'test_sample', 
-        'queryA',
-        'queryB', 
-        'cell_type', 
-        'n_counts', 
-        'n_genes', 
-        's_score', 
-        'g2m_score',
-        'phase'
+        "unlabeled_sample",
+        "partlabeled_sample",
+        "frac_labeled",
+        "n_cells",
+        # 'tt',
+        "query",
+        "train",
+        "test",
+        "train_sample",
+        "test_sample",
+        "queryA",
+        "queryB",
+        "cell_type",
+        "n_counts",
+        "n_genes",
+        "s_score",
+        "g2m_score",
+        "phase",
     ]
 ].copy()
 
@@ -283,8 +284,6 @@ del raw_ad
 
 # In[ ]:
 # REDO the subsets to move all the "UNLABELED" in TRAIN and TEST to query_unlabeled
-
-
 
 
 ########################
