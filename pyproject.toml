@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "labelator"
+version = "0.1"
+description = "Simple framework for transferring labels to scRNAseq dataset."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "Andy Henrie", email = "ergonyc@gmail.com"}
+]
+dependencies = [
+    "numpy",  # Example dependency, add actual dependencies
+    "scvi-tools",  # Example dependency, add actual dependencies
+]
+homepage = "https://github.com/ergonyc/labelator"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]

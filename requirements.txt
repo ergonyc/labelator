@@ -1,0 +1,7 @@
+numpy
+scvi-tools
+torch
+jax
+jaxlib
+pandas
+# Add other dependencies here

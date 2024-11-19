@@ -2,38 +2,36 @@
 
 name: lbl8r-cuda12.4
 channels:
-- conda-forge
 - pytorch
 - nvidia
+- conda-forge
 dependencies:
 - python=3.12
 - pytorch
 - torchvision
+- torchaudio
 - pytorch-cuda=12.4
 - jax 
 - jaxlib #=*=*cuda*
-- scanpy
 - scvi-tools
-- python-igraph
-- leidenalg
+- scanpy
 - pandas
+- anndata
 - pyarrow
-- tables
-- scikit-misc
-- ipykernel
-- ipywidgets
-- notebook
-# - xgboost
+- xgboost
 - click
 - pip
 - pip:
-  - scib-metrics
   - pymde
+  - scikit-misc
+  - tables
+  - scib-metrics
   - harmonypy
-  - faiss-gpu-cu12=1.9.0
+  - muon
+  - faiss-gpu-cu12
   - muon 
-# post:
-#   - pip install --upgrade "jax[cuda12]"  # This uses the upgrade flag
+  - leidenalg
+
 
 
 # mamba create -n scvi0 python=3.12 pip
