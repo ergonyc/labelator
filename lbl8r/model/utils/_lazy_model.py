@@ -113,6 +113,11 @@ class LazyModel:
 class ModelSet:
     """
     Wrapper for model class for storing models + metadata.
+
+    each modelSet shares the same genes and basis
+    genes are copied to the same directory as the model.pt artifact.
+        These are relatively lightweight and enable loading trained models
+
     """
 
     model: dict[str, LazyModel]

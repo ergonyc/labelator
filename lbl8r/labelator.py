@@ -47,7 +47,7 @@ from .model.utils._plot import (
 )
 from .model.utils._artifact import (
     # save_pcs,
-    save_genes,
+    archive_genes,
 )
 from ._constants import *
 
@@ -76,7 +76,7 @@ def train_lbl8r(
     """
     print(f"{train_path=}:: {model_path=}:: {model_name=}")
     print(f"{output_data_path=}:: {artifacts_path=}:: {retrain_model=}:: {labels_key=}")
-    scvi.settings.dl_num_workers = 10
+    scvi.settings.dl_num_workers = 15
 
     ## LOAD DATA ###################################################################
     train_data = load_training_data(train_path, archive_path=output_data_path)
@@ -135,7 +135,7 @@ def query_lbl8r(
     #     scvi.settings.dl_num_workers = 15
     # else:
     #     scvi.settings.dl_num_workers = 0
-    scvi.settings.dl_num_workers = 10
+    scvi.settings.dl_num_workers = 15
 
     ## LOAD DATA ###################################################################
     query_data = load_data(query_path, archive_path=output_data_path)
@@ -276,7 +276,27 @@ def load_trained_model(
     model_name: str,
     model_path: Path | str,
     labels_key: str = "cell_type",
-):
+) -> ModelSet:
+    """
+    Attempts to load a trained model.  It will train from scratch with the currebnt data
+    if a saved model is not found.  _Probably_ it should just fail if the model is not found,
+    becuase the data would become "training" data.
+
+    Parameters
+    ----------
+    model_name : str
+        Name of the model.
+    model_path : Path
+        Path to save model. Default is `Path.cwd()`.
+    labels_key : str
+        Key for cell type labels. Default is `cell_type`.
+
+    Returns
+    -------
+    model_set : ModelSet
+        A ModelSet with the LazyModel versions of all pieces needed to define model_name
+
+    """
     # lazily load models and pack into apropriate ModelSet
 
     # automatically loaded when initiationg ModelSet
@@ -368,12 +388,8 @@ def get_trained_model(
     # TODO: the saving of genes should happen with the model... not here
 
     model_type = model_path.name
-    if model_type == "batch_eq":
-        data.set_output(model_name, batch_eq=True)
-        batch_key = "sample"
-    else:
-        data.set_output(model_name)
-        batch_key = None
+    batch_key = "sample" if model_type == "batch_eq" else None
+    data.set_output(model_name)
 
     models = {}
     # SCANVI E2E MODELS
@@ -385,14 +401,15 @@ def get_trained_model(
         # create a ground truth for SCANVI so we can clobber the labels_key for queries
         ad.obs["ground_truth"] = ad.obs[labels_key].to_list()
 
-        save_genes(ad, model_path / model_name)
+        # add list of genes to model_path/model_name for reloading model_set
+        archive_genes(ad, model_path / model_name)
 
         # load teh scvi model, scanvi_model, (qnd query models?)
         print(f"scanvi getting 0 {(model_path/SCVI_MODEL_NAME)}")
         # BUG:  assume that we already have an scvi model... need to delete if we want to retrain
         vae, ad = get_trained_scvi(
             ad,
-            labels_key=labels_key,
+            # labels_key=labels_key,
             model_path=model_path,
             retrain=False,  # only train a new one if we don't already have one... rquires deleting if we want to retrain
             model_name=SCVI_MODEL_NAME,
@@ -432,7 +449,7 @@ def get_trained_model(
 
         return model_set, data
 
-    basis = PCA_KEY
+    basis = PCA_KEY  # default
 
     if model_name in (
         SCVI_LATENT_MODEL_NAME,
@@ -443,7 +460,7 @@ def get_trained_model(
         XGB_SCVI_EXPR_PC_MODEL_NAME,
     ):
         # need vae
-        save_genes(ad, model_path / model_name)
+        archive_genes(ad, model_path / model_name)
         # assert genes in model_path/model_name == model_path/SCVI_MODEL_NAME ?
         print(f"getting scvi: 1 {(model_path/SCVI_MODEL_NAME)}")
 
@@ -454,7 +471,7 @@ def get_trained_model(
 
         vae, ad = get_trained_scvi(
             ad,
-            labels_key=labels_key,
+            # labels_key=labels_key,
             batch_key=batch_key,
             model_path=model_path,
             retrain=vae_retrain,  # only train a new one if we don't already have one... rquires deleting if we want to retrain
@@ -469,11 +486,11 @@ def get_trained_model(
         models = {SCVI_MODEL_NAME: vae}
         basis = SCVI_LATENT_KEY
 
-        # save_genes(ad, model_path / model_name)
+        # archive_genes(ad, model_path / model_name)
         # SCVI LBL8R LazyModel
         if model_name in (SCVI_LATENT_MODEL_NAME, XGB_SCVI_LATENT_MODEL_NAME):
             # 1. make the make_latent_adata
-            ad = prep_latent_z_adata(ad, vae.model, labels_key=labels_key)
+            ad = prep_latent_data(ad, vae)
 
         elif model_name in (
             SCVI_EXPRESION_MODEL_NAME,
@@ -494,14 +511,14 @@ def get_trained_model(
                 # save_pcs(ad, model_path / model_name)
 
     elif model_name in (RAW_PC_MODEL_NAME, XGB_RAW_PC_MODEL_NAME):
-        save_genes(ad, model_path / model_name)
+        archive_genes(ad, model_path / model_name)
 
         X_pca = data.X_pca
         # 1. make the pcs representation
         ad = prep_pcs_adata(ad, X_pca, pca_key=PCA_KEY)
 
     else:
-        save_genes(ad, model_path / model_name)
+        archive_genes(ad, model_path / model_name)
         # RAW model no update to adata
         print(f"{model_name} prep PCS for visualization")
         X_pca = data.X_pca
@@ -551,9 +568,7 @@ def get_trained_model(
     return model_set, data
 
 
-def prep_latent_data(
-    data: Adata, vae: LazyModel, labels_key: str = "cell_type"
-) -> Adata:
+def prep_latent_data(data: Adata, vae: LazyModel) -> Adata:
     """
     Prep adata for scVI LBL8R model
 
@@ -563,8 +578,6 @@ def prep_latent_data(
         dataclass holder for Annotated data matrix.
     model : LazyModel
         An classification model.
-    labels_key : str
-        Key for cell type labels. Default is `cell_type`.
 
     Returns
     -------
@@ -576,7 +589,7 @@ def prep_latent_data(
         vae.load_model(data.adata)
 
     # 1. get the latent representation
-    ad = prep_latent_z_adata(data.adata, vae=vae.model, labels_key=labels_key)
+    ad = prep_latent_z_adata(data.adata, vae=vae.model)
     # 2. update the data with the latent representation
     data.update(ad)
     return data
@@ -606,8 +619,7 @@ def prep_query_data(data: Adata, genes: list[str], ref_x_pca: ndarray | None) ->
         print(f"prep_query_data: genes n= {len(genes)}")
     # ad = data.adata[:, genes].copy()
 
-    # do we have ground truth labels?
-    print(f"prep_query_data labels_key: {data.labels_key=}")
+    # setting ground_truth key will force loading of adata so we can check if its in adata.obs
     if data.labels_key is not None:
         data.ground_truth_key = data.labels_key
     else:
@@ -617,32 +629,32 @@ def prep_query_data(data: Adata, genes: list[str], ref_x_pca: ndarray | None) ->
 
     ad = prep_target_genes(data.adata, genes)
 
-    # HACK: fix the two cells that are labeled as "dopaminergic"
-    if "CATCATAAGTAAACCC-1_2420-ARC" in ad.obs.index:
-        ad.obs.loc["CATCATAAGTAAACCC-1_2420-ARC", "cell_type"] = "OPCs"
-        print("fixed cell type labels 1")
-    if "CTACTTAGTCAGTAAT-1_SH-96-32-ARC" in ad.obs.index:
-        ad.obs.loc["CTACTTAGTCAGTAAT-1_SH-96-32-ARC", "cell_type"] = "glutamatergic"
-        print("fixed cell type labels 2")
-    if (
-        "CTACTTAGTCAGTAAT-1_SH-96-32-ARC" in ad.obs.index
-        or "CATCATAAGTAAACCC-1_2420-ARC" in ad.obs.index
-    ):
-        print("fixed cell type labels")
-        ad.obs["cell_type"].cat.set_categories(
-            [
-                "OPCs",
-                "astrocyte_fibro",
-                "astrocyte_proto",
-                "b_cells",
-                "choroid",
-                "gabergic",
-                "glutamatergic",
-                "microglia",
-                "oligos",
-                "t_cells",
-            ]
-        )
+    # # HACK: fix the two cells that are labeled as "dopaminergic"
+    # if "CATCATAAGTAAACCC-1_2420-ARC" in ad.obs.index:
+    #     ad.obs.loc["CATCATAAGTAAACCC-1_2420-ARC", "cell_type"] = "OPCs"
+    #     print("fixed cell type labels 1")
+    # if "CTACTTAGTCAGTAAT-1_SH-96-32-ARC" in ad.obs.index:
+    #     ad.obs.loc["CTACTTAGTCAGTAAT-1_SH-96-32-ARC", "cell_type"] = "glutamatergic"
+    #     print("fixed cell type labels 2")
+    # if (
+    #     "CTACTTAGTCAGTAAT-1_SH-96-32-ARC" in ad.obs.index
+    #     or "CATCATAAGTAAACCC-1_2420-ARC" in ad.obs.index
+    # ):
+    #     print("fixed cell type labels")
+    #     ad.obs["cell_type"].cat.set_categories(
+    #         [
+    #             "OPCs",
+    #             "astrocyte_fibro",
+    #             "astrocyte_proto",
+    #             "b_cells",
+    #             "choroid",
+    #             "gabergic",
+    #             "glutamatergic",
+    #             "microglia",
+    #             "oligos",
+    #             "t_cells",
+    #         ]
+    #     )
 
     # 1. make sure we have pcs (pc and raw models only)
     if ref_x_pca is not None:
@@ -862,7 +874,6 @@ def prep_query_model(
             query_data = prep_latent_data(
                 query_data,
                 model_set.model[QUERY_SCVI_MODEL_NAME],
-                labels_key=labels_key,
             )
 
     elif model_name in (

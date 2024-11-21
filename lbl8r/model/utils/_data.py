@@ -82,18 +82,26 @@ class Adata:
             return None
 
         if self._adata is None:
-            if self.is_backed:
-                print(f"WARNING::: untested loading backed adata: {self.adata_path}")
-                self._adata = read_h5ad(self.adata_path, backed="r+")
-            else:
-                self._adata = read_h5ad(self.adata_path)
-
+            self.load_adata()
             # need to make sure that we don't have empty cells.
 
-        self._loaded = True
-
-        self.ground_truth_key = CELL_TYPE_KEY
         return self._adata
+
+    def load_adata(self):
+        if self.is_backed:
+            print(f"WARNING::: untested loading backed adata: {self.adata_path}")
+            self._adata = read_h5ad(self.adata_path, backed="r+")
+        else:
+            self._adata = read_h5ad(self.adata_path)
+        self._loaded = True
+        # if ground_truth_key is not set set to loaded adata default
+        if self._ground_truth_key is None:
+            if CELL_TYPE_KEY in self.adata.obs_keys():
+                self._ground_truth_key = CELL_TYPE_KEY
+            else:
+                print(
+                    f"default ground_truth_key {CELL_TYPE_KEY} found in adata.obs_keys()"
+                )
 
     @property
     def adata_path(self):
@@ -244,6 +252,7 @@ class Adata:
     def loaded(self):
         return self._adata is not None
 
+    # labels keys are independent of the _adata.obs
     @property
     def labels_key(self):
         return self._labels_key
@@ -254,16 +263,21 @@ class Adata:
 
     @property
     def ground_truth_key(self):
+        if self._adata is None:
+            print("adata not loaded... trying to load")
+
         return self._ground_truth_key
 
     @ground_truth_key.setter
     def ground_truth_key(self, ground_truth_key: str):
         if self._adata is None:
-            print("adata not loaded")
-            return None
+            print("adata not loaded.. trying to load now")
+            self.load_adata()
 
         if ground_truth_key in self._adata.obs_keys():
             self._ground_truth_key = ground_truth_key
+        else:
+            print(f"{ground_truth_key} not found in adata.obs_keys()")
 
     @property
     def archive_path(self):
@@ -319,7 +333,7 @@ class Adata:
         """
         self._adata = adata
 
-    def set_output(self, model_name: str, batch_eq: bool = False):
+    def set_output(self, model_name: str):
         """
         Set the output name suffix and subdir based on model_name
         """
@@ -657,7 +671,11 @@ def prep_target_genes(adata: AnnData, target_genes: list[str]) -> AnnData:
     """
     print("                prepping target genes")
     # Identify missing variables
-    missing_vars = list(set(target_genes) - set(adata.var_names))
+    # need to touch adata to make sure adata.data is loaded
+    adata_var_names = adata.var_names.to_list()
+    have = set(adata_var_names)
+    target = set(target_genes)
+    missing_vars = list(target - have)
     # Create a dataframe/matrix of zeros for missing variables
     if len(missing_vars) > 0:
         if issparse(adata.X):
