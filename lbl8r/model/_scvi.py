@@ -199,12 +199,13 @@ def get_trained_scanvi(
             **training_kwargs,
         )
 
+    # we can skip SCANVI.setup_anndata because we are using the scvi model
     scanvi_path = model_path / model_name
     if model_exists(scanvi_path) and not retrain:
         scanvi_model = SCANVI.load(scanvi_path.as_posix(), adata)
     else:
         # only use labels_key for scanvi... not scvi... need
-        scanvi_model = SCANVI.from_scvi_model(vae, "Unknown", labels_key=labels_key)
+        scanvi_model = SCANVI.from_scvi_model(vae, UNLABELED, labels_key=labels_key)
         scanvi_model.train(
             max_epochs=scvi_epochs,
             n_samples_per_label=20,
@@ -361,7 +362,7 @@ def get_query_scanvi(
             **training_kwargs,
         )
 
-    adata.obsm[SCVI_LATENT_KEY] = scanvi_query.get_latent_representation(adata)
+    # adata.obsm[SCVI_LATENT_KEY] = scanvi_query.get_latent_representation(adata)
 
     if retrain or not model_exists(qscanvi_path):
         # save the reference model
@@ -414,8 +415,9 @@ def add_latent_obsm(ad: AnnData, model: SCVI | SCANVI) -> AnnData:
         Annotated data matrix with latent variables.
 
     """
-    key = SCVI_LATENT_KEY if isinstance(model, SCVI) else SCANVI_LATENT_KEY
 
+    key = SCVI_LATENT_KEY if isinstance(model, SCVI) else SCANVI_LATENT_KEY
+    print(f"adding {key} to ad.obsm for model type {model.__class__.__name__}")
     ad.obsm[key] = model.get_latent_representation(ad)
     return ad
 

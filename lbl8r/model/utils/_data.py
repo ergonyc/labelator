@@ -94,10 +94,15 @@ class Adata:
         else:
             self._adata = read_h5ad(self.adata_path)
         self._loaded = True
+
         # if ground_truth_key is not set set to loaded adata default
         if self._ground_truth_key is None:
             if CELL_TYPE_KEY in self.adata.obs_keys():
-                self._ground_truth_key = CELL_TYPE_KEY
+                if self.adata.obs[CELL_TYPE_KEY].isna().any():
+                    print(f"found missing values in {CELL_TYPE_KEY}")
+                    self._ground_truth_key = None
+                else:
+                    self._ground_truth_key = CELL_TYPE_KEY
             else:
                 print(
                     f"default ground_truth_key {CELL_TYPE_KEY} found in adata.obs_keys()"
@@ -475,7 +480,12 @@ def transfer_pcs(
     return query_ad
 
 
-def merge_into_obs(adata, source_table, insert_keys=None, prefix=None):
+def merge_into_obs(
+    adata: AnnData,
+    source_table: pd.DataFrame,
+    insert_keys: str | None = None,
+    prefix: str | None = None,
+) -> AnnData:
     """
     Add the predictions to the adata object. Performs a merge in case shuffled
 
@@ -516,6 +526,62 @@ def merge_into_obs(adata, source_table, insert_keys=None, prefix=None):
     adata.obs = pd.merge(obs, df, left_index=True, right_index=True, how="left").rename(
         columns={pred_key: insert_key}
     )
+
+    return adata
+
+
+def reset_ground_truth(
+    adata: AnnData,
+    labels_keys: str = "cell_type",
+    ground_truth_key: str = "ground_truth",
+) -> AnnData:
+    """
+    Reset the ground truth in adata.obs
+
+    Parameters
+    ----------
+    adata : AnnData
+        Annotated data matrix.
+    labels_keys : str
+        Key in `adata.obs` where predictions are stored.
+    ground_truth_key : str
+        Key in `adata.obs` where predictions are stored.
+
+    Returns
+    -------
+    AnnData
+        Annotated data matrix with predictions.
+
+    """
+    adata.obs[labels_keys] = adata.obs[ground_truth_key].to_list()
+
+    return adata
+
+
+def make_ground_truth(
+    adata: AnnData,
+    labels_key: str = "cell_type",
+    ground_truth_key: str = "ground_truth",
+) -> AnnData:
+    """
+    copy the ground truth into adata.obs
+
+    Parameters
+    ----------
+    adata : AnnData
+        Annotated data matrix.
+    labels_key : str
+        Key in `adata.obs` where predictions are stored.
+    ground_truth_key : str
+        Key in `adata.obs` where predictions are stored.
+
+    Returns
+    -------
+    AnnData
+        Annotated data matrix with predictions.
+
+    """
+    adata.obs[ground_truth_key] = adata.obs[labels_key].to_list()
 
     return adata
 
@@ -689,11 +755,11 @@ def prep_target_genes(adata: AnnData, target_genes: list[str]) -> AnnData:
         missing_ad = AnnData(
             X=zeros, var=pd.DataFrame(index=missing_vars), obs=adata.obs
         )
-        print(missing_ad)
+        # print(missing_ad)
         # Concatenate the original and the missing AnnData objects along the variables axis
         expanded_ad = ad_concat([adata, missing_ad], axis=1, join="outer")
         expanded_ad.obs = adata.obs.copy()
-        print(expanded_ad)
+        # print(expanded_ad)
     else:
         expanded_ad = adata.copy()
     # Ensure the order of variables matches all_vars

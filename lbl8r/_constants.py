@@ -17,6 +17,7 @@ MDE_KEY = "X_mde"
 UMAP_KEY = "X_umap"
 
 CELL_TYPE_KEY = "cell_type"
+UNLABELED = "Unknown"
 
 ## export name parts
 EXPR = "_expr"
@@ -60,9 +61,6 @@ XGB_SCVI_EXPR_PC_MODEL_NAME = "scvi_expr_pcs_xgb"
 XGB_RAW_PC_MODEL_NAME = "pcs_xgb"
 XGB_RAW_COUNT_MODEL_NAME = "raw_xgb"
 
-# E2E model names
-# lbl8r
-
 
 # e2e XGBoost model names
 
@@ -97,6 +95,7 @@ __all__ = [
     "MDE_KEY",
     "UMAP_KEY",
     "CELL_TYPE_KEY",
+    "UNLABELED",
     "EXPR",
     "OUT",
     "H5",

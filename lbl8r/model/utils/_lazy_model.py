@@ -143,11 +143,7 @@ class ModelSet:
         self.path = Path(self.path)
         # load saved pcs if they exist
         self._name = self.path.name
-        # if "pcs" in self.path.name or "raw" in self.path.name:
-        #     print(f"pre init load_pcs: {self.path.name}")
-        #     self._pcs = load_pcs(self.path)
-        # print(f"loaded pcs: {self.pcs}")
-        print("post init load_genes")
+        # print("post init load_genes")
         self._genes = load_genes(self.path)
 
     def add_model(self, mods: dict[str, LazyModel]):
@@ -217,6 +213,11 @@ class ModelSet:
         if model_name not in self.model.keys():
             raise ValueError(f"model_name must be one of: {self.model.keys()}")
         self._default = model_name
+
+    def get_default(self):
+        if self.default is None:
+            raise ValueError("No default model set")
+        return self.model[self.default]
 
     # def load_model(self, model_name: str, adata: AnnData):
     #     self.model[model_name].load_model(adata)
