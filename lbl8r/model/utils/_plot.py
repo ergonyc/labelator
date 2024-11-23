@@ -117,7 +117,11 @@ def pack_fig(
                 filen = file_nm.replace(try_ext, "")
                 break
 
-    fig.suptitle(f"{fig_dir.stem}/{filen}")
+    if fig_dir is not None:
+        fig.suptitle(f"{fig_dir.stem}/{filen}")
+    else:
+        fig.suptitle(f"...{filen}")
+
     if show:
         fig.show()
 
