@@ -575,7 +575,7 @@ def prep_query_pcs(data: Adata, ref_x_pca: ndarray) -> Adata:
     if ref_x_pca is not None:
         # add x_pca
         # TODO: make sure old PCS are elegantly overwritten
-        ad = add_pc_loadings(ad, ref_x_pca)
+        ad = add_pc_loadings(data.adata, ref_x_pca)
         data.update(ad)
         print("➡️ transferred X_pca to query data (prep_query_data)")
     else:
