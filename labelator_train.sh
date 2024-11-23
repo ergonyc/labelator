@@ -51,7 +51,11 @@ scvi_model_names=("scvi_emb" "scvi_expr" "scvi_expr_pcs" "scanvi")
 
 # set_names=("1k" "2k" "3k" "5k" "10k")
 set_names=("1k" "2k" "3k" "5k")
+set_names=("10k")
 model_types=("naive" "count" "batch_eq")
+# model_types=("naive")
+set_names=("3k")
+# scvi_model_names=("scvi_emb")
 
 for set_name in "${set_names[@]}"
 do

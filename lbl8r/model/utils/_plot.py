@@ -117,7 +117,11 @@ def pack_fig(
                 filen = file_nm.replace(try_ext, "")
                 break
 
-    fig.suptitle(f"{fig_dir.stem}/{filen}")
+    if fig_dir is not None:
+        fig.suptitle(f"{fig_dir.stem}/{filen}")
+    else:
+        fig.suptitle(f"...{filen}")
+
     if show:
         fig.show()
 
@@ -251,6 +255,11 @@ def plot_predictions(
     # Keep the first 'pred' and all other columns
     df = df.loc[:, ~df.columns.duplicated()].copy()
     # TODO: fix the problem upstream...
+
+    if df[cell_type_key].isna().sum() > 0:
+        print(f"Missing {cell_type_key} labels.  Skipping...")
+        print(df[pred_key].value_counts())
+        return None
 
     # Calculate precision, recall, and F1-score
     prec = precision_score(df[cell_type_key], df[pred_key], average="macro")

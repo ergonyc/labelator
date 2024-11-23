@@ -16,7 +16,6 @@ from .._constants import *
 def prep_latent_z_adata(
     adata: AnnData,
     vae: SCVI,
-    labels_key: str = "cell_type",
 ) -> AnnData:
     """
     make an adata with VAE latent z embedding in adata.X.
@@ -27,8 +26,6 @@ def prep_latent_z_adata(
         Annotated data matrix.
     vae : SCVI
         An scVI model.
-    labels_key : str
-        Key for pca loadings. Default is `cell_type`.
 
     Returns
     -------
@@ -37,7 +34,8 @@ def prep_latent_z_adata(
 
     """
     adata = adata.copy()
-    SCVI.setup_anndata(adata, labels_key=labels_key, batch_key=None)  # "dummy")
+    # SCVI.setup_anndata(adata, labels_key=labels_key, batch_key=None)  # "dummy")
+    SCVI.setup_anndata(adata, batch_key=None)  # "dummy")
 
     latent_ad = make_latent_adata(adata, scvi_model=vae, return_dist=False)
     latent_ad.obsm[SCVI_LATENT_KEY] = (
@@ -64,7 +62,7 @@ def get_trained_scvi(
     ----------
     adata : AnnData
         Annotated data matrix.
-    labels_key : str
+    labels_key : str TODO: depricate
         Key for cell type labels. Default is `cell_type`.
     model_path : Path
         Path to save model. Default is `Path.cwd()`.
@@ -103,7 +101,7 @@ def get_trained_scvi(
         adata,
         batch_key=batch_key,  # using this to prevent issues with categorical covariates
         layer=layer,
-        labels_key=labels_key,
+        # labels_key=labels_key,
         categorical_covariate_keys=categorical_covariate_keys,
         continuous_covariate_keys=continuous_covariate_keys,
         size_factor_key=size_factor_key,
@@ -193,7 +191,7 @@ def get_trained_scanvi(
         scvi_model_name = "SCVI" + model_name
         vae, adata = get_trained_scvi(
             adata,
-            labels_key=labels_key,
+            # labels_key=labels_key,
             batch_key=batch_key,
             model_path=model_path,
             retrain=False,
@@ -201,11 +199,13 @@ def get_trained_scanvi(
             **training_kwargs,
         )
 
+    # we can skip SCANVI.setup_anndata because we are using the scvi model
     scanvi_path = model_path / model_name
     if model_exists(scanvi_path) and not retrain:
         scanvi_model = SCANVI.load(scanvi_path.as_posix(), adata)
     else:
-        scanvi_model = SCANVI.from_scvi_model(vae, "Unknown", labels_key=labels_key)
+        # only use labels_key for scanvi... not scvi... need
+        scanvi_model = SCANVI.from_scvi_model(vae, UNLABELED, labels_key=labels_key)
         scanvi_model.train(
             max_epochs=scvi_epochs,
             n_samples_per_label=20,
@@ -244,7 +244,7 @@ def get_query_scvi(
         Annotated data matrix.
     vae : SCVI
         An scVI model.
-    labels_key : str
+    labels_key : str   TODO: depricate
         Key for cell type labels. Default is `cell_type`.
     batch_key : str
         Key for batch labels. Default is `None`.
@@ -275,18 +275,16 @@ def get_query_scvi(
     qscvi_path = model_path.parent / model_name
     # failing here... ?!?
     SCVI.prepare_query_anndata(adata, vae)
-    # the query model might exist if we are not batch correcting... need to fix...
-    if batch_eq:
-        # just use the vae.
-        if isinstance(vae, SCVI):
-            scvi_query = vae
-        else:
-            scvi_query = SCVI.load(vae, adata)
 
-    elif model_exists(qscvi_path) and not retrain:
+    # # the query model might exist if we are not batch correcting... need to fix...
+    # if not batch_eq:
+    #     # just use the vae.
+
+    if model_exists(qscvi_path) and not retrain:
         scvi_query = SCVI.load(qscvi_path.as_posix(), adata)
         print(f"loaded query scvi model from {qscvi_path}")
     else:
+
         scvi_query = SCVI.load_query_data(adata, vae)
         scvi_query.train(
             max_epochs=surgery_epochs,
@@ -298,6 +296,7 @@ def get_query_scvi(
         )
 
     adata.obsm[SCVI_LATENT_KEY] = scvi_query.get_latent_representation(adata)
+
     if retrain or not model_exists(qscvi_path):
         scvi_query.save(qscvi_path, overwrite=True)
         print(f"saved query model to {qscvi_path}")
@@ -363,7 +362,7 @@ def get_query_scanvi(
             **training_kwargs,
         )
 
-    adata.obsm[SCVI_LATENT_KEY] = scanvi_query.get_latent_representation(adata)
+    # adata.obsm[SCVI_LATENT_KEY] = scanvi_query.get_latent_representation(adata)
 
     if retrain or not model_exists(qscanvi_path):
         # save the reference model
@@ -416,8 +415,9 @@ def add_latent_obsm(ad: AnnData, model: SCVI | SCANVI) -> AnnData:
         Annotated data matrix with latent variables.
 
     """
-    key = SCVI_LATENT_KEY if isinstance(model, SCVI) else SCANVI_LATENT_KEY
 
+    key = SCVI_LATENT_KEY if isinstance(model, SCVI) else SCANVI_LATENT_KEY
+    print(f"adding {key} to ad.obsm for model type {model.__class__.__name__}")
     ad.obsm[key] = model.get_latent_representation(ad)
     return ad
 

@@ -1,6 +1,8 @@
 import pandas as pd
 import numpy as np
 
+from ..._constants import UNLABELED
+
 
 def get_stats_table(
     probabilities: dict, categories: np.ndarray, index: np.ndarray, soft: bool = True
@@ -26,6 +28,8 @@ def get_stats_table(
 
 
     """
+    # remove unknown category
+    categories = categories[categories != UNLABELED]
 
     if not soft:
         preds_df = pd.DataFrame(probabilities["logit"], columns=categories, index=index)

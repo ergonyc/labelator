@@ -35,6 +35,8 @@ from .model.utils._data import (
     Adata,
     prep_target_genes,
     merge_into_obs,
+    reset_ground_truth,
+    make_ground_truth,
     add_pc_loadings,
 )
 from .model.utils._lazy_model import LazyModel, ModelSet
@@ -47,7 +49,7 @@ from .model.utils._plot import (
 )
 from .model.utils._artifact import (
     # save_pcs,
-    save_genes,
+    archive_genes,
 )
 from ._constants import *
 
@@ -76,7 +78,7 @@ def train_lbl8r(
     """
     print(f"{train_path=}:: {model_path=}:: {model_name=}")
     print(f"{output_data_path=}:: {artifacts_path=}:: {retrain_model=}:: {labels_key=}")
-    scvi.settings.dl_num_workers = 10
+    scvi.settings.dl_num_workers = 15
 
     ## LOAD DATA ###################################################################
     train_data = load_training_data(train_path, archive_path=output_data_path)
@@ -96,13 +98,10 @@ def train_lbl8r(
         retrain=retrain_model,
         **training_kwargs,
     )
-
-    # In[ ]
     ## QUERY MODEL ###################################################################
     print(f"train_model: {'🏋️ '*25}")
     train_data = query_model(train_data, model_set)
 
-    # In[ ]
     ## CREATE ARTIFACTS ###################################################################
     # TODO:  wrap in Models, Figures, and Adata in Artifacts class.
     #       currently the models are saved as soon as they are trained, but the figures and adata are not saved until the end.
@@ -135,7 +134,7 @@ def query_lbl8r(
     #     scvi.settings.dl_num_workers = 15
     # else:
     #     scvi.settings.dl_num_workers = 0
-    scvi.settings.dl_num_workers = 10
+    scvi.settings.dl_num_workers = 15
 
     ## LOAD DATA ###################################################################
     query_data = load_data(query_path, archive_path=output_data_path)
@@ -149,7 +148,6 @@ def query_lbl8r(
     model_set = load_trained_model(model_name, model_path, labels_key=labels_key)
     # if no traing data is loaded (just prepping for query) return placeholder data
 
-    # In[ ]
     ## QUERY MODELs ###################################################################
     # makes sure the genes correspond to those of the prepped model
     #     projects counts onto the principle components of the training datas eigenvectors as 'X_pca'
@@ -165,10 +163,9 @@ def query_lbl8r(
         retrain=retrain_model,
     )
 
-    # In[ ]
     print(f"query_model: {'🔮 '*25}")
     query_data = query_model(query_data, model_set)
-    # In[ ]
+
     ## CREATE ARTIFACTS ###################################################################
     print(f"archive query plots and data: {'📊 '*25}")
     archive_plots(query_data, model_set, "query", fig_path=artifacts_path)
@@ -207,17 +204,15 @@ def load_data(adata_path: str | Path, archive_path: str | Path) -> Adata:
     return data
 
 
-# TODO: depricate this
-def prep_model(
-    data: Adata,
+def load_trained_model(
     model_name: str,
     model_path: Path | str,
     labels_key: str = "cell_type",
-    retrain: bool = False,
-    **training_kwargs,
-) -> tuple[ModelSet, Adata]:
+) -> ModelSet:
     """
-    Load a model from path or train and prep data
+    Attempts to load a trained model.  It will train from scratch with the currebnt data
+    if a saved model is not found.  _Probably_ it should just fail if the model is not found,
+    becuase the data would become "training" data.
 
     Parameters
     ----------
@@ -225,58 +220,15 @@ def prep_model(
         Name of the model.
     model_path : Path
         Path to save model. Default is `Path.cwd()`.
+    labels_key : str
+        Key for cell type labels. Default is `cell_type`.
 
     Returns
     -------
-    SCVI | SCANVI | LBL8R | Booster
-        A model object.
+    model_set : ModelSet
+        A ModelSet with the LazyModel versions of all pieces needed to define model_name
 
     """
-    print(f"prep_model0: getting {(model_path/model_name)} model")
-
-    if model_path.exists() and not retrain and data is None:
-        # lazy load model
-        print(f"prep_model 1 (no data): loading {(model_path/model_name)} model")
-        model = load_trained_model(model_name, model_path, labels_key=labels_key)
-        # if no traing data is loaded (just prepping for query) return placeholder data
-
-        print("no train_data passed")
-        data = Adata(None)
-
-        model.prepped = False
-        return model, data
-
-    elif data is not None:
-        # train model.
-        print(f"prep_model 2: training {(model_path/model_name)} model")
-
-        data.labels_key = labels_key
-        model, data = get_trained_model(
-            data,
-            model_name,
-            model_path,
-            labels_key=labels_key,
-            retrain=retrain,
-            **training_kwargs,
-        )
-
-        model.prepped = True
-
-        return model, data
-
-    else:
-        raise ValueError(
-            f"No trained{model_name} at {model_path}. Need training `data` to train model."
-        )
-
-        # we don't have trainign data so can only load a model.
-
-
-def load_trained_model(
-    model_name: str,
-    model_path: Path | str,
-    labels_key: str = "cell_type",
-):
     # lazily load models and pack into apropriate ModelSet
 
     # automatically loaded when initiationg ModelSet
@@ -368,12 +320,11 @@ def get_trained_model(
     # TODO: the saving of genes should happen with the model... not here
 
     model_type = model_path.name
-    if model_type == "batch_eq":
-        data.set_output(model_name, batch_eq=True)
-        batch_key = "sample"
-    else:
-        data.set_output(model_name)
-        batch_key = None
+    batch_key = "sample" if model_type == "batch_eq" else None
+    data.set_output(model_name)
+
+    # create a ground truth for SCANVI so we can clobber the labels_key for queries
+    ad.obs["ground_truth"] = ad.obs[labels_key]
 
     models = {}
     # SCANVI E2E MODELS
@@ -382,17 +333,15 @@ def get_trained_model(
         # put the batch_key back in the training_kwargs
         training_kwargs["batch_key"] = batch_key
 
-        # create a ground truth for SCANVI so we can clobber the labels_key for queries
-        ad.obs["ground_truth"] = ad.obs[labels_key].to_list()
-
-        save_genes(ad, model_path / model_name)
+        # add list of genes to model_path/model_name for reloading model_set
+        archive_genes(ad, model_path / model_name)
 
         # load teh scvi model, scanvi_model, (qnd query models?)
         print(f"scanvi getting 0 {(model_path/SCVI_MODEL_NAME)}")
         # BUG:  assume that we already have an scvi model... need to delete if we want to retrain
         vae, ad = get_trained_scvi(
             ad,
-            labels_key=labels_key,
+            # labels_key=labels_key,
             model_path=model_path,
             retrain=False,  # only train a new one if we don't already have one... rquires deleting if we want to retrain
             model_name=SCVI_MODEL_NAME,
@@ -432,7 +381,7 @@ def get_trained_model(
 
         return model_set, data
 
-    basis = PCA_KEY
+    basis = PCA_KEY  # default
 
     if model_name in (
         SCVI_LATENT_MODEL_NAME,
@@ -443,7 +392,7 @@ def get_trained_model(
         XGB_SCVI_EXPR_PC_MODEL_NAME,
     ):
         # need vae
-        save_genes(ad, model_path / model_name)
+        archive_genes(ad, model_path / model_name)
         # assert genes in model_path/model_name == model_path/SCVI_MODEL_NAME ?
         print(f"getting scvi: 1 {(model_path/SCVI_MODEL_NAME)}")
 
@@ -454,7 +403,7 @@ def get_trained_model(
 
         vae, ad = get_trained_scvi(
             ad,
-            labels_key=labels_key,
+            # labels_key=labels_key,
             batch_key=batch_key,
             model_path=model_path,
             retrain=vae_retrain,  # only train a new one if we don't already have one... rquires deleting if we want to retrain
@@ -469,11 +418,12 @@ def get_trained_model(
         models = {SCVI_MODEL_NAME: vae}
         basis = SCVI_LATENT_KEY
 
-        # save_genes(ad, model_path / model_name)
+        # archive_genes(ad, model_path / model_name)
         # SCVI LBL8R LazyModel
         if model_name in (SCVI_LATENT_MODEL_NAME, XGB_SCVI_LATENT_MODEL_NAME):
             # 1. make the make_latent_adata
-            ad = prep_latent_z_adata(ad, vae.model, labels_key=labels_key)
+            # ad = prep_latent_data(ad, vae)
+            ad = prep_latent_z_adata(ad, vae)
 
         elif model_name in (
             SCVI_EXPRESION_MODEL_NAME,
@@ -494,14 +444,14 @@ def get_trained_model(
                 # save_pcs(ad, model_path / model_name)
 
     elif model_name in (RAW_PC_MODEL_NAME, XGB_RAW_PC_MODEL_NAME):
-        save_genes(ad, model_path / model_name)
+        archive_genes(ad, model_path / model_name)
 
         X_pca = data.X_pca
         # 1. make the pcs representation
         ad = prep_pcs_adata(ad, X_pca, pca_key=PCA_KEY)
 
     else:
-        save_genes(ad, model_path / model_name)
+        archive_genes(ad, model_path / model_name)
         # RAW model no update to adata
         print(f"{model_name} prep PCS for visualization")
         X_pca = data.X_pca
@@ -515,6 +465,7 @@ def get_trained_model(
         get_model = get_xgb2
     else:
         get_model = get_lbl8r
+        print(f"getting lbl8r model: {model_name}")
 
     model, ad = get_model(
         ad,
@@ -551,9 +502,7 @@ def get_trained_model(
     return model_set, data
 
 
-def prep_latent_data(
-    data: Adata, vae: LazyModel, labels_key: str = "cell_type"
-) -> Adata:
+def prep_latent_data(data: Adata, vae: LazyModel) -> Adata:
     """
     Prep adata for scVI LBL8R model
 
@@ -563,8 +512,6 @@ def prep_latent_data(
         dataclass holder for Annotated data matrix.
     model : LazyModel
         An classification model.
-    labels_key : str
-        Key for cell type labels. Default is `cell_type`.
 
     Returns
     -------
@@ -576,15 +523,16 @@ def prep_latent_data(
         vae.load_model(data.adata)
 
     # 1. get the latent representation
-    ad = prep_latent_z_adata(data.adata, vae=vae.model, labels_key=labels_key)
+    ad = prep_latent_z_adata(data.adata, vae=vae.model)
+
     # 2. update the data with the latent representation
     data.update(ad)
     return data
 
 
-def prep_query_data(data: Adata, genes: list[str], ref_x_pca: ndarray | None) -> Adata:
+def prep_query_genes(data: Adata, genes: list[str]) -> Adata:
     """
-    Prep adata for query
+    Prep adata for query by making sure we have the right genes
 
     Parameters
     ----------
@@ -592,68 +540,47 @@ def prep_query_data(data: Adata, genes: list[str], ref_x_pca: ndarray | None) ->
         dataclass holder for Annotated data matrix.
     genes : list[str]
         List of genes model expects (from training data)
-    ref_x_pca : ndarray
-        data projected onto "training" pcs
 
     Returns
     -------
     Adata
         Adata with gene subsetted
     """
-    if ref_x_pca is not None:
-        print(f"prep_query_data: genes n= {len(genes)}, x_pca = {ref_x_pca.shape}")
-    else:
-        print(f"prep_query_data: genes n= {len(genes)}")
-    # ad = data.adata[:, genes].copy()
-
-    # do we have ground truth labels?
-    print(f"prep_query_data labels_key: {data.labels_key=}")
-    if data.labels_key is not None:
-        data.ground_truth_key = data.labels_key
-    else:
-        # TODO: fix "ground_truth" logic
-        print("should I set ground_truth_key to 'Unknown'?")
-        # data.ground_truth_key = "Unknown"
+    print(f"prep_query_genes: n= {len(genes)}")
 
     ad = prep_target_genes(data.adata, genes)
+    data.update(ad)
+    return data
 
-    # HACK: fix the two cells that are labeled as "dopaminergic"
-    if "CATCATAAGTAAACCC-1_2420-ARC" in ad.obs.index:
-        ad.obs.loc["CATCATAAGTAAACCC-1_2420-ARC", "cell_type"] = "OPCs"
-        print("fixed cell type labels 1")
-    if "CTACTTAGTCAGTAAT-1_SH-96-32-ARC" in ad.obs.index:
-        ad.obs.loc["CTACTTAGTCAGTAAT-1_SH-96-32-ARC", "cell_type"] = "glutamatergic"
-        print("fixed cell type labels 2")
-    if (
-        "CTACTTAGTCAGTAAT-1_SH-96-32-ARC" in ad.obs.index
-        or "CATCATAAGTAAACCC-1_2420-ARC" in ad.obs.index
-    ):
-        print("fixed cell type labels")
-        ad.obs["cell_type"].cat.set_categories(
-            [
-                "OPCs",
-                "astrocyte_fibro",
-                "astrocyte_proto",
-                "b_cells",
-                "choroid",
-                "gabergic",
-                "glutamatergic",
-                "microglia",
-                "oligos",
-                "t_cells",
-            ]
-        )
+
+def prep_query_pcs(data: Adata, ref_x_pca: ndarray) -> Adata:
+    """
+    Prep adata for query
+
+    Parameters
+    ----------
+    data : Adata
+        dataclass holder for Annotated data matrix.
+    ref_x_pca : ndarray
+        data projected onto "training" pcs
+
+    Returns
+    -------
+    Adata
+        Adata pc loadings
+    """
+    print(f"prep_query_pcs: x_pca = {ref_x_pca.shape}")
 
     # 1. make sure we have pcs (pc and raw models only)
     if ref_x_pca is not None:
         # add x_pca
         # TODO: make sure old PCS are elegantly overwritten
         ad = add_pc_loadings(ad, ref_x_pca)
+        data.update(ad)
         print("➡️ transferred X_pca to query data (prep_query_data)")
     else:
         print("no X_pca to transfer. ")
 
-    data.update(ad)
     return data
 
 
@@ -734,10 +661,16 @@ def query_model(
 
     """
 
-    model = model_set.model[model_set.default]
+    # model = model_set.model[model_set.default]
+    model = model_set.get_default()
 
     if not model.loaded:
+        # failing here for scvi_emb... why?
+        # default model is LBL8R... why can't it load?  needs the labels?
+        print(f"query_model: loading {model.name} model")
         model.load_model(data.adata)
+    else:
+        print(f"query_model: {model.name} model already loaded")
 
     # TODO: update interface to query_scanvi, query_lbl8r_raw, query_xgb so the predictiosn tables are returned
     #   do the merge_into_obs here, and also serialize the tables.
@@ -745,27 +678,28 @@ def query_model(
     ad = data.adata
 
     xgb_report = None
-    if isinstance(model.model, scvi.model.SCANVI):
-        # "transfer learning" query models which need to be trained
-        predictions = query_scanvi(ad, model.model)
+
+    match model.type:
+        case "scanvi":
+            # "transfer learning" query models which need to be trained
+            predictions = query_scanvi(ad, model.model)
         # fix the labels_key with "ground_truth"
-        ad.obs[model_set.labels_key] = ad.obs["ground_truth"].to_list()
-    # no prep needed to query these models.
-    elif isinstance(model.model, LBL8R):
-        predictions = query_lbl8r_raw(ad, model.model)
-    elif isinstance(model.model, XGB):
-        predictions, xgb_report = query_xgb(ad, model.model)
-        # TODO: do something with the report...
-    else:
-        raise ValueError(f"model {model.model} is not a valid model")
+        case "lbl8r":
+            predictions = query_lbl8r_raw(ad, model.model)
+        case "xgb":
+            print(f"ERROR!!  we have depricated XGB models")
+            predictions, xgb_report = query_xgb(ad, model.model)
+            # TODO: do something with the report..
+
+        case _:
+            raise ValueError(f"model {model.model} is not a valid model")
 
     ad = merge_into_obs(ad, predictions)
-
+    if not data.training:
+        ad = reset_ground_truth(ad)
     # update data with ad
     data.update(ad)
-    # TODO: load the predictions into the model_set.. need to keep "train" validation and "query" predictions separate
-    # TODO: naming convention for saving datat
-    # model_set.predictions = predictions
+
     # model_set.report = xgb_report
     data.predictions = predictions
 
@@ -809,12 +743,10 @@ def prep_query_model(
     query_data.labels_key = labels_key
     genes = model_set.genes
 
-    x_pca = query_data.X_pca if model_set.basis == PCA_KEY else None
-
     # NOTE: scanvi / scvi scarches mixin prep_query_data automatically handles this...
-    query_data = prep_query_data(query_data, genes, x_pca)
+    query_data = prep_query_genes(query_data, genes)
 
-    # 1. prep query data (normalize / get latents / transfer PCs (if normalized) )
+    # 0) get scvi if we need it:
     if model_name in (
         SCVI_EXPRESION_MODEL_NAME,
         XGB_SCVI_EXPRESION_MODEL_NAME,
@@ -825,35 +757,51 @@ def prep_query_model(
         SCVI_LATENT_MODEL_NAME,
         XGB_SCVI_LATENT_MODEL_NAME,
     ):
-        # SCANVI models actually need to be fit (transfer learning...)
+        # calls SCVI.setup_anndata and lables not needed
         query_data, model_set = prep_query_scvi(
             query_data,
             model_set,
             retrain=retrain,
         )
 
+    # 1) SCANVI models
+    if model_name == SCANVI_MODEL_NAME:
+        # SCANVI models actually need to be fit (transfer learning...)
+        query_data, model_set = prep_query_scanvi(
+            query_data,
+            model_set,
+            retrain=retrain,
+        )
+
+    # 2) LBL8R models
+    else:
+        # prep data
+        # get scvi expr if we need it
         if model_name in (
             SCVI_EXPRESION_MODEL_NAME,
             XGB_SCVI_EXPRESION_MODEL_NAME,
             SCVI_EXPR_PC_MODEL_NAME,
             XGB_SCVI_EXPR_PC_MODEL_NAME,
         ):
-            # add latent representation to query_data?
-            # ad.obsm["X_scVI"] = model.vae.get_latent_representation(query_data.data)
-            # query_data.update(ad)
-            # TODO:  in order to get the pcs we need the reference vectors (PCs) from training data
-            # SCVI expression models
-
             query_data = prep_expr_data(
                 query_data, model_set.model[QUERY_SCVI_MODEL_NAME]
             )
 
-            if model_name in (
-                SCVI_EXPR_PC_MODEL_NAME,
-                XGB_SCVI_EXPR_PC_MODEL_NAME,
-            ):
-                query_data = prep_pc_data(query_data)
+        # add pcs
+        if model_set.basis == PCA_KEY:
+            x_pca = query_data.X_pca
+            query_data = prep_query_pcs(query_data, x_pca)
 
+        # prep data for pc models
+        if model_name in (
+            SCVI_EXPR_PC_MODEL_NAME,
+            XGB_SCVI_EXPR_PC_MODEL_NAME,
+            RAW_PC_MODEL_NAME,
+            XGB_RAW_PC_MODEL_NAME,
+        ):
+            query_data = prep_pc_data(query_data)
+
+        # prep data for scvi latent models
         elif model_name in (
             SCVI_LATENT_MODEL_NAME,
             XGB_SCVI_LATENT_MODEL_NAME,
@@ -862,26 +810,38 @@ def prep_query_model(
             query_data = prep_latent_data(
                 query_data,
                 model_set.model[QUERY_SCVI_MODEL_NAME],
-                labels_key=labels_key,
             )
 
-    elif model_name in (
-        RAW_PC_MODEL_NAME,
-        XGB_RAW_PC_MODEL_NAME,
-    ):
-        # PCS models
-        query_data = prep_pc_data(query_data)
+        else:
+            print(f"ERROR: what kind of model is this?!? {model_name}")
 
-    elif model_name == SCANVI_MODEL_NAME:
+        # SCANVI already did this... TODO: make a wrapper function
+        ad = make_ground_truth(query_data.adata, labels_key=labels_key)
+        # code labels_key with UNLABELED for query
+        ad.obs[labels_key] = UNLABELED
+        if ad.obs["ground_truth"].isnull().sum() > 0:
+            print(f"ground_truth has {ad.obs['ground_truth'].isnull().sum()} nulls")
+            query_data.ground_truth_key = None
+        query_data.update(ad)
 
-        # SCANVI models actually need to be fit (transfer learning...)
-        query_data, model_set = prep_query_scanvi(
-            query_data,
-            model_set,
-            retrain=retrain,
-        )
+        # set up anndata for LBL8R models
+        if model_name not in [
+            XGB_RAW_PC_MODEL_NAME,
+            XGB_SCVI_LATENT_MODEL_NAME,
+            XGB_SCVI_EXPR_PC_MODEL_NAME,
+            XGB_SCVI_EXPRESION_MODEL_NAME,
+        ]:
+            LBL8R.setup_anndata(
+                query_data.adata, labels_key=query_data.labels_key
+            )  # "dummy")
+            print(f"setup anndata (LBL8R) for {model_name} ")
+            # force load model here?
+
+        else:  # nonXGB models are LBL8R models
+            print("xgb models are depricated")
+
     print(
-        f"prep_query_model: {model_name} prep_expr_data. nvar = {query_data.adata.n_vars}"
+        f"prep_query_model: {model_name} finished prep. nvar = {query_data.adata.n_vars}"
     )
     # 2. update the data with the latent representation
     query_data.labels_key = labels_key
@@ -889,10 +849,13 @@ def prep_query_model(
     # add MDE to adata
     if model_set.basis == SCVI_LATENT_KEY:
         query_data.adata.obsm[SCVI_MDE_KEY] = query_data.X_scvi_mde
+        print(f"added {SCVI_MDE_KEY} to adata")
     elif model_set.basis == SCANVI_LATENT_KEY:
         query_data.adata.obsm[SCANVI_MDE_KEY] = query_data.X_scanvi_mde
+        print(f"added {SCANVI_MDE_KEY} to adata")
     else:
         query_data.adata.obsm[MDE_KEY] = query_data.X_mde
+        print(f"added {MDE_KEY} (pca) to adata")
 
     return model_set, query_data
 
@@ -1001,9 +964,12 @@ def prep_query_scanvi(
     ad = ad[:, trained_genes].copy()
 
     # create a ground truth for SCANVI so we can clobber the labels_key for queries
-    labels = ad.obs[labels_key].to_list()
-    ad.obs["ground_truth"] = labels
-    ad.obs[labels_key] = "Unknown"
+    ad = make_ground_truth(ad, labels_key=labels_key)
+    # code labels_key with UNLABELED for query
+    ad.obs[labels_key] = UNLABELED
+    if ad.obs["ground_truth"].isnull().sum() > 0:
+        print(f"ground_truth has {ad.obs['ground_truth'].isnull().sum()} nulls")
+        data.ground_truth_key = None
 
     # if we are in query only mode we need to pass strings of the model paths instead of models
     # vae = model_set.model[SCVI_MODEL_NAME].model
@@ -1138,8 +1104,9 @@ def archive_plots(
             f"{train_or_query.upper()}_{main_model.name}_{data.name.rstrip('.h5ad')}"
         )
         fig_kwargs = dict(fig_dir=fig_dir, fig_nm=file_nm, show=False)
-        fg = plot_lbl8r_training(main_model.model.history, **fig_kwargs)
-        figs.extend(fg)
+        if main_model.model.history is not None:
+            fg = plot_lbl8r_training(main_model.model.history, **fig_kwargs)
+            figs.extend(fg)
 
     elif main_model.type == "xgb":
         print("plotting for XGBoost training not available")
@@ -1152,6 +1119,7 @@ def archive_plots(
 
     # predictions
     title_str = fig_nm.replace("_", "-")
+    # TODO: fixe ground_truth_key and also add cellassign prediction comparison
     if ground_truth_key is not None:
         fg = plot_predictions(
             ad,
